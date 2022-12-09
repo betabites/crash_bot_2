@@ -1,0 +1,3220 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <title>Re-Flesh</title>
+    <link rel="stylesheet" href="/web_assets/fontawesome/css/all.css">
+
+    <link rel="apple-touch-icon" href="/web_assets/images/icon.png">
+    <link rel="icon" href="/web_assets/images/icon.png">
+    <link rel="manifest" href="/web_assets/manifest.webmanifest" crossorigin="use-credentials">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka&display=swap');
+        :root {
+            /*--bimage: url("/web_assets/images/2022-03-09_12.33.03.png")*/
+            --bimage: url("https://cdn.discordapp.com/attachments/910649212264386583/953211224739422218/32F462AE-ED7D-4E68-BE3E-97D15F914AE9.JPG");
+        }
+
+        @font-face {
+            font-family: Minecraft;
+            src: url("/web_assets/fonts/MinecraftRegular-Bmg3.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft;
+            font-weight: bold;
+            src: url("/web_assets/fonts/MinecraftBold-nMK1.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft;
+            font-style: italic;
+            src: url("/web_assets/fonts/MinecraftItalic-R8Mo.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft;
+            font-weight: bold;
+            font-style: italic;
+            src: url("/web_assets/fonts/MinecraftBoldItalic-1y1e.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft-Ten;
+            src: url("/web_assets/fonts/MinecraftTen-VGORe.ttf");
+        }
+
+        body {
+            /*font-family: Minecraft,serif;*/
+            font-family: 'Fredoka', sans-serif;
+            padding: 0;
+            margin: 0;
+            background-image: var(--bimage);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        #page_header_wrapper {
+            position: sticky;
+            padding: 20px;
+            background-image: var(--bimage);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            top: 0;
+            z-index: 2;
+        }
+
+        #page_header {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 72pt 1fr;
+            background-color: #192610;
+            color: white;
+            grid-gap: 40px;
+        }
+
+        #website_icon {
+            display: inline-block;
+            width: 72pt;
+            height: 72pt;
+            background-color: white;
+            margin: 10px 0;
+            transition: width 1s, height 1s;
+        }
+
+        #page_header_txt {
+            font-size: 72pt;
+            font-family: Minecraft-Ten,serif;
+            transition: font-size 1s;
+        }
+
+        #username {
+            font-size: 13pt;
+        }
+
+        .page_scrolled > #page_header {
+            grid-template-columns: 32pt 1fr;
+            grid-gap: 20px;
+        }
+
+        .page_scrolled > #page_header > #page_header_txt {
+            font-size: 32pt;
+        }
+
+        .page_scrolled > #page_header > #website_icon {
+            width: 32pt;
+            height: 32pt;
+        }
+
+        @media only screen and (max-width: 600px) {
+            #page_header_txt {
+                font-size: 36pt;
+            }
+            .gallery {
+                display: grid;
+                grid-template-columns: 1fr !important;
+                width: calc(100% - 80px);
+                grid-gap: 20px;
+            }
+        }
+
+        .section {
+            padding: 20px;
+            margin: 0 20px;
+            background-color: #8C713F;
+            color: white;
+            display: none;
+        }
+
+        h2 {
+            font-size: 18pt;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        h3 {
+            margin: 0;
+            font-size: 16pt;
+            font-weight: bold;
+        }
+
+        .info_box {
+            padding: 40px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            background-color: #477332;
+            color: white;
+        }
+
+        .info_box_2 {
+            background-color: #192610;
+            color: white;
+            display: grid;
+            grid-template-columns: 40px 1fr;
+            padding: 10px;
+            margin: 20px 0;
+            box-shadow: 5px 5px 0 #578C3E;
+        }
+
+        .seperator {
+            background-color: lightgray;
+            height: 50px;
+            background-image: var(--bimage);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        hr {
+            color: white;
+            background-color: white;
+            border: none;
+            height: 5px;
+        }
+
+        .trade_item {
+            margin: 10px 0;
+            display: grid;
+            height: 50px;
+            grid-template-columns: 50px 1fr;
+            grid-gap: 10px;
+            cursor: pointer;
+        }
+
+        .keep_pixels {
+            image-rendering: optimizeSpeed;             /* STOP SMOOTHING, GIVE ME SPEED  */
+            image-rendering: -moz-crisp-edges;          /* Firefox                        */
+            image-rendering: -o-crisp-edges;            /* Opera                          */
+            image-rendering: -webkit-optimize-contrast; /* Chrome (and eventually Safari) */
+            image-rendering: pixelated; /* Chrome */
+            image-rendering: optimize-contrast;         /* CSS3 Proposed                  */
+            -ms-interpolation-mode: nearest-neighbor;   /* IE8+ */
+        }
+
+        #file_explorer_uri_bar {
+            background-color: lightgray;
+            padding: 5px;
+        }
+
+        .uri_folder {
+            display: inline-block;
+            padding: 5px;
+            background-color: lightgray;
+            transition: background-color 1s, color 1s;
+            cursor: pointer;
+        }
+
+        .uri_folder:hover, .file:hover {
+            background-color: gray;
+            color: white;
+        }
+
+        .uri_arrow {
+            display: inline-block;
+            margin: 0 10px;
+        }
+
+        .file {
+            display: grid;
+            grid-template-columns: 1fr 150px;
+            padding: 15px;
+            background-color: lightgray;
+            margin: 10px 0;
+            transition: background-color 1s, color 1s;
+            cursor: pointer;
+        }
+
+        .file_full_area {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            height: 100%;
+        }
+
+        .sub_file_tree {
+            overflow-y: scroll;
+            -webkit-user-select: none;
+            user-select: none;
+            height: 400px
+        }
+
+        .file_non_editable {
+            border: 1px solid black;
+            background-color: white !important;
+            color: lightgray !important;
+            cursor: unset;
+        }
+
+        .file_non_editable > .fileOptions {
+            color: black;
+        }
+
+        .fileOptions {
+            text-align: right;
+            /*float: right;*/
+        }
+
+        .fileOptions > i {
+            margin-left: 10px;
+            transition: color 0.5s;
+            cursor: pointer;
+        }
+
+        .fileOptions > i:hover {
+            color: blue;
+        }
+
+        .trade_item_icon {
+            width: 100%;
+        }
+
+        #files {
+            height: 500px;
+            overflow-y: scroll;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #dialog_background {
+            position: fixed;
+            background-color: rgba(0,0,0,0.75);
+            top: 0;
+            left: 0;
+            right: 0;
+            height: calc(100vh - 40px);
+            padding: 20px;
+            text-align: center;
+            z-index: 3;
+        }
+
+        #dialog {
+            display: inline-block;
+            text-align: left;
+            padding: 20px;
+            background-color: white;
+            border-top: 5px solid lightgray
+        }
+
+        #dialog_close {
+            float: left;
+            margin-right: 20px;
+            cursor: pointer;
+        }
+
+        .button_choice {
+            display: grid;
+            grid-gap: 10px;
+            margin-top: 10px;
+        }
+
+        .button_choice_button {
+            border: 5px solid black;
+            padding: 10px;
+            background-color: lightgray;
+            font-size: 16pt;
+            font-family: Minecraft;
+            cursor: pointer;
+        }
+
+        #dialog {
+            max-height: 75vh;
+            overflow-y: scroll;
+        }
+
+        #notification {
+            display: grid;
+            grid-template-columns: 60px 1fr;
+            grid-gap: 10px;
+            padding: 20px;
+            position: fixed;
+            z-index: 3;
+            left: 10px;
+            right: 10px;
+            /*bottom: 10px;*/
+            bottom: -100px;
+            height: 60px;
+            background-color: purple;
+        }
+
+        #notification_text {
+            display: table-cell;
+            vertical-align: middle;
+            width: 100%;
+            height: 60px;
+            color: white;
+        }
+
+        .show_notification {
+            animation: show_notification 5s;
+        }
+
+        @keyframes show_notification {
+            0% {
+                bottom: -100px
+            }
+
+            20% {
+                bottom: 10px;
+            }
+
+            80% {
+                bottom: 10px;
+            }
+
+            100% {
+                bottom: -100px;
+            }
+        }
+
+        .fa-spinner {
+            animation: spin 1s infinite linear;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #search_results {
+            float: right;
+            min-width: 10px;
+            text-align: right;
+            background-color: gray;
+            color: white;
+            display: inline-block;
+            /*margin-right: -191px;*/
+            margin-top: 25px;
+            padding: 10px;
+            box-shadow: 5px 5px 0 lightgray;
+            position: absolute;
+            direcion: rtl;
+            right: 45px;
+        }
+
+        #search_results > div {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .search_animate {
+            animation: search_animate 1s
+        }
+
+        @keyframes search_animate {
+            0% {
+                opacity: 0;
+                transform: scale(2);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .mapping {
+            padding: 5px;
+            border-left: none;
+            animation: border-left 0.5s;
+        }
+
+        .mapping:hover {
+            border-left: 5px black solid;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+            width: calc(100% - 80px);
+            grid-gap: 20px;
+        }
+
+        .gallery > img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .gallery > img::after {
+            content: "";
+            opacity: 0.5;
+            object-fit: cover;
+        }
+
+        #menu {
+            background-color: #8C713F;
+            color: white
+        }
+
+        a {
+            color: #A2C5F2;
+        }
+
+        #menu > a {
+            text-decoration: none;
+            color: white;
+            padding: 10px;
+            display: inline-block;
+        }
+
+        #files, #file_explorer_uri_bar {
+            color: black;
+        }
+
+        .throw_maker_pfp {
+            position: fixed;
+            resize: both;
+            border: red;
+            width: 50px;
+            height: 50px;
+            overflow: auto;
+            background-color: indianred;
+        }
+
+        .throw_maker_pfp > * {
+            height: 10px;
+            background-color: blue;
+            cursor: move;
+        }
+
+        #throw_img {
+            max-width: 80vw;
+            max-height: 50vh;
+        }
+    </style>
+
+    <script>
+        let owned = []
+        let key = ":keyhere:"
+        localStorage.setItem("key", key)
+        let username = ":username:"
+        let ws
+        let auto_resource_update
+        let blobs = []
+        const supported_file_types = ["image/png", "image/jpeg", "audio/mpeg", "audio/x-wav", "audio/x-m4a"]
+        let cur_section = "section_home"
+        let modpack_url
+        let throw_img, throw_img_calc, image_upload
+        let throw_pfps = []
+        let pack_maker
+
+        const bytes_to_size_str = (bytes) => {
+            if (bytes >= 1000000) {
+                // Show in megabytes
+                return Math.round(bytes / 1000000).toString() + "MB"
+            }
+            else if(bytes >= 1000) {
+                // Show in kilobytes
+                return Math.round(bytes / 1000).toString() + "KB"
+            }
+            else {
+                // Show in bytes
+                return bytes.toString() + "B"
+            }
+        }
+
+        const http_request_sync = async (method, uri, blob_response = false, form_data = null) => {
+            return new Promise(resolve => {
+                let xhttp = new XMLHttpRequest()
+                xhttp.onreadystatechange = () => {
+                    if (xhttp.readyState === 4) {
+                        resolve(xhttp)
+                    }
+                }
+
+                if (blob_response) {
+                    xhttp.responseType = "blob"
+                }
+
+                xhttp.open(method, uri)
+                if (form_data === null) {
+                    xhttp.send()
+                } else {
+                    xhttp.send(form_data)
+                }
+            })
+        }
+
+        const connect_websocket = () => {
+            try {
+                if (location.protocol === "https:") {
+                    ws = new WebSocket("wss://" + location.host)
+                }
+                else {
+                    ws = new WebSocket("ws://" + location.host)
+                }
+                ws.onopen = () => {
+                    console.log("SOCKET OPENED!")
+                    ws.send(JSON.stringify({
+                        action: "fetch_bank_data",
+                        key
+                    }))
+                }
+
+                ws.onmessage = (msg) => {
+                    console.log(msg.data)
+                    let data = JSON.parse(msg.data)
+                    if (data.action === "lock") {
+                        // Script for locking files
+                        show_notification("<strong>" + data.user + "</strong> is uploading a change.", data.avatar.replace(".webp", ".png") + "?size=16")
+                    }
+                    else if (data.action === "unlock") {
+                        // Script for locking files
+                        if (username === data.user) {
+                            show_notification("<strong>Your change has finished uploading.</strong> The pack will update automatically in 5 or more minutes.")
+                            if (owned.indexOf(data.path) === -1) {
+                                owned.push(data.path)
+                            }
+                        }
+                        else {
+                            show_notification("<strong>" + data.user + "</strong> uploaded a change.", data.avatar.replace(".webp", ".png") + "?size=16")
+                            if (owned.indexOf(data.path) === -1) {
+                                owned.push(data.path)
+                            }
+                        }
+                    }
+                    else if (data.action === "bank_update") {
+                        let player_list = document.getElementById("trade_with_players")
+                        let resource_list = document.getElementById("trade_with_bank")
+                        player_list.innerHTML = ""
+                        resource_list.innerHTML = ""
+
+                        // Update player list
+                        let players = data.data.players.sort((a,b) => {return a.playerName > b.playerName})
+                        for (let player of players) {
+                            let player_item = document.createElement("div")
+                            player_item.classList.add("trade_item")
+
+                            let player_avatar = document.createElement("img")
+                            player_avatar.alt = "Discord not linked"
+                            if (player.avatar) {
+                                player_avatar.src = player.avatar.replace(".webp", ".png") + "?size=16"
+                            }
+                            player_avatar.classList.add("keep_pixels")
+                            player_avatar.classList.add("trade_item_icon")
+                            player_item.appendChild(player_avatar)
+
+                            let player_info = document.createElement("div")
+                            player_info.innerHTML = `<strong>${player.playerName}</strong><br>${player.currency}c`
+                            player_item.appendChild(player_info)
+
+                            player_item.onclick = () => {
+                                let form = document.createElement("form")
+
+                                let number_input_label = document.createElement("label")
+                                number_input_label.innerHTML = "Give <strong>" + player.playerName + "</strong> "
+
+                                let number_input = document.createElement("input")
+                                number_input.type = "number"
+                                number_input.min = "1"
+                                number_input.value = "1"
+
+                                // Only allow numbers to be inputted
+                                number_input.onkeypress = (evt) => {
+                                    let charCode = (evt.which) ? evt.which : evt.keyCode
+                                    if (charCode > 31 && (charCode < 48 || charCode > 57))
+                                        return false;
+                                    return true;
+                                }
+
+                                number_input_label.appendChild(number_input)
+
+                                number_input_label.appendChild(document.createTextNode(" coin(s)."))
+                                form.appendChild(number_input_label)
+
+                                let button_grid = document.createElement("div")
+                                button_grid.classList.add("button_choice")
+                                button_grid.style.gridTemplateColumns = "1fr"
+
+                                let trade_button = document.createElement("button")
+                                trade_button.classList.add("button_choice_button")
+                                trade_button.innerHTML = "Give coin(s)!"
+                                trade_button.onclick = (e) => {
+                                    e.preventDefault()
+
+                                    let data = new FormData()
+
+                                    try {
+                                        let amount = parseInt(number_input.value)
+                                        if (amount === NaN) {
+                                            alert("Oops. It seems there's something wrong with the number of coins you wish to transfer.")
+                                        }
+                                        else if (amount < 1) {
+                                            alert("Unfortunately due to the laws of physics, you cannot give a negative number of coins. That would be taking coins.")
+                                        }
+                                        else {
+                                            data.append("amount", amount)
+                                            data.append("key", key)
+                                            data.append("player_name", player.playerName)
+
+                                            let xhttp = new XMLHttpRequest()
+                                            xhttp.onreadystatechange = () => {
+                                                if (xhttp.readyState === 4 && xhttp.status === 200) {
+                                                    if (xhttp.responseText === "Transaction successful!") {
+                                                        show_dialog("Trade success!", [])
+                                                    }
+                                                    else if (xhttp.responseText === "Cannot send more coins than you have") {
+                                                        let text = document.createElement("div")
+                                                        text.innerHTML = "(<strong>The coins you have</strong>) - (<strong>The coins you were giving</strong>) < 0"
+
+                                                        show_dialog("Trade ERR", [text])
+                                                    }
+                                                    else {
+                                                        let text = document.createElement("div")
+                                                        text.innerHTML = xhttp.responseText
+
+                                                        show_dialog("Trade ERR", [text])
+                                                    }
+                                                }
+                                            }
+
+                                            xhttp.open("post", "/trade/player")
+                                            xhttp.send(data)
+                                            show_dialog("Performing trade...", [], false)
+                                        }
+                                    } catch(e) {
+                                        alert("Oops. Make sure what you've entered is a number.")
+                                    }
+                                }
+
+                                button_grid.appendChild(trade_button)
+                                form.appendChild(button_grid)
+
+                                show_dialog(player.playerName, [form])
+                            }
+
+                            player_list.appendChild(document.createElement("hr"))
+                            player_list.appendChild(player_item)
+                        }
+
+                        // Update resource list
+                        let resources = data.data.available_resources
+                        for (let resource of resources) {
+                            let resource_item = document.createElement("div")
+                            resource_item.classList.add("trade_item")
+
+                            let resource_icon = document.createElement("img")
+                            resource_icon.src = "/assets/textures/items/" + resource.tag_name.replace("pooryou:", "") + ".png"
+                            resource_icon.classList.add("keep_pixels")
+                            resource_icon.classList.add("trade_item_icon")
+                            resource_item.appendChild(resource_icon)
+
+                            let resource_info = document.createElement("div")
+                            resource_info.innerHTML = `<strong>${resource.name}</strong><br>${resource.worth}c`
+                            resource_item.appendChild(resource_info)
+
+                            resource_item.onclick = () => {
+                                let button_grid = document.createElement("div")
+                                button_grid.classList.add("button_choice")
+                                button_grid.style.gridTemplateColumns = "1fr 1fr"
+
+                                if (resource.max_stock > resource.stock) {
+                                    let button_1 = document.createElement("button")
+                                    button_1.classList.add("button_choice_button")
+                                    button_1.innerText = "Give 1x " + resource.name + " for " + resource.worth + "c"
+                                    button_1.onclick = () => trade_with_bank("for_coin", resource.tag_name)
+                                    button_grid.appendChild(button_1)
+
+                                    let button_2 = document.createElement("button")
+                                    button_2.classList.add("button_choice_button")
+                                    button_2.innerText = "Give all " + resource.name + "s for " + resource.worth + "c per item"
+                                    button_2.onclick = () => trade_with_bank("for_coin", resource.tag_name, true)
+                                    button_grid.appendChild(button_2)
+                                } else {
+                                    let button_1 = document.createElement("button")
+                                    button_1.classList.add("button_choice_button")
+                                    button_1.innerText = "Not accepting trade-ins"
+                                    button_1.style.gridColumn = "1/3"
+                                    button_grid.appendChild(button_1)
+                                }
+
+                                let button_3 = document.createElement("button")
+                                button_3.classList.add("button_choice_button")
+                                button_3.style.gridColumn = "1/3"
+                                if (resource.stock > 0) {
+                                    button_3.onclick = () => trade_with_bank("for_resource", resource.tag_name)
+                                    button_3.innerText = "Buy 1x " + resource.name + " for " + Math.round(resource.worth * 1.1) + "c"
+                                } else {
+                                    button_3.innerText = "Out of stock"
+                                }
+                                button_grid.appendChild(button_3)
+
+                                show_dialog(resource.name, [button_grid])
+                            }
+
+                            resource_list.appendChild(document.createElement("hr"))
+                            resource_list.appendChild(resource_item)
+                        }
+                    }
+                    else if (data.action === "pack_update") {
+                        if (data.stage === 0) {
+                            show_notification("A resource pack update will occur once all players have disconnected from the server.", "/assets/textures/blocks/glazed_terracotta_magenta.png")
+                        }
+                        else if (data.stage === 1) {
+                            show_notification("A resource pack update has begun...", "/assets/textures/blocks/glazed_terracotta_magenta.png")
+                        }
+                        else if (data.stage === 2) {
+                            show_notification("The resource pack update is now complete. You may re-join the server if you wish.", "/assets/textures/blocks/glazed_terracotta_magenta.png")
+                        }
+                    }
+                    else if (data.action === "player_connected") {
+                        show_notification("<strong>" + data.playerName + "</strong> connected!")
+                    }
+                    else if (data.action === "player_disconnected") {
+                        show_notification("<strong>" + data.playerName + "</strong> disconnected")
+                    }
+                    else if (data.action === "file_reset") {
+                        // Script for locking files
+                        if (username === data.user) {
+                            show_notification("<strong>The file has been reset.</strong>", data.avatar.replace(".webp", ".png") + "?size=16")
+                            if (owned.indexOf(data.path) !== -1) {
+                                owned.slice(owned.indexOf(data.path), 1)
+                            }
+                        }
+                        else {
+                            show_notification("<strong>" + data.user + " reset a file</strong>", data.avatar.replace(".webp", ".png") + "?size=16")
+                            if (owned.indexOf(data.path) === -1) {
+                                owned.push(data.path)
+                            }
+                        }
+                    }
+                }
+
+                ws.onclose = () => {
+                    console.error("WebSocket disconnected")
+                    setTimeout(connect_websocket, 10000)
+                }
+            } catch(e) {
+                console.error(e)
+                console.log("Could not connect to WebSocket. Trying again in 10s.")
+                setTimeout(connect_websocket, 10000)
+            }
+        }
+
+        const trade_with_bank = (trade_type, trade_resource, all = false) => {
+            let data = new FormData()
+            data.append("key", key)
+            data.append("type", trade_type)
+            data.append("resource", trade_resource)
+            if (all) {
+                data.append("all", "true")
+            }
+
+            let xhttp = new XMLHttpRequest()
+            xhttp.onreadystatechange = () => {
+                if (xhttp.readyState === 4 && xhttp.status === 200) {
+                    console.log(xhttp)
+                    if (xhttp.responseText === "Trade successful") {
+                        alert("Trade succeeded!")
+                    } else {
+                        alert("Trade failed.")
+                    }
+                }
+            }
+            xhttp.open("post", "/trade/bank")
+            xhttp.send(data)
+        }
+
+        const onload = () => {
+            // Conenct WebSocket
+            connect_websocket()
+
+            pack_maker = new PackMaker()
+
+            // Update background
+            let xhttp = new XMLHttpRequest()
+            xhttp.onreadystatechange = () => {
+                if (xhttp.readyState === 4) {
+                    let banners = JSON.parse(xhttp.response)
+                    document.querySelector(":root").style.setProperty("--bimage", `url("${banners[Math.floor(Math.random() * banners.length)]}")`)
+                }
+            }
+            xhttp.open("get", "/bannerimages")
+            xhttp.send()
+
+            // Get the latest modpack version:
+            fetch("/web_assets/modpacks/latest.json").then(async res => {
+                let data = await res.json()
+                modpack_url = "/web_assets/modpacks/" + data.file
+
+                for (let element of document.getElementsByClassName("latest_modpack_version")) {
+                    element.innerHTML = "v" + data.version.join(".") + " (minecraft forge: " + data.mc_version + ")"
+                }
+
+                for (let element of document.getElementsByClassName("modpack_download")) {
+                    element.href = modpack_url
+                }
+            })
+
+            // Setup the thrower
+            throw_img = document.getElementById("throw_img")
+            image_upload = document.getElementById("throw_img_select")
+            image_upload.onchange = (e) => {
+                // Load image
+                let img_url = URL.createObjectURL(image_upload.files[0])
+                throw_img.src = img_url
+                throw_img_calc = new Image()
+                throw_img_calc.src = img_url
+            }
+        }
+
+        function download_modpack() {
+            let a = document.createElement("a")
+            a.target = "_blank"
+            a.href = modpack_url
+            a.download = true
+            a.click()
+        }
+
+        const onscroll = () => {
+            if (window.pageYOffset > 20) {
+                document.getElementById("page_header_wrapper").classList.add("page_scrolled")
+            } else if (window.pageYOffset < 10) {
+                document.getElementById("page_header_wrapper").classList.remove("page_scrolled")
+            }
+        }
+
+        const get_contents = async (uri) => {
+            return new Promise(resolve => {
+                let xhttp = new XMLHttpRequest()
+                xhttp.onreadystatechange = () => {
+                    if (xhttp.readyState === 4) {
+                        resolve(xhttp)
+                    }
+                }
+                console.log("https://joemamadf7.jd-data.com/assets" + uri)
+                xhttp.open("get", "/assets" + uri)
+                xhttp.send()
+            })
+        }
+
+        // const load_files = async (folder = "/", scroll_to_item = "") => {
+        //     console.log(scroll_to_item)
+        //
+        //     let xhttp
+        //     let data
+        //     let scroll_el
+        //     if (! (folder.endsWith(".png") || folder.endsWith(".json"))) {
+        //         xhttp = await get_contents(folder)
+        //         if (xhttp.status === 200) {
+        //             data = JSON.parse(xhttp.response)
+        //             data = data.sort((a,b) => {
+        //                 if (a.directory === b.directory) {
+        //                     return a.name > b.name
+        //                 }
+        //                 return a.directory < b.directory
+        //             })
+        //         } else {
+        //             data = ["textures", "sounds", "pack_icon.png", "test.ogg"]
+        //         }
+        //     }
+        //
+        //     // Update folder uri bar
+        //     let uri_bar = document.getElementById("file_explorer_uri_bar")
+        //     uri_bar.innerHTML = ""
+        //     let folders = folder.split("/")
+        //     console.log(folders)
+        //
+        //     let _folder_div = document.createElement("div")
+        //     _folder_div.classList.add("uri_folder")
+        //     _folder_div.onclick = () => {
+        //         load_files("/")
+        //     }
+        //     _folder_div.innerText = "Top Level"
+        //     uri_bar.appendChild(_folder_div)
+        //
+        //     let arrow = document.createElement("div")
+        //     arrow.innerText = ">"
+        //     arrow.classList.add("uri_arrow")
+        //     uri_bar.appendChild(arrow)
+        //     delete _folder_div
+        //
+        //     for (let _folder of folders) {
+        //         if (_folder !== "") {
+        //             console.log(_folder)
+        //             let _folder_div = document.createElement("div")
+        //             _folder_div.classList.add("uri_folder")
+        //             _folder_div.onclick = () => {
+        //                 let folder_uri = ""
+        //                 for (let __folder of folders) {
+        //                     folder_uri += __folder + "/"
+        //                     if (_folder === __folder) {
+        //                         break
+        //                     }
+        //                 }
+        //
+        //                 if (folder_uri.replace(".png", "").replace(".json", "").length === folder_uri.length) {
+        //                     load_files(folder_uri)
+        //                 }
+        //             }
+        //             if (_folder === "") {
+        //                 _folder_div.innerText = "Top Level"
+        //             }
+        //             else {
+        //                 _folder_div.innerText = _folder
+        //             }
+        //             uri_bar.appendChild(_folder_div)
+        //
+        //             let arrow = document.createElement("div")
+        //             arrow.innerText = ">"
+        //             arrow.classList.add("uri_arrow")
+        //             uri_bar.appendChild(arrow)
+        //         }
+        //     }
+        //     // uri_bar.removeChild(uri_bar.children[uri_bar.childElementCount - 1])
+        //
+        //     // Show the search function
+        //     let search = document.createElement("i")
+        //     search.classList.add("fas")
+        //     search.classList.add("fa-search")
+        //     search.style.float = "right"
+        //     search.onclick = (e) => {
+        //         search.parentElement.removeChild(search)
+        //
+        //         let search_bar = document.createElement("input")
+        //         search_bar.style.float = "right"
+        //         search_bar.placeholder = "Search"
+        //         search_bar.onkeydown = () => {
+        //             try {clearInterval(search_bar.searchTimeout)}
+        //             catch(e) {}
+        //             if (search_bar.value.length > 1) {
+        //                 search_results_list.innerHTML = "Searching..."
+        //
+        //                 search_bar.searchTimeout = setTimeout(async () => {
+        //                     let search_results = JSON.parse((await http_request_sync("get", "/assets/search/?search=" + encodeURI(search_bar.value.toLowerCase()))).responseText)
+        //                     console.log(search_results)
+        //
+        //                     search_results_list.innerHTML = ""
+        //                     for (let item of search_results) {
+        //                         let item_div = document.createElement("div")
+        //                         item_div.innerHTML = item
+        //                         item_div.onclick = () => {
+        //                             let folder_ls = item.split("/")
+        //                             folder_ls.pop()
+        //                             load_files(folder_ls.join("/") + "/", item)
+        //                         }
+        //                         search_results_list.appendChild(item_div)
+        //                     }
+        //                 }, 1000)
+        //             } else {
+        //                 search_results_list.innerHTML = "Please enter something longer"
+        //             }
+        //         }
+        //         uri_bar.appendChild(search_bar)
+        //
+        //         let search_results_list = document.createElement("div")
+        //         search_results_list.id = "search_results"
+        //
+        //         uri_bar.appendChild(search_results_list)
+        //     }
+        //     uri_bar.appendChild(search)
+        //
+        //     // Update the file tree
+        //     let file_tree = document.getElementById("files")
+        //     file_tree.innerHTML = ""
+        //     if (folder.endsWith(".png")) {
+        //         let item_div = document.createElement("div")
+        //
+        //         let folder_split = folder.split("/")
+        //         let file_name = folder_split[folder_split.length - 1]
+        //
+        //         item_div.classList.add("file")
+        //         item_div.innerHTML = "<div><i class=\"fas fa-file-image\"></i> " + file_name + "</div><br><br><img src='/assets" + folder + "' class='keep_pixels' style='min-width: 50%;'>"
+        //         file_tree.appendChild(item_div)
+        //     }
+        //     else if (folder.endsWith(".json")) {
+        //         let item_div = document.createElement("div")
+        //
+        //         let folder_split = folder.split("/")
+        //         let file_name = folder_split[folder_split.length - 1]
+        //
+        //         item_div.classList.add("file")
+        //
+        //         item_div.innerHTML = "<div><i class=\"fas fa-file-image\"></i> " + file_name + "</div><br><br>"
+        //         let json_div = document.createElement("div")
+        //         json_div.innerText = (await http_request_sync("get", "/assets" + folder)).responseText
+        //         item_div.appendChild(json_div)
+        //         file_tree.appendChild(item_div)
+        //     }
+        //     else {
+        //         console.log(data)
+        //         for (let item of data) {
+        //             console.log(item)
+        //             let item_div = document.createElement("div")
+        //             item_div.classList.add("file")
+        //
+        //             if (folder + item.name === scroll_to_item) {
+        //                 console.log(scroll_to_item)
+        //                 scroll_el = item_div
+        //             }
+        //
+        //             let icon
+        //             if (item.directory === 1) {
+        //                 icon = "<i class=\"fas fa-folder\"></i>"
+        //             }
+        //             else if (item.name.endsWith(".fsb")) {
+        //                 icon = "<i class=\"far fa-file-audio\"></i>"
+        //             }
+        //             else if (item.name.endsWith(".ogg")) {
+        //                 icon = "<i class=\"fas fa-file-audio\"></i>"
+        //             }
+        //             else if (item.name.endsWith(".tga")) {
+        //                 icon = "<i class=\"far fa-file-image\"></i>"
+        //             }
+        //             else if (item.name.endsWith(".png")) {
+        //                 icon = "<i class=\"fas fa-file-image\"></i>"
+        //             }
+        //             else {
+        //                 icon = "<i class=\"far fa-file\"></i>"
+        //             }
+        //             let item_name = document.createElement("div")
+        //             item_name.innerHTML = icon + " " + item.name
+        //             if (item.size) {
+        //                 item_name.innerHTML += " <span style='color:gray;font-style:italic'>" + bytes_to_size_str(item.size) + "</span>"
+        //             }
+        //             item_div.appendChild(item_name)
+        //             if (item.directory === 1) {
+        //                 item_name.onclick = () => {load_files(`${folder}${item.name}/`)}
+        //             }
+        //             else if (item.name.endsWith(".png")) {
+        //                 item_name.onclick = () => {load_files(`${folder}${item.name}`)}
+        //             }
+        //             let options = document.createElement("div")
+        //
+        //             // Check which option buttons can be added
+        //
+        //             if (item.name.endsWith(".ogg")) {
+        //                 let view = document.createElement("i")
+        //                 view.classList.add("fas")
+        //                 view.classList.add("fa-play")
+        //                 view.onclick = () => play_audio(`${folder}${item.name}`, view)
+        //                 options.appendChild(view)
+        //             }
+        //
+        //             if (item.name.endsWith(".png") || item.name.endsWith(".fsb") || (item.name.endsWith(".ogg") && check_if_editable(folder + item.name))) {
+        //                 let view = document.createElement("i")
+        //                 view.classList.add("fas")
+        //                 view.classList.add("fa-upload")
+        //                 view.onclick = () => generate_upload_dialog(folder + item.name)
+        //                 options.appendChild(view)
+        //             }
+        //
+        //             if (item.name.endsWith(".png") || item.name.endsWith(".tga")) {
+        //                 let view = document.createElement("i")
+        //                 view.classList.add("fas")
+        //                 view.classList.add("fa-download")
+        //                 view.onclick = () => {
+        //                     let a = document.createElement("a")
+        //                     a.href = "/assets" + folder + item.name
+        //                     a.download = item.name
+        //                     a.target = "_blank"
+        //                     a.click()
+        //                 }
+        //                 options.appendChild(view)
+        //             }
+        //
+        //             // View icon
+        //             if (item.name.endsWith(".png") || item.name.endsWith(".json")) {
+        //                 let view = document.createElement("i")
+        //                 view.classList.add("fas")
+        //                 view.classList.add("fa-eye")
+        //                 view.onclick = () => {
+        //                     load_files(folder + item.name)
+        //                 }
+        //                 options.appendChild(view)
+        //             }
+        //
+        //             if (item.name.endsWith(".png") || check_if_editable(folder + item.name)) {
+        //                 let view = document.createElement("i")
+        //                 view.classList.add("fas")
+        //                 view.classList.add("fa-undo-alt")
+        //                 view.onclick = () => {
+        //                     let text = document.createElement("div")
+        //                     text.innerHTML = "Are you sure you want to reset <strong>" + item.name + "</strong> to it's default?"
+        //
+        //                     let buttons = document.createElement("div")
+        //                     buttons.classList.add("button_choice")
+        //                     buttons.style.gridTemplateColumns = "1fr 1fr"
+        //
+        //                     let no_button = document.createElement("button")
+        //                     no_button.classList.add("button_choice_button")
+        //                     no_button.innerHTML = "No"
+        //                     no_button.onclick = () => document.getElementById("dialog_background").style.display = "none"
+        //
+        //                     let yes_button = document.createElement("button")
+        //                     yes_button.classList.add("button_choice_button")
+        //                     yes_button.innerHTML = "Yes"
+        //                     yes_button.onclick = async () => {
+        //                         show_dialog("Resetting...", [], false)
+        //                         let form_data = new FormData()
+        //                         form_data.set("location", folder + item.name)
+        //                         form_data.set("key", key)
+        //                         let res = await http_request_sync("post", "/reset", false, form_data)
+        //                         let text = document.createElement("div")
+        //                         if (res.responseText === "OK!") {
+        //                             text.innerHTML = "Reset successful"
+        //                         } else {
+        //                             text.innerHTML = "Reset failed:<br>" + res.responseText
+        //                         }
+        //                         show_dialog("Reset results", [text], false)
+        //                         setTimeout(() => document.getElementById("dialog_background").style.display = "none", 5000)
+        //                     }
+        //
+        //                     buttons.appendChild(no_button)
+        //                     buttons.appendChild(yes_button)
+        //                     show_dialog("Reset file?", [text, buttons])
+        //                 }
+        //                 options.appendChild(view)
+        //             }
+        //
+        //             if (item.name.endsWith(".ogg") || item.name.endsWith(".fsb")) {
+        //                 let view = document.createElement("i")
+        //                 view.classList.add("fas")
+        //                 view.classList.add("fa-map")
+        //                 view.onclick = async () => {
+        //                     let loading_text = document.createElement("div")
+        //                     loading_text.innerHTML = "Loading mappings..."
+        //
+        //                     show_dialog("Loading...", [loading_text], false)
+        //
+        //                     let data = JSON.parse((await http_request_sync("get", "/assets/sounds/sound_definitions.json")).response)
+        //                     console.log(data)
+        //
+        //                     let treated_name = folder.replace("/sounds", "sounds").replace("/custom_items", "custom_items/") + item.name.replace(".ogg", "").replace(".fsb", "" )
+        //                     console.log(treated_name)
+        //                     let divs = []
+        //                     for (let definition of Object.keys(data.sound_definitions)) {
+        //                         for (let sound of data.sound_definitions[definition].sounds) {
+        //                             // console.log(sound.name)
+        //                             if (sound === treated_name || sound.name === treated_name) {
+        //                                 let item = document.createElement("div")
+        //                                 item.classList.add("mapping")
+        //                                 item.innerText = definition
+        //                                 if (data.sound_definitions[definition].sounds.length > 1) {
+        //                                     item.innerText += " (" + (data.sound_definitions[definition].sounds.length - 1) + " other sound(s) mapped here)"
+        //                                 }
+        //
+        //                                 let item_modify_box = document.createElement("div")
+        //                                 item_modify_box.classList.add("info_box")
+        //                                 item_modify_box.innerHTML = "Modifying <strong>" + definition + "</strong>"
+        //
+        //                                 let modify_form = document.createElement("form")
+        //                                 let volume_label = document.createElement("label")
+        //                                 volume_label.innerHTML = "Volume: "
+        //                                 let volume = document.createElement("input")
+        //                                 volume.min = "0", volume.max = "1", volume.step = "0.01", volume.type = "range"
+        //                                 let volume_display = document.createElement("i")
+        //                                 volume.oninput = (e) => {
+        //                                     console.log(volume.value)
+        //                                     volume_display.innerHTML = Math.round(volume.value * 100) + "%"
+        //                                 }
+        //                                 volume_label.appendChild(volume)
+        //                                 volume_label.appendChild(volume_display)
+        //
+        //                                 modify_form.appendChild(volume_label)
+        //                                 item_modify_box.appendChild(modify_form)
+        //
+        //                                 item.appendChild(item_modify_box)
+        //                                 divs.push(item)
+        //                             }
+        //                         }
+        //                     }
+        //
+        //                     let form_text = document.createElement("div")
+        //                     form_text.classList.add("info_box")
+        //                     form_text.innerHTML = "Add a custom mapping to this sound item:<br>Must be lowercase with no spaces or special characters."
+        //
+        //                     let example_command_box = document.createElement("div")
+        //                     example_command_box.classList.add("info_box_2")
+        //                     example_command_box.style.gridTemplateColumns = "1fr"
+        //
+        //                     let example_command_box_inner = document.createElement("div")
+        //
+        //                     let new_input = document.createElement("input")
+        //                     new_input.type = "text"
+        //                     new_input.onkeyup = (e) => {
+        //                         new_input.value = new_input.value.toLowerCase().replace(/ /g, "_").replace(/([^a-z._])/g, "")
+        //                     }
+        //
+        //                     let new_mapping_button = document.createElement("button")
+        //                     new_mapping_button.innerHTML = "Add"
+        //                     new_mapping_button.onclick = async () => {
+        //                         new_input.value = new_input.value.replace(/([^A-Za-z._])/g, "")
+        //
+        //                         let data = JSON.parse((await http_request_sync("get", "/assets/sounds/sound_definitions.json")).response)
+        //                         if (typeof data.sound_definitions["custom.:username:." + new_input.value] === "undefined") {
+        //                             data.sound_definitions["custom.:username:." + new_input.value] = {category: "neutral", sounds: []}
+        //                         }
+        //
+        //                         if (data.sound_definitions["custom.:username:." + new_input.value].sounds.indexOf(folder.replace("/custom_items", "custom_items") + item.name) === -1) {
+        //                             data.sound_definitions["custom.:username:." + new_input.value].sounds.push(folder.replace("/custom_items", "custom_items") + item.name.replace(".ogg", "").replace(".fsb", ""))
+        //                             console.log(data.sound_definitions)
+        //                             let form_data = new FormData()
+        //                             form_data.set("key", key)
+        //                             form_data.set("location", "/sounds/sound_definitions.json")
+        //                             form_data.set("json", JSON.stringify(data))
+        //                             await http_request_sync("post", "/", false, form_data)
+        //                             alert("Custom mapping has been added!")
+        //                         }
+        //                     }
+        //
+        //                     let type = document.createElement("div")
+        //                     type.innerHTML = "Map to a new audio event:"
+        //                     type.style.fontWeight = "bold"
+        //                     example_command_box_inner.appendChild(type)
+        //                     example_command_box_inner.appendChild(document.createTextNode("/playsound custom.:username:."))
+        //                     example_command_box_inner.appendChild(new_input)
+        //                     example_command_box_inner.appendChild(document.createTextNode(" @p\n"))
+        //                     example_command_box_inner.appendChild(new_mapping_button)
+        //                     example_command_box.appendChild(example_command_box_inner)
+        //                     form_text.appendChild(example_command_box)
+        //
+        //                     example_command_box = document.createElement("div")
+        //                     example_command_box.classList.add("info_box_2")
+        //                     example_command_box.style.gridTemplateColumns = "1fr"
+        //
+        //                     example_command_box_inner = document.createElement("div")
+        //
+        //                     let new_input_2 = document.createElement("select")
+        //                     for (let option of Object.keys(data.sound_definitions)) {
+        //                         if (! option.startsWith(".custom")) {
+        //                             let option_sel = document.createElement("option")
+        //                             option_sel.value = option
+        //                             option_sel.innerText = option
+        //                             new_input_2.appendChild(option_sel)
+        //                         }
+        //                     }
+        //
+        //                     let new_mapping_button_2 = document.createElement("button")
+        //                     new_mapping_button_2.innerHTML = "Add"
+        //                     new_mapping_button_2.onclick = async () => {
+        //                         new_input.value = new_input.value.replace(/([^A-Za-z._])/g, "")
+        //
+        //                         let data = JSON.parse((await http_request_sync("get", "/assets/sounds/sound_definitions.json")).response)
+        //
+        //                         if (data.sound_definitions[new_input_2.value].sounds.indexOf(folder.replace("/custom_items", "custom_items") + item.name) === -1) {
+        //                             data.sound_definitions[new_input_2.value].sounds.push(folder.replace("/custom_items", "custom_items") + item.name.replace(".ogg", "").replace(".fsb", ""))
+        //                             console.log(data.sound_definitions)
+        //                             let form_data = new FormData()
+        //                             form_data.set("key", key)
+        //                             form_data.set("location", "/sounds/sound_definitions.json")
+        //                             form_data.set("json", JSON.stringify(data))
+        //                             await http_request_sync("post", "/", false, form_data)
+        //                             alert("Custom mapping has been added!")
+        //                         }
+        //                     }
+        //
+        //                     type = document.createElement("div")
+        //                     type.innerHTML = "Map to an existing audio event:"
+        //                     type.style.fontWeight = "bold"
+        //                     example_command_box_inner.appendChild(type)
+        //                     example_command_box_inner.appendChild(document.createTextNode("/playsound "))
+        //                     example_command_box_inner.appendChild(new_input_2)
+        //                     example_command_box_inner.appendChild(document.createTextNode(" @p\n"))
+        //                     example_command_box_inner.appendChild(new_mapping_button_2)
+        //                     example_command_box.appendChild(example_command_box_inner)
+        //                     form_text.appendChild(example_command_box)
+        //                     divs.push(form_text)
+        //
+        //                     show_dialog("Mappings", divs)
+        //                 }
+        //                 options.appendChild(view)
+        //             }
+        //
+        //             options.classList.add("fileOptions")
+        //             item_div.appendChild(options)
+        //             if (! check_if_editable(folder + item.name) && item.directory === 0) {
+        //                 item_div.classList.add("file_non_editable")
+        //             }
+        //             file_tree.appendChild(item_div)
+        //         }
+        //     }
+        //
+        //     console.log(folder)
+        //     if (folder === "/custom_items/sounds/") {
+        //         let item_div = document.createElement("div")
+        //         item_div.classList.add("file")
+        //
+        //         item_div.onclick = () => generate_upload_dialog(folder + ":username:_".toLowerCase().replace(" ", "_") +  Math.round(Math.random() * 30000000000) + ".fsb")
+        //
+        //         let item_name = document.createElement("div")
+        //         item_name.innerHTML = "<i class=\"fas fa-plus\"></i> Upload a new item"
+        //         item_div.appendChild(item_name)
+        //
+        //         file_tree.appendChild(item_div)
+        //     }
+        //     else if (folder === "/custom_items/backgrounds/") {
+        //         let item_div = document.createElement("div")
+        //         item_div.classList.add("file")
+        //
+        //         item_div.onclick = () => generate_upload_dialog(folder + ":username:_".toLowerCase().replace(" ", "_") +  Math.round(Math.random() * 30000000000) + ".png")
+        //
+        //         let item_name = document.createElement("div")
+        //         item_name.innerHTML = "<i class=\"fas fa-plus\"></i> Upload a new website background"
+        //         item_div.appendChild(item_name)
+        //
+        //         file_tree.appendChild(item_div)
+        //     }
+        //
+        //     if (scroll_el) {
+        //         setTimeout(() => {
+        //             scrollParentToChild(document.getElementById("files"), scroll_el)
+        //             scroll_el.classList.add("search_animate")
+        //         }, 1000)
+        //     }
+        // }
+
+        class PackMaker {
+            constructor() {
+                this.uri_bar = document.getElementById("file_explorer_uri_bar")
+                this.file_tree = document.getElementById("files")
+                this.location = []
+                this.loadPacksList()
+                this.updateURI()
+            }
+
+            updateURI() {
+                this.uri_bar.innerHTML = ""
+
+                let top_level = document.createElement("div")
+                top_level.classList.add("uri_folder")
+                top_level.innerText = "Packs"
+                this.uri_bar.appendChild(top_level)
+                let items = this.location
+                for (let item of items) {
+                    let arrow = document.createElement("div")
+                    arrow.innerText = ">"
+                    arrow.classList.add("uri_arrow")
+                    this.uri_bar.appendChild(arrow)
+
+                    this.uri_bar.appendChild(item.generateURIComponent())
+                }
+            }
+
+            async loadPacksList() {
+                this.file_tree.innerHTML = ""
+                let packs = (await (await fetch("/packs")).json()).map(pack => new Pack(pack, this))
+                for (let pack of packs) {
+                    this.file_tree.appendChild(pack.generateListItem())
+                }
+            }
+
+            generateLocationTree() {return []}
+        }
+
+        class PackMakerItem {
+            constructor(parent, maker) {
+                this.name = "ITEM"
+                this.maker = maker
+                this.parent = parent
+            }
+
+            generateURIComponent() {
+                let div = document.createElement("div")
+                div.classList.add("uri_folder")
+                div.onclick = () => {this.load()}
+                div.innerText = this.name
+                return div
+            }
+
+            generateLocationTree() {
+                return this.parent.generateLocationTree().concat(this)
+            }
+
+            get pack_id() {
+                return (this.packId || this.parent.pack_id)
+            }
+
+            load() {
+                throw "NO LOADING SCRIPT"
+            }
+        }
+
+        class Pack extends PackMakerItem {
+            constructor(data, maker) {
+                super(maker, maker)
+                this.id = data.pack_id
+                this.packId = data.pack_id
+                this.name = data.pack_name
+                this.public = data.public
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fas fa-file-image\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            load() {
+                this.maker.location = [this]
+                this.maker.file_tree.innerHTML = ""
+                let items = [new BlockManager(this, this.maker), new EntityManager(this, this.maker), new ParentTextureManager(this, this.maker), new ParentSoundManager(this, this.maker), new ItemManager(this, this.maker)]
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class BlockManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Blocks"
+                this.blocks = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-cube\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.blocks.length === 0) this.blocks = (await (await fetch(`/packs/${this.parent.id}/blocks`)).json()).map(block => new Block(this, this.maker, block))
+                let items = this.blocks
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class Block extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.BlockID
+                this.game_id = data.GameID
+                this.name = data.name || data.GameID
+                this.sound_group_id = data.SoundGroupID
+                this.texture_groups = data.texture_groups
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-cube\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h3>" + this.name + "</h3>"
+
+                let texture_select = document.createElement("div")
+                texture_select.innerHTML = "<h2>Set texture groups</h2>"
+                let preview_id
+                for (let item of this.texture_groups) {
+                    // Get the texture group data
+                    let texture_group = await (await fetch(`/packs/${this.pack_id}/textures/groups/${item.TextureGroupID}`)).json()
+                    if (!preview_id) preview_id = texture_group.textures[0].TextureID
+                    let div = document.createElement("div")
+                    div.innerHTML = `<img style='width:12pt; height:12pt;' class='keep_pixels' src="/packs/1/textures/${texture_group.textures[0].TextureID}/stream">` + " " + item.Type + ": " + texture_group.GameID
+
+                    let button1 = document.createElement("button")
+                    button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    div.appendChild(button1)
+
+                    let button2 = document.createElement("button")
+                    button2.innerText = "Change"
+                    div.appendChild(button2)
+                    texture_select.appendChild(div)
+                }
+
+                let img = new Image()
+                img.src = `/packs/1/textures/${preview_id}/stream`
+                img.width = 200
+                img.height = 200
+                img.classList.add("keep_pixels")
+                column_1.appendChild(img)
+
+                let audio_select = document.createElement("div")
+                audio_select.innerHTML = "<h2>Set audio group</h2>"
+                // Fetch audio group
+                let sound_group = await (await fetch(`/packs/${this.pack_id}/sounds/groups/${this.sound_group_id}`)).json()
+                let sound_group_div = document.createElement("div")
+                sound_group_div.innerText = sound_group.GroupName
+
+                let button1 = document.createElement("button")
+                button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                button1.onclick = () => {
+                    let i = new SoundGroup(this, this.maker, sound_group)
+                    i.load()
+                }
+
+                let button2 = document.createElement("button")
+                button2.innerText = "Change"
+                sound_group_div.appendChild(button1)
+                sound_group_div.appendChild(button2)
+                audio_select.appendChild(sound_group_div)
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(texture_select)
+                wrapper.appendChild(audio_select)
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        class EntityManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Entities"
+                this.entities = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-person-rays\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.entities.length === 0) this.entities = (await (await fetch(`/packs/${this.parent.id}/entities`)).json()).map(block => new Entity(this, this.maker, block))
+                let items = this.entities
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class Entity extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.EntitiyID
+                this.identifier = data.identifier
+                this.name = this.identifier
+                this.textures = data.textures
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-person-rays\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h3>Entity</h3><br>" + this.name
+
+                if (this.textures.length > 0) {
+                    let img = new Image()
+                    img.style.width = "80%"
+                    img.style.maxHeight = "80%"
+                    img.src = `/packs/${this.pack_id}/textures/${this.textures[0].TextureID}/stream`
+                    img.classList.add("keep_pixels")
+                    column_1.appendChild(img)
+                }
+
+                let column_2 = document.createElement("div")
+                column_2.innerHTML = "<h3>Sounds</h3>"
+
+                let column_3 = document.createElement("div")
+                column_3.innerHTML = "<h3>Textures</h3>"
+                let button_1 = document.createElement("button")
+                button_1.classList.add("button_choice_button")
+                button_1.innerHTML = "Upload & Replace model file"
+
+                let button_2 = document.createElement("button")
+                button_2.classList.add("button_choice_button")
+                button_2.innerHTML = "Download Blockbench <i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                button_2.onclick = () => {window.open("https://www.blockbench.net/", "_blank")}
+
+                column_1.appendChild(button_1)
+                column_1.appendChild(document.createElement("br"))
+                column_1.appendChild(document.createElement("br"))
+                column_1.appendChild(button_2)
+
+                for (let texture of this.textures) {
+
+                    let div = document.createElement("div")
+                    div.innerHTML = texture.Type + " "
+
+                    let button = document.createElement("button")
+                    button.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    button.onclick = async () => {
+                        let i = new Texture(this, this.maker, await (await fetch(`/packs/${this.pack_id}/textures/${texture.TextureID}`)).json())
+                        i.load()
+                    }
+                    div.appendChild(button)
+                    column_3.appendChild(div)
+                }
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(column_2)
+                wrapper.appendChild(column_3)
+
+
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        class ParentTextureManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Textures"
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-fill-drip\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                for (let item of [new TextureManager(this, this.maker), new TextureGroupManager(this, this.maker)]) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+
+        }
+
+        class TextureManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Textures"
+                this.textures = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-fill-drip\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.textures.length === 0) this.textures = (await (await fetch(`/packs/${this.parent.parent.id}/textures`)).json()).map(block => new Texture(this, this.maker, block))
+                for (let item of this.textures) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class Texture extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.TextureID
+                this.name = this.id
+                this.overlay = data.OverlayColor
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-fill-drip\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h3>Texture</h3><br>" + this.name
+                let column_2 = document.createElement("div")
+                let column_3 = document.createElement("div")
+                column_1.innerHTML = "<h3>Texture</h3><br>" + this.name
+
+                let img = new Image()
+                img.style.width = "100%"
+                img.src = `/packs/${this.pack_id}/textures/${this.id}/stream`
+                img.classList.add("keep_pixels")
+                column_1.appendChild(img)
+
+                let button_1 = document.createElement("button")
+                button_1.classList.add("button_choice_button")
+                button_1.innerHTML = "Replace <i class=\"fa-solid fa-arrows-rotate\"></i>"
+                column_3.appendChild(button_1)
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(column_2)
+                wrapper.appendChild(column_3)
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        class TextureGroupManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Groups"
+                this.texture_groups = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-fill-drip\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.texture_groups.length === 0) this.texture_groups = (await (await fetch(`/packs/${this.parent.parent.id}/textures/groups`)).json()).map(block => new TextureGroup(this, this.maker, block))
+                let items = this.texture_groups
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class TextureGroup extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.TextureGroupID
+                this.game_id = data.GameID
+                this.name = this.game_id
+                this.type = data.type
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-fill-drip\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                wrapper.innerHTML = "<h1>" + this.name + "</h1>"
+
+                let texture_select = document.createElement("div")
+                texture_select.innerHTML = "<h2>Set texture groups</h2>"
+
+                let audio_select = document.createElement("div")
+                audio_select.innerHTML = "<h2>Set audio group</h2>"
+                wrapper.appendChild(texture_select)
+                wrapper.appendChild(audio_select)
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        class ParentSoundManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Sounds"
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-music\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                for (let item of [new SoundGroupManager(this, this.maker), new SoundDefinitionManager(this, this.maker), new SoundManager(this, this.maker)]) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class SoundDefinitionManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Sound Definitions"
+                this.definitions = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-music\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.definitions.length === 0) this.definitions = (await (await fetch(`/packs/${this.pack_id}/sounds/definitions/`)).json()).map(block => new SoundDefinition(this, this.maker, block))
+                let items = this.definitions
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class SoundDefinition extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.SoundDefID
+                this.game_id = data.Name
+                this.name = this.game_id
+                this.sounds = data.sounds
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-volume\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h3>" + this.name + "</h3>"
+                let column_2 = document.createElement("div")
+                let column_3 = document.createElement("div")
+                column_1.innerHTML = "<h3>Sound Definition</h3><br>" + this.name +
+                    "<p><strong>What is a sound definition?</strong> Sound definitions are the part of the resource pack that links physical files within your pack, to an ID in-game. When a Sound Defintion has multiple linked audio files, a random one of them will play when called upon.</p>"
+
+                column_3.innerHTML = "<h3>Linked sounds</h3>"
+                for (let sound of this.sounds) {
+                    let _sound = new Sound(this, this.maker, sound)
+                    column_3.appendChild(_sound.generateListItem())
+                }
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(column_2)
+                wrapper.appendChild(column_3)
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        class SoundManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Sounds (advanced)"
+                this.blocks = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-music\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.blocks.length === 0) this.blocks = (await (await fetch(`/packs/${this.pack_id}/sounds`)).json()).map(block => new Sound(this, this.maker, block))
+                let items = this.blocks
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class Sound extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.SoundID
+                this.sound_definition_id = data.SoundDefID
+                this.is3D = data.is3D
+                this.pitch = data.pitch
+                this.volume = data.volume
+                this.name = this.id
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-volume\"></i> " + this.name + "</div>"
+
+                let audio = document.createElement("button")
+                audio.onclick = () => {play_audio(`/packs/${this.pack_id}/sounds/${this.id}/stream`, audio)}
+                audio.innerHTML = "<i class=\"fa-solid fa-play\"></i>"
+                div.appendChild(audio)
+
+                // div.onclick = () => {
+                //     this.load()
+                // }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h3>" + this.name + "</h3>"
+
+                let texture_select = document.createElement("div")
+                texture_select.innerHTML = "<h2>Set texture groups</h2>"
+                let preview_id
+                for (let item of this.texture_groups) {
+                    // Get the texture group data
+                    let texture_group = await (await fetch(`/packs/${this.pack_id}/textures/groups/${item.TextureGroupID}`)).json()
+                    if (!preview_id) preview_id = texture_group.textures[0].TextureID
+                    let div = document.createElement("div")
+                    div.innerText = item.Type + ": " + texture_group.GameID
+
+                    let button1 = document.createElement("button")
+                    button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    div.appendChild(button1)
+
+                    let button2 = document.createElement("button")
+                    button2.innerText = "Change"
+                    div.appendChild(button2)
+                    texture_select.appendChild(div)
+                }
+
+                let img = new Image()
+                img.src = `/packs/1/textures/${preview_id}/stream`
+                img.width = 200
+                img.height = 200
+                img.classList.add("keep_pixels")
+                column_1.appendChild(img)
+
+                let audio_select = document.createElement("div")
+                audio_select.innerHTML = "<h2>Set audio group</h2>"
+                // Fetch audio group
+                let sound_group = await (await fetch(`/packs/${this.pack_id}/sounds/groups/${this.sound_group_id}`)).json()
+                let sound_group_div = document.createElement("div")
+                sound_group_div.innerText = sound_group.type
+
+                let button1 = document.createElement("button")
+                button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+
+                let button2 = document.createElement("button")
+                button2.innerText = "Change"
+                sound_group_div.appendChild(button1)
+                sound_group_div.appendChild(button2)
+                audio_select.appendChild(sound_group_div)
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(texture_select)
+                wrapper.appendChild(audio_select)
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        class SoundGroupManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Sound Groups"
+                this.groups = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-music\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.groups.length === 0) this.groups = (await (await fetch(`/packs/${this.pack_id}/sounds/groups`)).json()).map(block => new SoundGroup(this, this.maker, block))
+                let items = this.groups
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class SoundGroup extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.SoundGroupID
+                this.pitch_lower = data.pitch_lower
+                this.pitch_higher = data.pitch_higher
+                this.vol_lower = data.vol_lower
+                this.vol_higher = data.vol_higher
+                this.game_id = data.GroupName
+                this.type = data.type
+                this.name = this.game_id
+                this.events = data.events
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-volume\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h3>" + this.name + "</h3>"
+                let column_2 = document.createElement("div")
+                let column_3 = document.createElement("div")
+                column_1.innerHTML = "<h3>Sound Group</h3><br>" + this.name +
+                    "<p><strong>What is a sound group?</strong> A sound group 'glues' sound definitions to block, entity, or item events. For example; The 'Acacia Planks' block has been assigned to the 'planks' sound group. The sound group is setup so that whenever the block 'Acacia Planks' is placed (the 'place' event), it'll play a sound.</p>"
+
+                column_3.innerHTML = "<h3>Group events & linked definitions</h3>"
+                for (let event of this.events) {
+                    let div = document.createElement("div")
+                    let sound_def = await (await fetch(`/packs/${this.pack_id}/sounds/definitions/${event.SoundDefID}`)).json()
+                    div.innerHTML = "On <strong>" + event.EventType + "</strong> trigger <strong>" + sound_def.Name + "</strong>"
+
+                    let button1 = document.createElement("button")
+                    button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    button1.onclick = () => {
+                        let i = new SoundDefinition(this, this.maker, sound_def)
+                        i.load()
+                    }
+                    div.appendChild(button1)
+
+                    let button2 = document.createElement("button")
+                    button2.innerText = "Change"
+                    div.appendChild(button2)
+                    column_3.appendChild(div)
+                }
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(column_2)
+                wrapper.appendChild(column_3)
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        class ItemManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Items"
+                this.items = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-apple-whole\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+                if (this.items.length === 0) this.items = (await (await fetch(`/packs/${this.parent.id}/items`)).json()).map(block => new Item(this, this.maker, block))
+                let items = this.items
+                for (let item of items) {
+                    this.maker.file_tree.appendChild(item.generateListItem())
+                }
+                this.maker.updateURI()
+            }
+        }
+
+        class Item extends PackMakerItem {
+            constructor(parent, maker, data) {
+                super(parent, maker);
+                this.id = data.ItemID
+                this.game_id = data.GameID
+                this.name = this.game_id
+                this.texture_group_id = data.TextureGroupID
+                this.textures = data.textures
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                if (this.textures.length !== 0) {
+                    div.innerHTML = `<div><img style='width:12pt;height:12pt;' style='keep_pixels' src='/packs/${this.pack_id}/textures/${this.textures[0].TextureID}/stream'> ` + this.name + "</div>"
+                } else {
+                    div.innerHTML = "<div><i class=\"fa-solid fa-apple-whole\"></i> " + this.name + "</div>"
+                }
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                this.maker.location = this.generateLocationTree()
+                this.maker.file_tree.innerHTML = ""
+
+                let wrapper = document.createElement("div")
+                wrapper.classList.add("file")
+                wrapper.classList.add("file_full_area")
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h3>" + this.name + "</h3>"
+
+                let texture_select = document.createElement("div")
+                texture_select.innerHTML = "<h2>Set texture groups</h2>"
+                let preview_id
+                for (let item of this.texture_groups) {
+                    // Get the texture group data
+                    let texture_group = await (await fetch(`/packs/${this.pack_id}/textures/groups/${item.TextureGroupID}`)).json()
+                    if (!preview_id) preview_id = texture_group.textures[0].TextureID
+                    let div = document.createElement("div")
+                    div.innerHTML = `<img style='width:12pt; height:12pt;' class='keep_pixels' src="/packs/1/textures/${texture_group.textures[0].TextureID}/stream">` + " " + item.Type + ": " + texture_group.GameID
+
+                    let button1 = document.createElement("button")
+                    button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    div.appendChild(button1)
+
+                    let button2 = document.createElement("button")
+                    button2.innerText = "Change"
+                    div.appendChild(button2)
+                    texture_select.appendChild(div)
+                }
+
+                let img = new Image()
+                img.src = `/packs/1/textures/${preview_id}/stream`
+                img.width = 200
+                img.height = 200
+                img.classList.add("keep_pixels")
+                column_1.appendChild(img)
+
+                let audio_select = document.createElement("div")
+                audio_select.innerHTML = "<h2>Set audio group</h2>"
+                // Fetch audio group
+                let sound_group = await (await fetch(`/packs/${this.pack_id}/sounds/groups/${this.sound_group_id}`)).json()
+                let sound_group_div = document.createElement("div")
+                sound_group_div.innerText = sound_group.GroupName
+
+                let button1 = document.createElement("button")
+                button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                button1.onclick = () => {
+                    let i = new SoundGroup(this, this.maker, sound_group)
+                    i.load()
+                }
+
+                let button2 = document.createElement("button")
+                button2.innerText = "Change"
+                sound_group_div.appendChild(button1)
+                sound_group_div.appendChild(button2)
+                audio_select.appendChild(sound_group_div)
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(texture_select)
+                wrapper.appendChild(audio_select)
+                this.maker.file_tree.appendChild(wrapper)
+
+                this.maker.updateURI()
+            }
+        }
+
+        function scrollParentToChild(parent, child) {
+
+            // Where is the parent on page
+            var parentRect = parent.getBoundingClientRect();
+            // What can you see?
+            var parentViewableArea = {
+                height: parent.clientHeight,
+                width: parent.clientWidth
+            };
+
+            // Where is the child
+            var childRect = child.getBoundingClientRect();
+            // Is the child viewable?
+            var isViewable = (childRect.top >= parentRect.top) && (childRect.bottom <= parentRect.top + parentViewableArea.height);
+
+            // if you can't see the child try to scroll parent
+            if (!isViewable) {
+                // Should we scroll using top or bottom? Find the smaller ABS adjustment
+                const scrollTop = childRect.top - parentRect.top;
+                const scrollBot = childRect.bottom - parentRect.bottom;
+                if (Math.abs(scrollTop) < Math.abs(scrollBot)) {
+                    // we're near the top of the list
+                    parent.scrollTop += scrollTop;
+                } else {
+                    // we're near the bottom of the list
+                    parent.scrollTop += scrollBot;
+                }
+            }
+
+        }
+
+        const check_if_editable = (file_path) => {
+            if (file_path.endsWith(".png") || file_path.endsWith(".fsb")) {
+                return true
+            }
+            else if (owned.indexOf(file_path) !== -1) {
+                return true
+            }
+            else {return false}
+        }
+
+        const show_dialog = (title, elements, allow_close = true) => {
+            if (allow_close) {
+                document.getElementById("dialog_close").style.display = ""
+            } else {
+                document.getElementById("dialog_close").style.display = "none"
+            }
+
+            // Show the dialog
+            document.getElementById("dialog_background").style.display = ""
+
+            // Set the title
+            document.getElementById("dialog_title").innerText = title
+
+            // Append the dialog content
+            let content_box = document.getElementById("dialog_content")
+            content_box.innerHTML = ""
+            for (let element of elements) {
+                content_box.appendChild(element)
+            }
+        }
+
+        const generate_upload_dialog = (file_path) => {
+            let form = document.createElement("form")
+            form.innerHTML = "Uploading a file to replace:<br><strong>" + file_path + "</strong><br>"
+
+            if (file_path.endsWith(".png") || file_path.endsWith(".ogg")) {
+                let info_box = document.createElement("div")
+                info_box.classList.add("info_box")
+                info_box.style.padding = "10px"
+                form.appendChild(info_box)
+
+                let preview_el = document.createElement("div")
+                preview_el.innerText = "Loading a preview..."
+                info_box.appendChild(preview_el)
+
+                create_preview(file_path).then(el => {
+                    if (file_path.endsWith(".ogg")) {
+                        el.controls = true
+                        el.style.width = "100%"
+                    } else if (file_path.endsWith(".png")) {
+                        el.style.width = "100%"
+                    }
+                    preview_el.innerHTML = ""
+                    preview_el.appendChild(el)
+                })
+            }
+
+            let file_upload_label = document.createElement("label")
+            file_upload_label.innerText = "Upload a file: "
+            let file_upload = document.createElement("input")
+            file_upload.type = "file"
+            file_upload.onchange = (e) => {
+                console.log("Detected file change")
+                if (supported_file_types.indexOf(file_upload.files[0].type) === -1) {
+                    alert(`'${file_upload.files[0].type}' is not supported.`)
+                    file_upload.value = ""
+                }
+                else if (file_path.startsWith("/assets/minecraft/sounds/music") || file_path.startsWith("/custom_items/sounds")) {
+                    if (file_upload.files[0].size > 5000000) {
+                        alert("HOLD UP! This file is too large. 5MB is the maxmimum size.")
+                        file_upload.value = ""
+                    }
+                }
+                else if (file_upload.files[0].size > 2000000) {
+                    alert("HOLD UP! This file is too large. 2MB is the maximum size.")
+                    file_upload.value = ""
+                }
+                else if (file_path.endsWith(".png")) {
+                    // Check that upladed image is the right size
+                    let new_image = new Image()
+                    let img_url = window.URL.createObjectURL(file_upload.files[0])
+                    new_image.onload = (e) => {
+                        if (new_image.width > 256 || new_image.height > 256) {
+                            alert("ERR! The maximum image size is 256x256 pixels")
+                            file_upload.value = ""
+                        }
+                        window.URL.revokeObjectURL(img_url)
+                    }
+                    new_image.src = img_url
+                }
+            }
+            if (file_path.endsWith(".png")) {
+                file_upload.accept = "image/png, image/jpeg"
+            }
+            else if (file_path.endsWith(".ogg") || file_path.endsWith(".fsb")) {
+                file_upload.accept = ".mp3,.m4a,.wav"
+            }
+            file_upload.id = "file_upload"
+            file_upload_label.appendChild(file_upload)
+            form.appendChild(file_upload_label)
+
+            form.appendChild(document.createElement("br"))
+            form.appendChild(document.createElement("br"))
+
+            let url_upload_label = document.createElement("label")
+            url_upload_label.innerText = "Or input a YouTube URL: "
+            let url_upload = document.createElement("input")
+            url_upload.type = "url"
+
+            url_upload_label.appendChild(url_upload)
+            form.appendChild(url_upload_label)
+
+            let submit = document.createElement("div")
+            submit.classList.add("button_choice")
+            let submit_button = document.createElement("button")
+            submit_button.classList.add("button_choice_button")
+            submit_button.innerText = "Upload!"
+            submit.appendChild(submit_button)
+            submit.style.gridTemplateColumns = "1fr"
+            form.appendChild(submit)
+
+            form.onsubmit = (e) => {
+                e.preventDefault()
+
+                if (file_upload.files.length !== 0) {
+                    // Upload file
+                    // Show uploading message
+                    let data = new FormData()
+                    data.append("file", file_upload.files[0])
+                    data.append("location", file_path)
+                    data.append("key", key)
+
+                    let xhttp = new XMLHttpRequest()
+                    // xhttp.onprogress = upload_update
+
+                    xhttp.onreadystatechange = () => {
+                        if (xhttp.readyState === 4 && xhttp.status === 200) {
+                            document.getElementById("dialog_background").style.display = "none"
+                        }
+                    }
+                    console.log(data.keys().next())
+                    xhttp.open("post", "/", true)
+                    xhttp.send(data)
+
+                    show_dialog("Uploading", "Uploading your change... Please wait and don't refresh the page...", false)
+                }
+                else if (url_upload.value !== "") {
+                    // Upload YouTube uri
+                    // Show uploading message
+
+                    let data = new FormData()
+                    data.append("yturi", url_upload.value)
+                    data.append("location", file_path)
+                    data.append("key", key)
+
+                    let xhttp = new XMLHttpRequest()
+                    // xhttp.onprogress = upload_update
+
+                    xhttp.onreadystatechange = () => {
+                        if (xhttp.readyState === 4 && xhttp.status === 200) {
+                            if (xhttp.responseText === "OK!") {
+                                // Upload successful
+                            } else {
+                                // Upload failed
+                            }
+                        }
+                    }
+                    console.log(data.keys().next())
+                    xhttp.open("post", "/", true)
+                    xhttp.send(data)
+                    xhttp.onload = () => console.log(xhttp)
+
+                    document.getElementById("dialog_background").style.display = "none"
+                }
+                else {
+                    alert("Please insert a file or YouTube link.")
+                }
+            }
+
+            show_dialog("Upload", [form])
+        }
+
+        const create_preview = (file_path) => {
+            return new Promise(async resolve => {
+                if (file_path.endsWith(".ogg") || file_path.includes("sound")) {
+                    let audio_el = document.createElement("audio")
+                    let blob
+                    if (audio_el.canPlayType("audio/ogg") === "maybe" || audio_el.canPlayType("audio/ogg") === "probably") {
+                        audio_el.type = "audio/ogg"
+                        blob = (await http_request_sync("get", file_path, true)).response
+                    } else {
+                        audio_el.type = "audio/mpeg"
+                        blob = (await http_request_sync("get", file_path.replace(".ogg", ".mp3"), true)).response
+                    }
+                    audio_el.src = URL.createObjectURL(blob)
+                    audio_el.load()
+
+                    resolve(audio_el)
+                }
+                else if (file_path.endsWith(".png")) {
+                    let img_el = document.createElement("img")
+                    img_el.src = "/assets" + file_path
+                    console.log(img_el)
+                    resolve(img_el)
+                } else {
+                    throw "Unsupported file extension for previewing"
+                }
+            })
+        }
+
+        const play_audio = async (file_path, play_button) => {
+            console.log(file_path)
+
+            play_button.onclick = () => {}
+            play_button.classList.remove("fa-play")
+            play_button.classList.add("fa-spinner")
+
+            let audio_el = await create_preview(file_path)
+            play_button.appendChild(audio_el)
+            audio_el.onended = () => stop_audio(file_path, play_button, audio_el)
+            audio_el.play()
+            play_button.classList.remove("fa-spinner")
+            play_button.classList.add("fa-pause")
+
+            play_button.onclick = () => stop_audio(file_path, play_button, audio_el)
+        }
+
+        const stop_audio = (file_path, play_button, audio_el) => {
+            audio_el.pause()
+            delete audio_el
+            play_button.classList.remove("fa-pause")
+            play_button.classList.add("fa-play")
+
+            play_button.onclick = () => play_audio(file_path, play_button)
+        }
+
+        const show_notification = (text_html, icon_uri = "") => {
+            let notification = document.getElementById("notification")
+            notification.classList.remove("show_notification")
+
+            setTimeout(() => {
+                document.getElementById("notification_text").innerHTML = text_html
+                document.getElementById("notification_icon").src = icon_uri
+                notification.classList.add("show_notification")
+            }, 100)
+        }
+
+        const cancel_resource_update = () => {
+            clearTimeout(auto_resource_update)
+            show_notification("Resource pack update cancelled")
+        }
+
+        const tip_player = () => {
+            let form_data = new FormData()
+            form_data.append("command", "execute @r ~ ~ ~ me has been tipped. This is of literally no use to anybody.")
+            let xhttp = new XMLHttpRequest()
+            xhttp.onreadystatechange = () => {
+                if (xhttp.readyState === 4 && xhttp.status === 200) {
+                    console.log(xhttp)
+                }
+            }
+            xhttp.open("post", "/console")
+            xhttp.send(form_data)
+            alert("A random player has been tipped. Why? Why did you do this? It's completely pointless.")
+        }
+
+        const khelp_player = () => {
+            let form_data = new FormData()
+            let random = Math.floor(Math.random() * 2)
+            if (random === 0) {
+                form_data.append("command", "tell @r Someone wants me to help you, but I have no idea what to do so, yeah you're on your own bud.")
+            } else {
+                form_data.append("command", "give @r kelp")
+            }
+            let xhttp = new XMLHttpRequest()
+            xhttp.onreadystatechange = () => {
+                if (xhttp.readyState === 4 && xhttp.status === 200) {
+                    console.log(xhttp)
+                }
+            }
+            xhttp.open("post", "/console")
+            xhttp.send(form_data)
+            if (random === 0) {
+                alert("A random player has been given help")
+            } else {
+                alert("A random player has been given kelp")
+            }
+        }
+
+        const trigger_piano = () => {
+            let form_data = new FormData()
+            form_data.append("command", "playsound music.game @r")
+
+            let xhttp = new XMLHttpRequest()
+            xhttp.onreadystatechange = () => {
+                if (xhttp.readyState === 4 && xhttp.status === 200) {
+                    console.log(xhttp)
+                }
+            }
+            xhttp.open("post", "/console")
+            xhttp.send(form_data)
+            alert("A random player is now enjoying some beautiful piano music.")
+        }
+
+        const list_online_players = () => {
+            let form_data = new FormData()
+            form_data.append("command", "list")
+
+            let xhttp = new XMLHttpRequest()
+            xhttp.onreadystatechange = () => {
+                if (xhttp.readyState === 4 && xhttp.status === 200) {
+                    alert(xhttp.responseText)
+                }
+            }
+            xhttp.open("post", "/console")
+            xhttp.send(form_data)
+        }
+
+        const load_gallery = () => {
+            let xhttp = new XMLHttpRequest()
+            xhttp.onreadystatechange = () => {
+                if (xhttp.readyState === 4) {
+                    let banners = JSON.parse(xhttp.response)
+                    for (let gallery of document.getElementsByClassName("gallery")) {
+                        gallery.innerHTML = ""
+                        for (let banner of banners) {
+                            console.log(banner)
+                            let img = document.createElement("img")
+                            img.src = banner
+                            gallery.appendChild(img)
+                        }
+                    }
+                }
+            }
+            xhttp.open("get", "/bannerimages")
+            xhttp.send()
+        }
+
+        const switch_sections = (section_id) => {
+            document.getElementById(cur_section).style.display = ""
+            document.getElementById(section_id).style.display = "block"
+            window.scrollTo(0,0)
+            cur_section = section_id
+        }
+
+        function addPFP(type) {
+            throw_pfps.push(new throwMakerPFP(type))
+        }
+
+        function toDataURL(url) {
+            return new Promise(resolve => {
+                var xhr = new XMLHttpRequest();
+                xhr.onload = function () {
+                    var reader = new FileReader();
+                    reader.onloadend = function () {
+                        resolve(reader.result);
+                    }
+                    reader.readAsDataURL(xhr.response);
+                };
+                xhr.open('GET', url);
+                xhr.responseType = 'blob';
+                xhr.send();
+            })
+        }
+
+        async function generateThrowJSON(upload = true) {
+            let id = makeid(5)
+
+            let fileExtension = image_upload.files[0].name.split(".").pop();
+
+            if (upload) {
+                show_dialog("Processing...", [document.createTextNode("Processing your meme")], false)
+
+                let headers = new Headers()
+                headers.set("Content-Type", "application/json")
+                let data = new FormData()
+                let out = {
+                    "extension": fileExtension,
+                    "pfp_locations": throw_pfps.map(pfp => {return pfp.toJSON()})
+                }
+
+                data.append("key", key)
+                data.append("data", JSON.stringify(out))
+                data.append("file", image_upload.files[0])
+
+                fetch("/newthrow", {
+                    method: "POST",
+                    body: data
+                }).then(async res => {
+                    let data = await res.json()
+                    console.log(data)
+                    if (typeof data.e !== "undefined") {
+                        show_dialog("ERR", [document.createTextNode("An error occoured: ")] + data.e, true)
+                    } else {
+                        show_dialog("UPLOADED!", [document.createTextNode("Your template is uploaded and is awaiting verification! It's ID is: " + data.id)], true)
+                    }
+                })
+            }
+            else {
+                let out = {
+                    "location": id + '.' + fileExtension,
+                    "url": await toDataURL(URL.createObjectURL(image_upload.files[0])),
+                    "pfp_locations": throw_pfps.map(pfp => {return pfp.toJSON()})
+                }
+
+                let t = new Blob([JSON.stringify(out)], {type: "text/plain"})
+                let a = document.createElement("a")
+                a.href = URL.createObjectURL(t)
+                a.download = "throw_" + id + ".json"
+                a.click()
+
+                alert("Want to get this added to /throw? Please DM the generated file to @Beta")
+            }
+        }
+
+        function makeid(length) {
+            var result           = '';
+            var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            var charactersLength = characters.length;
+            for ( var i = 0; i < length; i++ ) {
+                result += characters.charAt(Math.floor(Math.random() *
+                    charactersLength));
+            }
+            return result;
+        }
+
+        function resetThrowMaker() {
+            image_upload.value = ""
+            throw_img.src = ""
+            for (let pfp of throw_pfps) pfp.unrender()
+            throw_pfps = []
+        }
+
+        class throwMakerPFP {
+            constructor(type) {
+                this.div = document.createElement("div")
+                this.div.classList.add("throw_maker_pfp")
+
+                this.dragDiv = document.createElement("div")
+                this.div.appendChild(this.dragDiv)
+                this.div.appendChild(document.createTextNode(type))
+
+                this.xpos = 0
+                this.ypos = 0
+
+                this.pos1 = 0
+                this.pos2 = 0
+                this.pos3 = 0
+                this.pos4 = 0
+                this.type = type
+
+                this.dragDiv.onmousedown = (e) => {
+                    e = e || window.event;
+                    // e.preventDefault();
+                    // get the mouse cursor position at startup:
+                    this.pos3 = e.clientX;
+                    this.pos4 = e.clientY;
+                    document.onmouseup = (e) => {this.dragDiv.ondragend(e)};
+                    // call a function whenever the cursor moves:
+                    document.onmousemove = (e) => {this.dragDiv.ondrag(e)};
+                }
+
+                this.dragDiv.ondrag = (e) => {
+                    // console.log("MOVING!")
+                    e = e || window.event;
+                    e.preventDefault();
+                    // calculate the new cursor position:
+                    this.pos1 = this.pos3 - e.clientX;
+                    this.pos2 = this.pos4 - e.clientY;
+                    this.pos3 = e.clientX;
+                    this.pos4 = e.clientY;
+
+                    this.xpos = this.div.offsetLeft - this.pos1
+                    this.ypos = this.div.offsetTop - this.pos2
+                    // console.log(this.xpos, this.ypos)
+                    // set the element's new position:
+                    this.div.style.top = (this.div.offsetTop - this.pos2) + "px";
+                    this.div.style.left = (this.div.offsetLeft - this.pos1) + "px";
+                }
+
+                this.dragDiv.ondragend = (e) => {
+                    this.xpos = this.adjustUsingRatio((this.div.offsetLeft - throw_img.offsetLeft), throw_img.width, throw_img_calc.width)
+                    this.ypos = this.adjustUsingRatio((this.div.offsetTop - throw_img.offsetTop), throw_img.height, throw_img_calc.height)
+                    // stop moving when mouse button is released:
+                    document.onmouseup = null;
+                    document.onmousemove = null;
+                }
+
+                document.getElementById('throw_maker').insertBefore(this.div, throw_img)
+            }
+
+            adjustUsingRatio(value, originalPair, newPair) {
+                return Math.round((value / originalPair) * newPair)
+            }
+            toJSON() {
+                let out = {}
+                out.type = this.type
+                out.location = {x: this.xpos, y: this.ypos}
+                out.size = {x: this.adjustUsingRatio(this.div.clientWidth, throw_img.width, throw_img_calc.width), y: this.adjustUsingRatio(this.div.clientHeight, throw_img.height, throw_img_calc.height)}
+                return out
+            }
+            unrender() {
+                this.div.parentElement.removeChild(this.div)
+            }
+        }
+    </script>
+</head>
+<body onload="onload()" onscroll="onscroll()">
+
+<div id="dialog_background" style="display: none;">
+    <div id="dialog">
+        <div id="dialog_top_bar">
+            <h1><i id="dialog_close" class="fas fa-times" onclick="document.getElementById('dialog_background').style.display = 'none'"></i><span id="dialog_title">This is a dialog</span></h1>
+            <div id="dialog_content"></div>
+        </div>
+    </div>
+</div>
+
+<div id="page_header_wrapper">
+    <div id="page_header">
+        <img id="website_icon" class="keep_pixels" src="/web_assets/images/icon.png"><div id="page_header_txt">Re-Flesh<span id="username" style="float: right"><br>:username:</span></div>
+    </div>
+    <div id="menu">
+        <a href="javascript:switch_sections('section_home')">Home</a>
+        <a href="javascript:switch_sections('section_gallery')">Spotlight Gallery</a>
+        <a href="javascript:switch_sections('rules')">Server Rules</a>
+        <a href="javascript:switch_sections('bank')">The Bank</a>
+        <a href="javascript:switch_sections('section_pack_maker')">The Pack Maker</a>
+        <a href="javascript:switch_sections('section_management')">Server Management</a>
+        <a href="javascript:switch_sections('mod_setup')">The Modpack</a>
+        <a href="javascript:switch_sections('throw_maker')">Throw Maker!</a>
+    </div>
+</div>
+
+<div class="section" style="display: block" id="section_home">
+    <h1>Re-Flesh REDACTED</h1>
+    <p>Welcome to Re-Flesh REDACTED!</p>
+    <div class="info_box">
+        <h1>Modpack Downloads</h1>
+        <p>Our server uses mods, so to be able to join, you'll need to have our modpack isntalled. If you are unsure
+        how to download and install mods, please visit <a href="javascript:switch_sections('mod_setup')">our guide</a>.</p>
+        <p><a href="/web_assets/misc_downloads/3.2_reflesh_pack_updater.exe" download>Modpack installer/updater for Windows (v3.2)</a></p>
+        <p><a class="modpack_download">Modpack <span class="latest_modpack_version">(getting modpack info...)</span></a></p>
+    </div>
+</div>
+
+<div class="section" id="section_gallery">
+    <h1>Spotlight Gallery</h1>
+    <p>Click below to view the Spolight Gallery.</p>
+    <div class="info_box gallery" banner-gallery>
+        <a href="javascript:load_gallery()">Load the gallery (WARNING: Do not load over a mobile data connection)</a>
+    </div>
+    <div class="info_box">
+        <h3>Adding to the Gallery</h3>
+        All items in the galery must adhere to the <a href="javascript:switch_sections('rules')">gallery rules</a>.
+
+        To add an item into the gallery, go onto the Discord server and post a message containing the images you wish to add, along with '#banner'.<br>
+        If you have already posted your images but forgot to add '#banner', you can reply to the message in which you sent the image(s) with #banner.<br>
+        <br>
+        <strong>#banner will not work</strong> if you are replying to a message that was not sent by you, or if you are attempting to do it in a channel marked as NSFW.
+    </div>
+</div>
+
+<div class="section" id="rules">
+    Having an issue with the new website? Let @Beta know on the Discord server!
+    <h2>Server Rules</h2>
+    <p>As a member of this server, you must follow these rules:</p>
+
+    <div class="info_box">
+        <h3>Discord Server Rules</h3>
+        As a member of this server, you cannot ever:
+        <ul>
+            <li>Harass or threaten another member of the server. Whether it be within the server, or outside of it.</li>
+            <li>Use hate speech or harmful conduct</li>
+            <li>Promote or show support to violence</li>
+            <li>Groom another member of the server</li>
+            <li>Share sexually explicit content with other people, without consent, or if they are under the age of 18</li>
+            <li>Use the discord server to share content that violates intellectual property</li>
+            <li>Distribute unlicensed material such as copying or claiming of other people’s art</li>
+            <li>Perform an action with the intent of negatively affecting this server, or its members</li>
+        </ul>
+        You are expected to:
+        <ul>
+            <li>Always follow Gentlemen's Rules and respect the server, along with all of it's members</li>
+        </ul>
+        As always, all moderation and server management decisions made by admins are final.
+        <div class="info_box_2">
+            <div></div>
+            <div>
+                @Post Validator holds the right to warn, timeout, and/or ban you if it believes you are causing trouble.<br>
+                If you believe the bot is acting up, please talk to an admin.
+            </div>
+        </div>
+        <div class="info_box_2">
+            <div></div>
+            <div>
+                Admins are marked out by the @Admin role on our Discord server.
+            </div>
+        </div>
+    </div>
+
+    <div class="info_box">
+        <h3>Rules Of War</h3>
+        <p>Should you or your faction wish to go to war, you must agree to the following:</p>
+        <ul>
+            <li>No Stealing</li>
+            <li>No exploding or vandalising resources or structures that were not intended for war. This could mean unprotected bases and such.</li>
+            <li>No attacking a player who has decided to leave the war, or not partake in it.</li>
+            <li>Play fair, and have fun.</li>
+        </ul>
+        <p>To agree to the rules, screenshot these rules and send it to any of our Discord server admins, followed by the phrase 'I agree'.</p>
+        <div class="info_box_2">
+            <div></div>
+            <div>
+                Admins are marked out by the @Admin role on our Discord server.
+            </div>
+        </div>
+    </div>
+    <div class="info_box">
+        <h3>Courtesy Farming & Mod Management</h3>
+        <p>Since we are now running a modded Java server, we need to be aware that there is additional processing power
+            required on both the server end, and the client end. So that we can all have a wonderful experience, we ask
+            that you follow these guidelines.
+        </p>
+        <h4>Mod votes</h4>
+        <p>Every now and then we'll hold a vote, to see if people want mods to be added and/or removed from the pack.</p>
+        <ul>
+            <li>Mods that significantly alter vanilla features will likely not be accepted
+                <div class="info_box_2">
+                    <div></div>
+                    <div>
+                        This is because while most of us do want to play on a modded server, not everyone does.
+                        This also helps ensure that people are getting the vanilla experience, and aren't so off-putted
+                        by a particular mod.
+                    </div>
+                </div>
+            </li>
+        </ul>
+        <h4>Farming & Machines</h4>
+        <p>The following bullet points assume that <strong>all farms</strong> regardless, are machines.</p>
+        <ul>
+            <li>Particularly laggy machines MUST have an on/off switch, and be turned off when not in use.
+                <div class="info_box_2">
+                    <div></div>
+                    <div>
+                        It is understandable that you may wish to create a machine that causes a fair amount of lag, to collect a resource. If you wish to do this, the machine MUST be able to be turned off, and MUST be turned off when not in use.                    </div>
+                </div>
+            </li>
+            <li>No laggy machines near the world spawn
+                <div class="info_box_2">
+                    <div></div>
+                    <div>
+                        World spawn is constantly rendered by the server, even when no-one is online, so no laggy machines are allowed near the world spawn.                    </div>
+                </div>
+            </li>
+            <li>Try to keep all of your machines in an 'industrial district' area
+                <div class="info_box_2">
+                    <div></div>
+                    <div>
+                        Keeping all of your machines in one area reduces the chance that someone will walk past it unknowingly, and suddenly cause loads of lag.                    </div>
+                </div>
+            </li>
+            <li>AFK farming is fair game
+                <div class="info_box_2">
+                    <div></div>
+                    <div>
+                        As long as your farm doesn't cause significant lag, you are more than welcome to AFK farm. Though a server admin may kick you if your farm is causing issues.
+                  </div>
+                </div>
+            </li>
+        </ul>
+    </div>
+    <div class="info_box">
+        <h3>Spotlight Gallery rules</h3>
+        <ul>
+            <li>Items in the gallery cannot contain any explicit content
+            <li>Items in the gallery cannot contain any political or organisational views
+            <li>The Spotlight Gallery cannot be used as a means of self advertisement
+            <li>The Spotlight Gallery is here to share moments, jokes, and creations from people within the server. Please respect that.
+        </ul>
+    </div>
+</div>
+
+<div class="section" id="bank">
+    <h2>The Bank</h2>
+    <p>Here is where you can manage how much coin you have, and trade it with other players (or the bank)</p>
+    <div class="info_box">
+        <h3>Trade With Players</h3>
+        <div id="trade_with_players">
+            <hr>
+            <div class="trade_item">
+                <img class="keep_pixels" src="https://cdn.discordapp.com/avatars/404507305510699019/291391cdee2763a703f6e7950ac7f60b.png?size=16" style="width: 100%">
+                <div>
+                    <strong>Loading players...</strong><br>
+                    Loading players...
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="info_box">
+        <h3>Trade With The Bank</h3>
+        <div id="trade_with_bank">
+            <hr>
+            <div class="trade_item">
+                <img class="keep_pixels" src="https://cdn.discordapp.com/avatars/404507305510699019/291391cdee2763a703f6e7950ac7f60b.png?size=16" style="width: 100%">
+                <div>
+                    <strong>Copper Ingot</strong><br>
+                    77c
+                </div>
+            </div>
+            <hr>
+            <div class="trade_item">
+                <img class="keep_pixels" src="https://cdn.discordapp.com/avatars/404507305510699019/291391cdee2763a703f6e7950ac7f60b.png?size=16" style="width: 100%">
+                <div>
+                    <strong>Iron Ingot</strong><br>
+                    77c
+                </div>
+            </div>
+            <hr>
+            <div class="trade_item">
+                <img class="keep_pixels" src="https://cdn.discordapp.com/avatars/404507305510699019/291391cdee2763a703f6e7950ac7f60b.png?size=16" style="width: 100%">
+                <div>
+                    <strong>Gold Ingot</strong><br>
+                    77c
+                </div>
+            </div>
+            <hr>
+            <div class="trade_item">
+                <img class="keep_pixels" src="https://cdn.discordapp.com/avatars/404507305510699019/291391cdee2763a703f6e7950ac7f60b.png?size=16" style="width: 100%">
+                <div>
+                    <strong>Diamond</strong><br>
+                    77c
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="section_pack_maker">
+    <h2>The Pack Maker</h2>
+    <p>This server includes something that most other servers don't.</p>
+    <p>You can customise each and every sound, icon, and texture.</p>
+    <p>The first player to customise a sound 'claims' it, and is the only one who can change it after they have claimed it.</p>
+    <p style="font-weight: bold">Please be courteous when changing the resource pack. Non-courteous changes may be reset.</p>
+
+    <div id="file_explorer_uri_bar">
+        Loading...
+    </div>
+    <div id="files">
+    </div>
+</div>
+
+<div class="section" id="section_management">
+    <h2>Server Management</h2>
+    <div class="button_choice">
+        <a class="button_choice_button" href="/lol.zip" download="">Generate and download the pack</a>
+        <a class="button_choice_button" href="/capitalisim.zip" download="">Save a backup & download the world</a>
+        <button class="button_choice_button" onclick="tip_player()">Tip a random player</button>
+        <button class="button_choice_button" onclick="khelp_player()">K(h)elp a player</button>
+        <button class="button_choice_button" onclick="trigger_piano()">Trigger me piano</button>
+        <button class="button_choice_button" onclick="list_online_players()">List online players</button>
+    </div>
+</div>
+
+<div class="section" id="mod_setup">
+    <h1>The Modpack</h1>
+    <div class="info_box">
+        <h1>Modpack Downloads</h1>
+        <ul>
+            <li><a href="/web_assets/misc_downloads/3.2_reflesh_pack_updater.exe" download>Modpack updater for Windows (v3.2)</a></li>
+            <li><a class="modpack_download">Modpack <span class="latest_modpack_version">(getting modpack info...)</span></a></li>
+        </ul>
+    </div>
+    <h2>Getting your game setup with our mods</h2>
+    <p>    Our server uses some carefully-selected mods that you will need to install before you can access the server. Don't worry, we've made this as easy as possible. Just follow the instructions below to get you started.
+    </p>
+    <div class="info_box">
+        <h1>1. Downloading & installing Forge</h1>
+        <p>You'll need to download and install the following:</p>
+        <ul>
+            <li>Download Vanilla Minecraft 1.18.1 by opening the Minecraft launcher, selecting 1.18.1, and clicking 'Play'. This will download and launch the game. Please quit the game once it's loaded</li>
+            <li><a href="https://java.com/en/download/" target="_blank">Download Java JRE</a> and install it</li>
+            <li>Once both <strong>Minecraft 1.18.1</strong> and <strong>Java JRE</strong> are installed, download the <a href="https://files.minecraftforge.net/net/minecraftforge/forge/" target="_blank">Forge 1.18.1 installer</a> and run it. If asked, select 'Install Client'.</li>
+        </ul>
+    </div>
+
+    <div class="info_box">
+        <h1>2. Downloading mods</h1>
+        <p>Once you've got Forge successfully installed, follow these steps to setup the mods:</p>
+        <p><strong>Current modpack version:</strong> <span class="latest_modpack_version">(getting modpack info...)</span></p>
+
+        <h2>Installing your mods (WINDOWS)</h2>
+        <ol>
+            <li>Ensure that your Minecraft launcher & game are closed</li>
+            <li><a href="/web_assets/misc_downloads/3.2_reflesh_pack_updater.exe" download>Download the Re-Flesh pack updater</a> and run it. This will download and install the mods for you.</li>
+            <li>If you get a warning from Windows saying that the app is not secure, click 'More Info' and then 'Run Anyway'.
+                <ul>
+                    <li>I made it specifically for this server, so it doesn't have a security certificate. That's why Windows warns you.</li>
+                </ul>
+            </li>
+            <li>Click 'Install/Update the Re-Flesh modpack' and follow the prompts.</li>
+            <li>Open your Minecraft launcher.</li>
+            <li>Click on the dropdown to the left of the 'Play' button and select the 'Re-Flesh' profile.
+                <ul>
+                    <li>This will ensure that you are running the right mods to connect to our server, and that if you are using any other mods on any other servers/worlds, our Re-Flesh mods won't interfere.</li>
+                    <li>If you ever want to play on a different server or your own world, please change the selected profile.
+                    The Re-Flesh profile is specially set up to use it's own mods folder on your device, so any mods you put into the main mods folder <i>will not work</i> while you are using the Re-Flesh profile, and vice-versa.
+                    </li>
+                </ul>
+            </li>
+        </ol>
+
+        <strong>If you have issues installing the mods through the pack updater, you may need to install them manually.</strong>
+        Though please make sure that you try using the Pack Updater first.<br><br>
+
+        To install your mods manually:
+        <ol>
+            <li><a class="modpack_download">Download the latest modpack in ZIP form</a></li>
+            <li>Click the 'Open your mods folder' button in the Pack Updater</li>
+            <li>Delete <strong>all</strong> contents of the folder</li>
+            <li>Unzip the contents from the modpack ZIP into the folder</li>
+        </ol>
+
+        <h2>Installing your mods (MACOS)</h2>
+        <ol>
+            <li>Open the 'Finder' app</li>
+            <li>Press Command + Shift + G on your keyboard</li>
+            <li>In the dialog that shows up, enter "~/Library/Application Support/minecraft" then press RETURN on your keyboard</li>
+            <li>This should have taken you to the .minecraft folder. If you do not see a folder labelled "mods" inside this folder, then you will need to create it. Be aware that the name is case-sensitive</li>
+            <li><a class="modpack_download">Download the Re-Flesh modpack</a> and un-zip it's contents into the 'mods' folder</li>
+        </ol>
+
+        <h2>Installing your mods (LINUX)</h2>
+        <p>Since Linux can differ quite wildly, these instructions are only breif. The method you need to use to complete them may differ based on your chosen Linux distribution</p>
+        <ol>
+            <li>Navigate to the folder: ~/.minecraft </li>
+            <li>If you do not see a 'mods' folder inside the "~/.minecraft" folder, you'll need to create it</li>
+            <li><a class="modpack_download">Download the Re-Flesh modpack</a> and un-zip it's contents into the 'mods' folder</li>
+        </ol>
+
+        <h2>Mods included in the pack</h2>
+        <p>These packs are required. You'll need all of these installed when playing on the server.</p>
+        <ul>
+            <li><a href="https://www.curseforge.com/minecraft/mc-mods/security-craft" target="_blank">Security Craft</a></li>
+            <li><a href="https://www.curseforge.com/minecraft/mc-mods/autoreglib" target="_blank">AutoRegLib (ARL)</a></li>
+            <li><a href="https://www.curseforge.com/minecraft/mc-mods/create" target="_blank">Create</a></li>
+            <li><a href="https://www.curseforge.com/minecraft/mc-mods/flywheel" target="_blank">Flywheel</a></li>
+            <li><a href="https://www.curseforge.com/minecraft/mc-mods/mrcrayfish-furniture-mod" target="_blank">MyCrayfish's Furniture Mod</a></li>
+            <li><a href="https://www.curseforge.com/minecraft/mc-mods/quark" target="_blank">Quark</a></li>
+            <li><a href="https://www.curseforge.com/minecraft/mc-mods/simple-voice-chat" target="_blank">Simple Voice Chat</a> - <a href="https://www.curseforge.com/linkout?remoteUrl=https%253a%252f%252fmodrepo.de%252fminecraft%252fvoicechat%252fwiki%253ft%253dsetup" target="_blank">Wiki</a> </li>
+        </ul>
+
+        <h2>Optional additional mods</h2>
+        <p>The modpack only contains mods that are required for you to be able to join the server. Here's a list of other ones we suggest you add too, though are not required. If you want them, <strong>download them and place them in the 'mods' folder along with the others</strong></p>
+        <ul>
+            <li>OptiFine: <a href="https://www.optifine.net/downloads" target="_blank">Download from here</a></li>
+            <li>Just Enough Items (JEI): <a href="https://www.curseforge.com/minecraft/mc-mods/jei/files/3599262" target="_blank">Download from here</a></li>
+        </ul>
+
+    </div>
+
+    <div class="info_box">
+        <h1>3. Launching a game with mods enabled</h1>
+        <p>Sweet! Everything's installed, so now it's time to sit back and relax with a good game of Minecraft. <strong>To launch Minecraft with mods</strong> make sure that the Minecraft version dropdown (located to the left of the 'Play' button in the launcher) is set to 'Forge', then click 'Play'.</p>
+    </div>
+</div>
+
+<div class="section" id="throw_maker">
+    <input id="throw_img_select" type="file" accept="image/*"><br>
+    <button onclick="addPFP('sender')">Add sender pfp</button> <button onclick="addPFP('target')">Add target pfp</button> <button onclick="addPFP('random')">Add random pfp</button> <button onclick="resetThrowMaker()">Reset</button> <button onclick="generateThrowJSON(false)">Generate JSON file</button> <button onclick="generateThrowJSON()">Upload & publish</button>
+    <br>
+    <img id="throw_img">
+</div>
+
+<div id="notification">
+    <img class="keep_pixels" width="100%" id="notification_icon">
+    <div><div id="notification_text">This is a notification</div></div>
+</div>
+</body>
+</html>

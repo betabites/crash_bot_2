@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Re-Fleshg Countdown</title>
+
+    <style>
+        @font-face {
+            font-family: Minecraft;
+            src: url("/web_assets/fonts/MinecraftRegular-Bmg3.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft;
+            font-weight: bold;
+            src: url("/web_assets/fonts/MinecraftBold-nMK1.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft;
+            font-style: italic;
+            src: url("/assets/html/web_assets/fonts/MinecraftItalic-R8Mo.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft;
+            font-weight: bold;
+            font-style: italic;
+            src: url("/web_assets/fonts/MinecraftBoldItalic-1y1e.otf");
+        }
+
+        @font-face {
+            font-family: Minecraft-Ten;
+            src: url("/web_assets/fonts/MinecraftTen-VGORe.ttf");
+        }
+
+        body {
+            font-family: Minecraft, serif;
+            background-color: transparent;
+            color: white;
+            font-size: 24pt;
+            background-image: url("/web_assets/images/2022-02-23_15.06.49.png");
+            background-position: center;
+            background-size: cover;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #timer_div {
+            position: fixed;
+            text-align: center;
+            top: 20%;
+            width: 100vw;
+        }
+
+        #timer_sub {
+            position: absolute;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 78pt;
+            transform: scale(1.25);
+            animation: expand 2s ease-in-out infinite;
+        }
+
+        @keyframes expand {
+            0% {
+                transform: scale(1.1);
+            }
+
+            /*50% {*/
+            /*    transform: scale(0.9);*/
+            /*}*/
+
+            100% {
+                transform: scale(1.1);
+            }
+        }
+
+        #gradient {
+            position: absolute;
+            background: radial-gradient(closest-side, white, transparent);
+            width: 100%;
+            height: 100%;
+            -webkit-animation: gradient_animation 2s ease-in-out infinite;
+            -o-animation: gradient_animation 2s ease-in-out infinite;
+            animation: gradient_animation 2s ease-in-out infinite;
+        }
+
+        @keyframes gradient_animation {
+            0% {
+                opacity: 0.25;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 0.25;
+            }
+        }
+    </style>
+
+    <script>
+        const count_to_i = 1646544600000
+        // const count_to_i = 1646522225358
+
+        let players = ["User_MC","BetaBites","GodOfPotatoes","[Pathwagon]","Sudsell_","delynisdelayed", "Nopeman778","JU5her","[Octovee]","5G_Coconut","__Maddawg__","CJHarkie"]
+        let interval
+
+        function shuffleArray(array) {
+            let curId = array.length;
+            // There remain elements to shuffle
+            while (0 !== curId) {
+                // Pick a remaining element
+                let randId = Math.floor(Math.random() * curId);
+                curId -= 1;
+                // Swap it with the current element.
+                let tmp = array[curId];
+                array[curId] = array[randId];
+                array[randId] = tmp;
+            }
+            return array;
+        }
+
+        function right(str, chr) {
+            return str.slice(str.length - chr, str.length);
+        }
+
+        function wait(milliseconds) {
+            return new Promise(resolve => {
+                setTimeout(resolve, milliseconds)
+            })
+        }
+
+        function lerp(start, end, amt){
+            return (1-amt)*start+amt*end;
+        }
+
+        const fade = (el, property, start, end, duration) => {
+            return new Promise(resolve => {
+                var interval = 10;
+                var steps = duration / interval;
+                var step_u = 1.0 / steps;
+                var u = 0.0;
+                var theInterval = setInterval(function () {
+                    if (u >= 1.0) {
+                        clearInterval(theInterval);
+                        resolve(end)
+                    }
+                    var r = Math.round(lerp(start.r, end.r, u));
+                    var g = Math.round(lerp(start.g, end.g, u));
+                    var b = Math.round(lerp(start.b, end.b, u));
+                    var colorname = 'rgb(' + r + ',' + g + ',' + b + ')';
+                    el.style.setProperty(property, "radial-gradient(closest-side, " + colorname + ", transparent)");
+                    u += step_u;
+                }, interval);
+            })
+        }
+
+        const colour_animation = function(element, property, start) {
+            return new Promise(async resolve => {
+                const colors = [
+                    {r: 255, g: 0, b: 0}, // Red
+                    {r: 255, g: 128, b: 0}, // Orange
+                    {r: 255, g: 255, b: 0}, // Yellow
+                    {r: 128, g: 255, b: 0}, // chartreuse
+                    {r: 0, g: 255, b: 0}, // Green
+                    {r: 0, g: 255, b: 128}, // Spring Green
+                    {r: 0, g: 255, b: 255}, // Cyan
+                    {r: 0, g: 128, b: 255}, // Dodger blue
+                    {r: 128, g: 0, b: 255}, // Purple
+                    {r: 255, g: 0, b: 255}, // Violet
+                    {r: 255, g: 0, b: 128} // Magenta
+                ]
+                let color_i = 0
+                let last_color = start
+                console.log(last_color)
+                
+                while (true) {
+                    last_color = await fade(element, property, last_color, colors[color_i], 1000)
+                    color_i += 1
+                    if (color_i >= colors.length) color_i = 0
+                }
+            })
+        };
+
+        function onload() {
+            players = shuffleArray(players)
+
+            let count_to = new Date(count_to_i)
+            let timer = document.getElementById("timer")
+            let timer_sub = document.getElementById("timer_sub")
+            let gradient = document.getElementById("gradient")
+            interval = setInterval(async () => {
+                let now = new Date()
+                let time_until = {
+                    milliseconds: count_to_i - now.getTime(),
+                    hours: 0,
+                    minutes: 0,
+                    seconds: 0
+                }
+                while (time_until.milliseconds >= 3600000) {
+                    time_until.hours += 1
+                    time_until.milliseconds -= 3600000
+                }
+                while (time_until.milliseconds >= 60000) {
+                    time_until.minutes += 1
+                    time_until.milliseconds -= 60000
+                }
+                while (time_until.milliseconds >= 1000) {
+                    time_until.seconds += 1
+                    time_until.milliseconds -= 1000
+                }
+                console.log(time_until)
+                let timer_txt = ""
+                if (time_until.hours > 0) {
+                    timer_txt += right("0" + time_until.hours, 2) + ":"
+                }
+                if (time_until.minutes > 0 || time_until.hours > 0) {
+                    timer_txt += right("0" + time_until.minutes, 2) + ":"
+                }
+                timer.innerHTML = timer_txt + right("0" + time_until.seconds, 2)
+
+                if (count_to_i <= now.getTime()) {
+                    // Stop the countdown
+                    clearInterval(interval)
+                    timer.innerHTML = "loading..."
+                    await fade(gradient, "background", {r:255,g:255,b:255}, {r:0,g:0,b:0}, 1000)
+                    let i = 1000
+                    await wait(8000)
+
+                    colour_animation(gradient, "background", {r:0,g:0,b:0})
+
+                    for (let i in players) {
+                        let form_data = new FormData()
+                        form_data.append("command", "whitelist add " + players[i])
+                        let xhttp = new XMLHttpRequest()
+                        xhttp.onreadystatechange = () => {
+                            if (xhttp.readyState === 4 && xhttp.status === 200) {
+                                console.log(xhttp)
+                            }
+                        }
+                        xhttp.open("post", "/console")
+                        xhttp.send(form_data)
+
+                        timer.innerHTML = players[i]
+                        timer_sub.innerHTML = "Welcome to the server! You can join now.<br><br>" + players.slice(0, parseInt(i) + 1).reverse().join("<br>")
+                        await wait(10000)
+                    }
+
+                    timer.innerHTML = "Re-Flesh REDACTED!"
+                    timer_sub.innerHTML = "Reflesh REDACTED is now open! If your username was missed or incorrect, please send '!username [your username]' in a DM to @Crash Bot/@lil Flix156, then send a message to an Admin so that they can whitelist you."
+                }
+            }, 10)
+        }
+    </script>
+</head>
+<body onload="onload()">
+<div id="timer_div">
+    <div id="gradient"></div>
+    <h1 id="timer">20:00:00</h1>
+    <p id="timer_sub">To reduce a bit of load, not everyone will be let in straight away. When you see your username show up on this stream, you can join. This is just to reduce the load on the server as players join for the first time.</p>
+</div>
+</body>
+</html>
