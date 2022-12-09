@@ -1,0 +1,43 @@
+{
+  "name": "resource_pack_maker",
+  "version": "1.0.0",
+  "dependencies": {
+    "@discordjs/rest": "^0.1.0-canary.0",
+    "@discordjs/voice": "^0.10.0",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@jimp/plugin-circle": "^0.16.1",
+    "archiver": "^5.3.0",
+    "audiobuffer-to-wav": "^1.0.0",
+    "basic-ftp": "^4.6.6",
+    "discord-api-types": "^0.24.0",
+    "discord.js": "^13.6.0",
+    "express": "^4.17.1",
+    "express-fileupload": "^1.2.1",
+    "ffmpeg": "0.0.4",
+    "fluent-ffmpeg": "^2.1.2",
+    "fs-extra": "^10.0.0",
+    "get-audio-duration": "^3.0.0",
+    "jimp": "^0.16.1",
+    "mssql": "^8.1.2",
+    "node-schedule": "^2.0.0",
+    "properties-reader": "^2.2.0",
+    "spotify-web-api-node": "^5.0.2",
+    "spotifydl-core": "^0.2.0",
+    "spottydl": "^0.1.6",
+    "tedious": "^15.0.0",
+    "waveform-data": "^4.3.0",
+    "ws": "^8.2.2",
+    "xhr": "^2.6.0",
+    "ytdl": "^1.4.1",
+    "ytdl-core": "^4.11.2",
+    "ytpl": "^2.3.0"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "test/*",
+      "assets/*"
+    ],
+    "delay": 2500
+  },
+  "autorestart": false
+}
