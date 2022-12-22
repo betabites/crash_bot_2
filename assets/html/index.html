@@ -1460,7 +1460,7 @@
             load() {
                 this.maker.location = [this]
                 this.maker.file_tree.innerHTML = ""
-                let items = [new BlockManager(this, this.maker), new EntityManager(this, this.maker), new ParentTextureManager(this, this.maker), new ParentSoundManager(this, this.maker), new ItemManager(this, this.maker)]
+                let items = [new BlockManager(this, this.maker), new EntityManager(this, this.maker), new ParentTextureManager(this, this.maker), new ParentSoundManager(this, this.maker), new ItemManager(this, this.maker), new DownloadManager(this, this.maker)]
                 for (let item of items) {
                     this.maker.file_tree.appendChild(item.generateListItem())
                 }
@@ -1517,6 +1517,29 @@
                 return div
             }
 
+            async changeTextureGroup(type, group_id) {
+                let filter = document.createElement("input")
+                filter.type = "text"
+                filter.placeholder = "Filter results"
+                filter.style.dsplay = "none"
+
+                let list = document.createElement("div")
+                list.innerHTML = "Loading texture groups..."
+                show_dialog("Change texture group", [filter, list], true)
+                let items = (await (await fetch(`/packs/${this.pack_id}/textures/groups/`)).json()).map(item => new TextureGroup(this, this.maker, item))
+                filter.style.display = ""
+
+                const filter_list = () => {
+                    list.innerHTML = ""
+                    let _filter = filter.value.toLowerCase()
+                    for (let texture of items.filter(item => item.name.toLowerCase().includes(_filter) && item.type === "terrain_texture")) {
+                        list.appendChild(texture.generateListItem())
+                    }
+                }
+                filter.onkeyup = () => {filter_list()}
+                filter_list()
+            }
+
             async load() {
                 this.maker.location = this.generateLocationTree()
                 this.maker.file_tree.innerHTML = ""
@@ -1539,11 +1562,13 @@
 
                     let button1 = document.createElement("button")
                     button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    button1.onclick = () => {(new TextureGroup(this, this.maker, texture_group)).load()}
                     div.appendChild(button1)
 
-                    let button2 = document.createElement("button")
-                    button2.innerText = "Change"
-                    div.appendChild(button2)
+                    let button_2 = document.createElement("button")
+                    button_2.innerText = "Change"
+                    button_2.onclick = () => {this.changeTextureGroup()}
+                    div.appendChild(button_2)
                     texture_select.appendChild(div)
                 }
 
@@ -1619,6 +1644,8 @@
                 this.identifier = data.identifier
                 this.name = this.identifier
                 this.textures = data.textures
+                this.sound_group_id = data.SoundGroupID
+                this.interactive_sound_group_id = data.InteractiveSoundGroupID
             }
 
             generateListItem() {
@@ -1651,7 +1678,36 @@
                 }
 
                 let column_2 = document.createElement("div")
-                column_2.innerHTML = "<h3>Sounds</h3>"
+                column_2.innerHTML = "<h3>Sound Groups</h3>"
+
+                // Fetch sound groups
+                let main_sound_group = document.createElement("div")
+                if (this.sound_group_id) {
+                    let sound_group = new SoundGroup(this, this.maker, await (await fetch(`/packs/${this.pack_id}/sounds/groups/${this.sound_group_id}`)).json())
+                    main_sound_group.innerHTML = "Main: " + sound_group.name + " "
+                    let button = document.createElement("button")
+                    button.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    button.onclick = () => {sound_group.load()}
+                    main_sound_group.appendChild(button)
+                } else {
+                    main_sound_group.innerHTML = "Main sound group: Default <button>Change</button>"
+                }
+
+                let interactive_sound_group = document.createElement("div")
+                if (this.interactive_sound_group_id) {
+                    let sound_group = new SoundGroup(this, this.maker, await (await fetch(`/packs/${this.pack_id}/sounds/groups/${this.interactive_sound_group_id}`)).json())
+                    interactive_sound_group.innerHTML = "Interactive: " + sound_group.name + " "
+
+                    let button = document.createElement("button")
+                    button.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                    button.onclick = () => {sound_group.load()}
+                    interactive_sound_group.appendChild(button)
+                } else {
+                    interactive_sound_group.innerHTML = "Interactive sound group not supported"
+                }
+
+                column_2.appendChild(main_sound_group)
+                column_2.appendChild(interactive_sound_group)
 
                 let column_3 = document.createElement("div")
                 column_3.innerHTML = "<h3>Textures</h3>"
@@ -1698,7 +1754,7 @@
         class ParentTextureManager extends PackMakerItem {
             constructor(parent, maker) {
                 super(parent, maker);
-                this.name = "Textures"
+                this.name = "Textures (advanced)"
             }
 
             generateListItem() {
@@ -1790,6 +1846,7 @@
                 let button_1 = document.createElement("button")
                 button_1.classList.add("button_choice_button")
                 button_1.innerHTML = "Replace <i class=\"fa-solid fa-arrows-rotate\"></i>"
+                button_1.onclick = () => {this.loadUploadDialog()}
                 column_3.appendChild(button_1)
 
                 wrapper.appendChild(column_1)
@@ -1798,6 +1855,107 @@
                 this.maker.file_tree.appendChild(wrapper)
 
                 this.maker.updateURI()
+            }
+
+            loadOriginalImage() {
+                let self = this
+                return new Promise((resolve, reject) => {
+                    self.img = new Image()
+                    self.img.addEventListener("load", () => {
+                        console.log(self.img)
+                        resolve()
+                    })
+                    self.img.src = `/packs/${this.pack_id}/textures/${this.id}/stream/original`
+                })
+            }
+
+            loadUploadDialog() {
+                let file_upload = document.createElement("input")
+                file_upload.type = "file"
+                file_upload.accept = "image/jpeg, image/png"
+                file_upload.style.width = "calc(100% - 20px)"
+                file_upload.style.margin = "10px"
+
+                let canvas = document.createElement("canvas")
+                file_upload.onchange = () => {
+                    let fr = new FileReader()
+                    fr.addEventListener("load", (evt) => {
+                        let img = new Image()
+                        // Clear image
+                        let ctx = canvas.getContext("2d")
+
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.beginPath();
+                        img.addEventListener("load", async () => {
+                            // Detect original aspect ratio
+                            if (!this.img) await this.loadOriginalImage()
+                            let src_aspect_width = this.img.naturalWidth / this.img.naturalHeight
+
+                            // Detect replacement aspect ratio
+                            let new_aspect_width = img.naturalWidth / img.naturalHeight
+                            aspect_warning.style.display = src_aspect_width !== new_aspect_width ? "" : "none"
+
+                            // Downsize image if needed
+                            let out_width = img.naturalWidth
+                            let out_height = img.naturalHeight
+                            if (img.naturalWidth > this.img.naturalWidth * 8 || img.naturalHeight > this.img.naturalHeight * 8) {
+                                if (img.naturalWidth > img.naturalHeight) {
+                                    // Downsize width primarily
+                                    out_width = this.img.naturalWidth * 8
+                                    out_height = Math.round((img.naturalHeight / img.naturalWidth) * out_width)
+                                } else {
+                                    out_height = this.img.naturalHeight * 8
+                                    out_width = Math.round((img.naturalWidth / img.naturalHeight) * out_height)
+                                }
+                            }
+                            canvas.width = out_width
+                            canvas.height = out_height
+                            ctx.drawImage(img, 0, 0, out_width, out_height)
+
+                            out_img.src = canvas.toDataURL("image/png")
+                            console.log(img.naturalWidth, img.naturalHeight)
+                            console.log(out_width, out_height)
+                        })
+                        img.src = evt.target.result
+                    })
+                    fr.readAsDataURL(file_upload.files[0])
+                }
+
+                let out_img = new Image()
+                out_img.style.width = "100%"
+                out_img.classList.add("keep_pixels")
+                out_img.src = `/packs/${this.pack_id}/textures/${this.id}/stream`
+
+                let aspect_warning = document.createElement("div")
+                aspect_warning.innerHTML = "<i class=\"fa-solid fa-triangle-exclamation\"></i> Your new image does not match the aspect ratio of the original texture. You may encounter rendering issues."
+                aspect_warning.style.color = "orange"
+                aspect_warning.style.display = "none"
+
+                let button = document.createElement("button")
+                button.onclick = async () => {
+                    if (file_upload.files.length < 1) {
+                        alert("You have not selected any files")
+                        return
+                    }
+                    let form_data = new FormData()
+                    let blob = await (await fetch(canvas.toDataURL())).blob()
+                    form_data.set("file", new File([blob], "image.png"))
+
+                    fetch(`/packs/${this.pack_id}/textures/${this.id}/upload`, {
+                        method: "post",
+                        body: form_data
+                    }).then(res => res.text()).then(res => {
+                        if (res.startsWith("OK")) {
+                            alert("UPLOAD SUCCESS!")
+                        } else {
+                            alert("UPLOAD FAILED!")
+                        }
+                    })
+                }
+                button.innerHTML = "Upload <i class=\"fa-solid fa-upload\"></i>"
+                button.classList.add("button_choice_button")
+
+                show_dialog("Replace texture", [file_upload, out_img, aspect_warning, button], true)
             }
         }
 
@@ -1837,6 +1995,7 @@
                 this.game_id = data.GameID
                 this.name = this.game_id
                 this.type = data.type
+                this.textures = data.textures
             }
 
             generateListItem() {
@@ -1856,15 +2015,22 @@
                 let wrapper = document.createElement("div")
                 wrapper.classList.add("file")
                 wrapper.classList.add("file_full_area")
-                wrapper.innerHTML = "<h1>" + this.name + "</h1>"
+                wrapper.innerHTML = ""
 
-                let texture_select = document.createElement("div")
-                texture_select.innerHTML = "<h2>Set texture groups</h2>"
+                let column_1 = document.createElement("div")
+                column_1.innerHTML = "<h1>Texture Group</h1><br>" + this.name +
+                    "<p><strong>What is a texture group?</strong> Some textures have slight variations. Texture groups allow you to create and modify these variations.</p>"
 
-                let audio_select = document.createElement("div")
-                audio_select.innerHTML = "<h2>Set audio group</h2>"
-                wrapper.appendChild(texture_select)
-                wrapper.appendChild(audio_select)
+                let column_2 = document.createElement("div")
+
+                let column_3 = document.createElement("div")
+                for (let texture of this.textures.map(i => new Texture(this, this.maker, i))) {
+                    column_3.append(texture.generateListItem())
+                }
+
+                wrapper.appendChild(column_1)
+                wrapper.appendChild(column_2)
+                wrapper.appendChild(column_3)
                 this.maker.file_tree.appendChild(wrapper)
 
                 this.maker.updateURI()
@@ -1874,7 +2040,7 @@
         class ParentSoundManager extends PackMakerItem {
             constructor(parent, maker) {
                 super(parent, maker);
-                this.name = "Sounds"
+                this.name = "Sounds (advanced)"
             }
 
             generateListItem() {
@@ -2011,23 +2177,83 @@
                 this.is3D = data.is3D
                 this.pitch = data.pitch
                 this.volume = data.volume
+                this.weight = data.weight
                 this.name = this.id
+                this.enabled = data.enabled
             }
 
             generateListItem() {
                 let div = document.createElement("div")
                 div.classList.add("file")
-                div.innerHTML = "<div><i class=\"fa-solid fa-volume\"></i> " + this.name + "</div>"
 
-                let audio = document.createElement("button")
-                audio.onclick = () => {play_audio(`/packs/${this.pack_id}/sounds/${this.id}/stream`, audio)}
-                audio.innerHTML = "<i class=\"fa-solid fa-play\"></i>"
-                div.appendChild(audio)
+                let name = document.createElement("div")
+                name.innerHTML = "<i class=\"fa-solid fa-volume\"></i> " + this.name
+                div.appendChild(name)
+                name.onclick = () => {this.load()}
 
-                // div.onclick = () => {
-                //     this.load()
-                // }
+                let options_div = document.createElement("div")
+                let play = document.createElement("button")
+                play.onclick = () => {play_audio(`/packs/${this.pack_id}/sounds/${this.id}/stream`, play)}
+                play.innerHTML = "<i class=\"fa-solid fa-play\"></i>"
+
+                let replace = document.createElement("button")
+                replace.onclick = () => {this.loadReplaceDialog()}
+                replace.innerHTML = "<i class=\"fa-solid fa-upload\"></i>"
+
+                options_div.appendChild(play)
+                options_div.appendChild(replace)
+                div.appendChild(options_div)
+
                 return div
+            }
+
+            loadReplaceDialog() {
+                let audio_upload = document.createElement("div")
+
+                let upload_el = document.createElement("input")
+                upload_el.type = "file"
+                upload_el.accept = "audio/mpeg, audio/vnd.wav"
+                upload_el.style.width = "calc(100% - 20px)"
+                upload_el.style.margin = "10px"
+
+                let upload_btn = document.createElement("button")
+                upload_btn.classList.add("button_choice_button")
+                upload_btn.innerText = "Upload"
+                upload_btn.style.width = "calc(100% - 20px)"
+                upload_btn.style.margin = "10px"
+                upload_btn.onclick = () => {
+                    let form_data = new FormData()
+                    form_data.set("file", upload_el.files[0])
+                    fetch(`/packs/${this.pack_id}/sounds/${this.id}/upload`, {
+                        method: "post",
+                        body: form_data
+                    }).then(res => res.text()).then(res => {
+                        if (res.startsWith("OK")) {
+                            alert("Upload successful!")
+                        } else {
+                            alert("Upload failed")
+                        }
+                    })
+                }
+
+                audio_upload.appendChild(upload_el)
+                audio_upload.appendChild(upload_btn)
+
+                let yt_upload = document.createElement("div")
+                let uri_el = document.createElement("input")
+                uri_el.type = "url"
+                uri_el.style.width = "calc(100% - 20px)"
+                uri_el.style.margin = "10px"
+                let uri_upload = document.createElement("button")
+                uri_upload.classList.add("button_choice_button")
+                uri_upload.innerText = "Import via YouTube"
+                uri_upload.style.width = "calc(100% - 20px)"
+                uri_upload.style.margin = "10px"
+                uri_upload.onclick = () => {this.replaceWithYouTube(uri_el.value)}
+
+                yt_upload.appendChild(uri_el)
+                yt_upload.appendChild(uri_upload)
+                show_dialog("Replace this sound", [document.createTextNode("Upload a file:"), audio_upload, document.createTextNode("\nOr input a YouTube URL:"), yt_upload], true)
             }
 
             async load() {
@@ -2038,57 +2264,86 @@
                 wrapper.classList.add("file")
                 wrapper.classList.add("file_full_area")
                 let column_1 = document.createElement("div")
-                column_1.innerHTML = "<h3>" + this.name + "</h3>"
+                column_1.innerHTML = "<h3>Sound</h3>" + this.name + "<br><br>"
+                let audio = new Audio(`/packs/${this.pack_id}/sounds/${this.id}/stream`)
+                audio.hidden = false
+                audio.controls = true
+                column_1.appendChild(audio)
 
-                let texture_select = document.createElement("div")
-                texture_select.innerHTML = "<h2>Set texture groups</h2>"
-                let preview_id
-                for (let item of this.texture_groups) {
-                    // Get the texture group data
-                    let texture_group = await (await fetch(`/packs/${this.pack_id}/textures/groups/${item.TextureGroupID}`)).json()
-                    if (!preview_id) preview_id = texture_group.textures[0].TextureID
-                    let div = document.createElement("div")
-                    div.innerText = item.Type + ": " + texture_group.GameID
+                let column_2 = document.createElement("div")
+                let enabled_div = document.createElement("div")
+                enabled_div.innerHTML = "Enabled? " + (this.enabled ? "<i class=\"fa-solid fa-toggle-on\"></i>" : "<i class=\"fa-solid fa-toggle-off\"></i>")
+                column_2.appendChild(enabled_div)
 
-                    let button1 = document.createElement("button")
-                    button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
-                    div.appendChild(button1)
+                let three_d_toggle = document.createElement("div")
+                three_d_toggle.innerHTML = "3D? " + (this.is3D ? "<i class=\"fa-solid fa-toggle-on\"></i>" : "<i class=\"fa-solid fa-toggle-off\"></i>")
+                column_2.appendChild(three_d_toggle)
 
-                    let button2 = document.createElement("button")
-                    button2.innerText = "Change"
-                    div.appendChild(button2)
-                    texture_select.appendChild(div)
+                let pitch_div = document.createElement("div")
+                pitch_div.appendChild(document.createTextNode("Pitch modifier (1 = normal): "))
+
+                let pitch_input = document.createElement("input")
+                pitch_input.onchange = () => {
+                    if (isNaN(pitch_input.value)) {pitch_input.value = ""; return}
+                    this.pitch = parseFloat(pitch_input.value)
+                    this.save()
                 }
+                pitch_input.value = this.pitch.toString()
+                pitch_div.appendChild(pitch_input)
+                column_2.appendChild(pitch_div)
 
-                let img = new Image()
-                img.src = `/packs/1/textures/${preview_id}/stream`
-                img.width = 200
-                img.height = 200
-                img.classList.add("keep_pixels")
-                column_1.appendChild(img)
+                let vol_div = document.createElement("div")
+                vol_div.appendChild(document.createTextNode("Volume modifier (1 = 100%): "))
 
-                let audio_select = document.createElement("div")
-                audio_select.innerHTML = "<h2>Set audio group</h2>"
-                // Fetch audio group
-                let sound_group = await (await fetch(`/packs/${this.pack_id}/sounds/groups/${this.sound_group_id}`)).json()
-                let sound_group_div = document.createElement("div")
-                sound_group_div.innerText = sound_group.type
+                let vol_input = document.createElement("input")
+                vol_input.onchange = () => {
+                    if (isNaN(vol_input.value)) {vol_input.value = ""; return}
+                    this.volume = parseFloat(vol_input.value)
+                    this.save()
+                }
+                vol_input.value = this.volume.toString()
+                vol_div.appendChild(vol_input)
+                column_2.appendChild(vol_div)
 
-                let button1 = document.createElement("button")
-                button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
-
-                let button2 = document.createElement("button")
-                button2.innerText = "Change"
-                sound_group_div.appendChild(button1)
-                sound_group_div.appendChild(button2)
-                audio_select.appendChild(sound_group_div)
+                column_2.appendChild(document.createTextNode("WARNING: Modifiers cannot be previewed within the pack maker"))
 
                 wrapper.appendChild(column_1)
-                wrapper.appendChild(texture_select)
-                wrapper.appendChild(audio_select)
+                wrapper.appendChild(column_2)
                 this.maker.file_tree.appendChild(wrapper)
 
                 this.maker.updateURI()
+            }
+
+            save() {
+                fetch(`/packs/${this.pack_id}/sounds/${this.id}/`, {
+                    method: "post",
+                    headers: {"content-type": "application/json"},
+                    body: JSON.stringify({
+                        SoundDefID: this.sound_definition_id,
+                        is3D: this.is3D,
+                        volume: this.volume,
+                        pitch: this.pitch,
+                        weight: this.weight,
+                        enabled: this.enabled
+                    })
+                }).then(res => {})
+            }
+
+            async replaceWithYouTube(url) {
+                fetch(`/packs/${this.pack_id}/sounds/${this.id}/ytupload`, {
+                    method: "post",
+                    body: JSON.stringify({yturi: url}),
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                }).then(res => res.text()).then(res => {
+                    if (! res.startsWith("OK")) {
+                        alert("UPLOAD ERROR")
+                        return
+                    }
+
+                    document.getElementById("dialog_background").style.display = "none"
+                })
             }
         }
 
@@ -2249,61 +2504,64 @@
                 wrapper.classList.add("file")
                 wrapper.classList.add("file_full_area")
                 let column_1 = document.createElement("div")
-                column_1.innerHTML = "<h3>" + this.name + "</h3>"
-
-                let texture_select = document.createElement("div")
-                texture_select.innerHTML = "<h2>Set texture groups</h2>"
-                let preview_id
-                for (let item of this.texture_groups) {
-                    // Get the texture group data
-                    let texture_group = await (await fetch(`/packs/${this.pack_id}/textures/groups/${item.TextureGroupID}`)).json()
-                    if (!preview_id) preview_id = texture_group.textures[0].TextureID
-                    let div = document.createElement("div")
-                    div.innerHTML = `<img style='width:12pt; height:12pt;' class='keep_pixels' src="/packs/1/textures/${texture_group.textures[0].TextureID}/stream">` + " " + item.Type + ": " + texture_group.GameID
-
-                    let button1 = document.createElement("button")
-                    button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
-                    div.appendChild(button1)
-
-                    let button2 = document.createElement("button")
-                    button2.innerText = "Change"
-                    div.appendChild(button2)
-                    texture_select.appendChild(div)
-                }
+                column_1.innerHTML = "<h3>Item</h3>" + this.name + "<br><br>"
 
                 let img = new Image()
-                img.src = `/packs/1/textures/${preview_id}/stream`
-                img.width = 200
-                img.height = 200
+                img.src = `/packs/${this.pack_id}/textures/${this.textures[0].TextureID}/stream`
+                img.style.width = '100%'
                 img.classList.add("keep_pixels")
                 column_1.appendChild(img)
 
-                let audio_select = document.createElement("div")
-                audio_select.innerHTML = "<h2>Set audio group</h2>"
-                // Fetch audio group
-                let sound_group = await (await fetch(`/packs/${this.pack_id}/sounds/groups/${this.sound_group_id}`)).json()
-                let sound_group_div = document.createElement("div")
-                sound_group_div.innerText = sound_group.GroupName
+                let column_2 = document.createElement("div")
+                let heading = document.createElement("h3")
+                heading.innerHTML = "Texture Group"
 
-                let button1 = document.createElement("button")
-                button1.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
-                button1.onclick = () => {
-                    let i = new SoundGroup(this, this.maker, sound_group)
-                    i.load()
+                let texture_group_data = await (await fetch(`/packs/${this.pack_id}/textures/groups/${this.texture_group_id}`)).json()
+                let texture_group = document.createElement("div")
+                texture_group.innerHTML = texture_group_data.GameID + " "
+
+                let button = document.createElement("button")
+                button.onclick = () => {
+                    (new TextureGroup(this, this.maker, texture_group_data)).load()
                 }
+                button.innerHTML = "<i class=\"fa-solid fa-arrow-up-right-from-square\"></i>"
+                texture_group.appendChild(button)
 
-                let button2 = document.createElement("button")
-                button2.innerText = "Change"
-                sound_group_div.appendChild(button1)
-                sound_group_div.appendChild(button2)
-                audio_select.appendChild(sound_group_div)
+                column_2.appendChild(heading)
+                column_2.appendChild(texture_group)
+                let column_3 = document.createElement("div")
 
                 wrapper.appendChild(column_1)
-                wrapper.appendChild(texture_select)
-                wrapper.appendChild(audio_select)
+                wrapper.appendChild(column_2)
+                wrapper.appendChild(column_3)
                 this.maker.file_tree.appendChild(wrapper)
 
                 this.maker.updateURI()
+            }
+        }
+
+        class DownloadManager extends PackMakerItem {
+            constructor(parent, maker) {
+                super(parent, maker);
+                this.name = "Download"
+                this.items = []
+            }
+
+            generateListItem() {
+                let div = document.createElement("div")
+                div.classList.add("file")
+                div.innerHTML = "<div><i class=\"fa-solid fa-download\"></i> " + this.name + "</div>"
+                div.onclick = () => {
+                    this.load()
+                }
+                return div
+            }
+
+            async load() {
+                let a = document.createElement("a")
+                a.href = `/packs/${this.pack_id}/file.zip`
+                a.download = "file.mcpack"
+                a.click()
             }
         }
 
