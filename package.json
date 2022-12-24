@@ -16,6 +16,8 @@
     "ffmpeg": "0.0.4",
     "fluent-ffmpeg": "^2.1.2",
     "fs-extra": "^10.0.0",
+    "ftp": "^0.3.10",
+    "ftp-client": "^0.2.2",
     "get-audio-duration": "^3.0.0",
     "jimp": "^0.16.1",
     "mssql": "^8.1.2",

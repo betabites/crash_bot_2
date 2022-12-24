@@ -2,13 +2,9 @@
 const express = require("express");
 const fileUpload = require('express-fileupload');
 const ws = require("ws");
-const fs_extra = require("fs-extra")
 const fs = require("fs")
-const os = require("os")
 const EventEmitter = require("events").EventEmitter
-const port = 80
 const path = require("path")
-const stream = require("stream")
 const {spawn, exec} = require("child_process")
 const ytdl = require("ytdl-core")
 const ytpl = require("ytpl")
@@ -18,11 +14,11 @@ const spotify = new spotifydl({
     clientSecret: "fb849fadf5fb4404887cd27fe3cd0ad1"
 })
 // const spotify = require("spottydl")
-const ftp = require("basic-ftp")
 const {REST} = require('@discordjs/rest');
 const {Routes} = require('discord-api-types/v9');
 const events = require("events")
 const Jimp = require("jimp")
+const ftp = require('ftp')
 let ffmpeg = require("fluent-ffmpeg");
 const archiver = require('archiver');
 let http = require("http")
@@ -157,8 +153,8 @@ class keyManager {
             if (!await this.checkKey(key)) break
         }
 
-        let req = await safeQuery(`INSERT INTO dbo.Users (player_name, discord_id, avatar_url, shortcode)
-                                   VALUES (@playername, @discordid, @avatarurl, @shortcode)`, [
+        let req = await safeQuery(` INSERT INTO dbo.Users (player_name, discord_id, avatar_url, shortcode)
+                                    VALUES (@playername, @discordid, @avatarurl, @shortcode)`, [
             {name: "playername", type: mssql.TYPES.VarChar(30), data: player_name},
             {name: "discordid", type: mssql.TYPES.VarChar(30), data: user.id},
             {name: "avatarurl", type: mssql.TYPES.VarChar(200), data: user.avatarURL()},
@@ -408,6 +404,7 @@ function date_to_sql_date(date) {
 
 schedule.scheduleJob("0 0 * * * *", update_banner)
 schedule.scheduleJob("0 30 * * * *", update_banner)
+schedule.scheduleJob("0 30 1 * * *", uploadNewPack)
 
 function spawnServer() {
     return spawn(server_env_options.shell, server_env_options.arguments, {
@@ -2072,6 +2069,11 @@ app.get("/packs/:packid", async (req, res) => {
     }
 })
 
+app.get("/packs/:packid/file.zip", async (req, res) => {
+    // Convert the resource pack to a .mcpack file
+    (await generatePackArchive(req.params.packid, false, "zip")).pipe(res)
+})
+
 app.get("/packs/:packid/blocks", async (req, res) => {
     let data = await safeQuery("SELECT BlockID, GameID, SoundGroupID FROM dbo.PackBlocks WHERE PackID = @id", [
         {
@@ -2102,15 +2104,14 @@ app.get("/packs/:packid/blocks/:blockid", async (req, res) => {
             {name: "blockid", type: mssql.TYPES.Int, data: parseInt(req.params.blockid)}
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
 })
 
 app.get("/packs/:packid/entities", async (req, res) => {
-    let data = await safeQuery("SELECT EntityID, identifier FROM dbo.PackEntities WHERE PackID = @id", [
+    let data = await safeQuery("SELECT EntityID, identifier, SoundGroupID, InteractiveSoundGroupID FROM dbo.PackEntities WHERE PackID = @id", [
         {
             name: "id", type: mssql.TYPES.Int, data: parseInt(req.params.packid)
         }
@@ -2128,7 +2129,7 @@ app.get("/packs/:packid/entities", async (req, res) => {
 
 app.get("/packs/:packid/entities/:entityid", async (req, res) => {
     res.setHeader("content-type", "application/json")
-    let data = await safeQuery("SELECT EntityID, identifier FROM dbo.PackEntities WHERE PackID = @id AND EntityID = @entityid", [
+    let data = await safeQuery("SELECT EntityID, identifier, InteractiveSoundGroupID, SoundGroupID FROM dbo.PackEntities WHERE PackID = @id AND EntityID = @entityid", [
         {name: "id", type: mssql.TYPES.Int, data: parseInt(req.params.packid)},
         {name: "entityid", type: mssql.TYPES.Int, data: parseInt(req.params.entityid)}
     ])
@@ -2138,8 +2139,7 @@ app.get("/packs/:packid/entities/:entityid", async (req, res) => {
             {name: "entity", type: mssql.TYPES.Int, data: data.recordset[0].EntityID}
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2174,8 +2174,7 @@ app.get("/packs/:packid/textures/groups/:groupid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].TextureGroupID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2200,11 +2199,24 @@ app.get("/packs/:packid/textures/:textureid", async (req, res) => {
 
     if (data.recordset.length === 1) {
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
+})
+
+app.post("/packs/:packid/textures/:textureid/upload", async (req, res) => {
+    if (!req.files.file) {
+        res.send("No file attached")
+        return
+    } else if (!req.files.file.name.endsWith(".png")) {
+        res.send("PNGs only")
+        return
+    }
+
+    req.files.file.mv(path.join(__dirname, "assets", "pack_textures", req.params.textureid.toString() + ".png")).then(r => {
+        res.send("OK!")
+    })
 })
 
 app.get("/packs/:packid/textures/:textureid/stream", async (req, res) => {
@@ -2217,8 +2229,21 @@ app.get("/packs/:packid/textures/:textureid/stream", async (req, res) => {
         let _path = path.join(__dirname, "assets", "pack_textures", data.recordset[0].TextureID.toString() + ".png")
         if (fs.existsSync(_path)) res.sendFile(_path)
         else res.sendFile(path.join(__dirname, "assets", "pack", data.recordset[0].DefaultFile + ".png"))
+    } else {
+        res.status(404)
+        res.send("{\"error\":404}")
     }
-    else {
+})
+
+app.get("/packs/:packid/textures/:textureid/stream/original", async (req, res) => {
+    let data = await safeQuery("SELECT TextureID, DefaultFile FROM dbo.PackTextures WHERE PackID = @id AND TextureID = @textureid", [
+        {name: "id", type: mssql.TYPES.Int, data: parseInt(req.params.packid)},
+        {name: "textureid", type: mssql.TYPES.Int, data: parseInt(req.params.textureid)}
+    ])
+
+    if (data.recordset.length === 1) {
+        res.sendFile(path.join(__dirname, "assets", "pack", data.recordset[0].DefaultFile + ".png"))
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2253,8 +2278,7 @@ app.get("/packs/:packid/sounds/groups/:groupid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].SoundGroupID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2289,15 +2313,14 @@ app.get("/packs/:packid/sounds/definitions/:groupid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].SoundDefID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
 })
 
 app.get("/packs/:packid/sounds/", async (req, res) => {
-    let data = await safeQuery("SELECT SoundID, SoundDefID, is3D, pitch, volume, weight FROM dbo.PackSounds WHERE PackID = @id; SELECT @@IDENTITY AS NewID", [
+    let data = await safeQuery("SELECT SoundID, SoundDefID, is3D, pitch, volume, weight, enabled FROM dbo.PackSounds WHERE PackID = @id; SELECT @@IDENTITY AS NewID", [
         {
             name: "id", type: mssql.TYPES.Int, data: parseInt(req.params.packid)
         }
@@ -2307,19 +2330,20 @@ app.get("/packs/:packid/sounds/", async (req, res) => {
 })
 
 app.post("/packs/:packid/sounds/", express.json(), async (req, res) => {
-    let requirements = ["SoundDefID", "is3D", "volume", "pitch", "weight"]
+    let requirements = ["SoundDefID", "is3D", "volume", "pitch", "weight", "enabled"]
     for (let item of requirements) if (typeof req.body[item] === "undefined") {
         res.status(400)
         res.send("Missing parameter: " + item)
         return
     }
 
-    let data = await safeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, weight, PackID) VALUES (@sounddef, @is3D, @volume, @pitch, @weight, @packid); SELECT @@IDENTITY AS NewID;", [
+    let data = await safeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, weight, enabled, PackID) VALUES (@sounddef, @is3D, @volume, @pitch, @weight, @enabled, @packid); SELECT @@IDENTITY AS NewID;", [
         {name: "sounddef", type: mssql.TYPES.Int, data: req.body.SoundDefID},
         {name: "is3D", type: mssql.TYPES.Bit, data: req.body.is3D},
         {name: "volume", type: mssql.TYPES.Int, data: req.body.volume},
         {name: "pitch", type: mssql.TYPES.Int, data: req.body.pitch},
         {name: "weight", type: mssql.TYPES.Int, data: req.body.weight},
+        {name: "enabled", type: mssql.TYPES.Int, data: req.body.enabled},
         {name: "packid", type: mssql.TYPES.Int, data: req.params.packid}
     ])
     res.setHeader("content-type", "application/json")
@@ -2329,21 +2353,105 @@ app.post("/packs/:packid/sounds/", express.json(), async (req, res) => {
     }))
 })
 
-app.post("/packs/:packid/sounds/:soundid/upload", fileUpload(), async (req, res) => {
+app.post("/packs/:packid/sounds/:soundid", express.json(), async (req, res) => {
+    let requirements = ["SoundDefID", "is3D", "volume", "pitch", "weight", "enabled"]
+    for (let item of requirements) if (typeof req.body[item] === "undefined") {
+        res.status(400)
+        res.send("Missing parameter: " + item)
+        return
+    }
 
+    let data = await safeQuery("UPDATE CrashBot.dbo.PackSounds SET SoundDefID = @sounddef, is3D = @is3D, volume = @volume, pitch = @pitch, weight = @weight, enabled = @enabled WHERE SoundID = @id", [
+        {name: "sounddef", type: mssql.TYPES.Int, data: req.body.SoundDefID},
+        {name: "is3D", type: mssql.TYPES.Bit, data: req.body.is3D},
+        {name: "volume", type: mssql.TYPES.Int, data: req.body.volume},
+        {name: "pitch", type: mssql.TYPES.Int, data: req.body.pitch},
+        {name: "weight", type: mssql.TYPES.Int, data: req.body.weight},
+        {name: "enabled", type: mssql.TYPES.Int, data: req.body.enabled},
+        {name: "id", type: mssql.TYPES.Int, data: req.params.soundid}
+    ])
+    res.setHeader("content-type", "application/json")
+    console.log(data)
+    res.send(JSON.stringify({
+        SoundID: req.params.soundid
+    }))
+})
+
+app.post("/packs/:packid/sounds/:soundid/upload", async (req, res) => {
+    console.log(req)
+    if (typeof req.files.file === "undefined") {
+        res.status(400)
+        res.send("File not attached")
+        return
+    }
+
+    if (!(req.files.file.name.endsWith(".mp3") || req.files.file.name.endsWith(".wav"))) {
+        res.send(400)
+        res.send("Unsupported file type")
+    }
+
+    let output = path.join(__dirname, "assets", "pack_sounds", req.params.soundid + ".ogg")
+    if (fs.existsSync(output)) fs.unlinkSync(output)
+    let name = req.files.file.name.split(".")
+    let location = req.files.file.tempFilePath + "." + name[name.length - 1]
+    req.files.file.mv(location).then(r => {
+        console.log("TRANSPOSING")
+        ffmpeg(location)
+            .output(output)
+            .audioChannels(1)
+            .audioBitrate("112k")
+            .audioQuality(3)
+            .audioFrequency(22050)
+            .on('end', () => {
+                res.send("OK!")
+            })
+            .on("error", (e) => {
+                console.log(e)
+            })
+            .run()
+    })
+})
+
+app.post("/packs/:packid/sounds/:soundid/ytupload", express.json(), async (req, res) => {
+    console.log(req.body)
+    let video_info = await ytdl.getInfo(ytdl.getURLVideoID(req.body.yturi))
+
+    if (parseInt(video_info.videoDetails.lengthSeconds) > 420) {
+        res.send("TOO LONG")
+        return
+    }
+    let output = path.join(__dirname, "assets", "pack_sounds", req.params.soundid + ".ogg")
+
+    if (fs.existsSync(output)) fs.unlinkSync(output)
+
+    let stream = await ytdl(req.body.yturi, {quality: "highestaudio"})
+    console.log(stream)
+    ffmpeg(stream)
+        .output(output)
+        .audioChannels(1)
+        .audioBitrate("112k")
+        .audioQuality(3)
+        .on("end", () => {
+            console.log("OK")
+        })
+        .on("error", (e) => {
+            console.log(e)
+        })
+        .noVideo()
+        .run()
+    res.send("OK")
 })
 
 app.get("/packs/:packid/sounds/:soundid", async (req, res) => {
     res.setHeader("content-type", "application/json")
-    let data = await safeQuery("SELECT SoundID, SoundDefID, is3D, pitch, volume, weight FROM dbo.PackSounds WHERE PackID = @id AND SoundID = @soundid", [
+    let data = await safeQuery("SELECT SoundID, SoundDefID, is3D, pitch, volume, weight, enabled FROM dbo.PackSounds WHERE PackID = @id AND SoundID = @soundid", [
         {name: "id", type: mssql.TYPES.Int, data: parseInt(req.params.packid)},
         {name: "soundid", type: mssql.TYPES.Int, data: parseInt(req.params.soundid)}
     ])
 
     if (data.recordset.length === 1) {
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2360,8 +2468,7 @@ app.get("/packs/:packid/sounds/:soundid/stream", async (req, res) => {
         let _path = path.join(__dirname, "assets", "pack_sounds", data.recordset[0].SoundID.toString() + ".ogg")
         if (fs.existsSync(_path)) res.sendFile(_path)
         else res.sendFile(path.join(__dirname, "assets", "pack_sounds", "template.mp3"))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2397,10 +2504,31 @@ app.get("/packs/:packid/items/:itemid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].TextureGroupID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
+    } else {
         res.status(404)
         res.send("{\"error\":404}")
+    }
+})
+
+app.get("/packs/:packid/languages/items", async (req, res) => {
+    if (req.query.language) {
+        console.log(req.query.language)
+        let languages = await safeQuery("SELECT * FROM dbo.PackLanguages WHERE PackID = @packid", [
+            {name: "packid", type: mssql.TYPES.Int, data: req.params.packid}
+        ])
+
+    } else {
+        let language_items = (await safeQuery("SELECT * FROM dbo.PackLanguageItems WHERE PackID = @packid", [
+            {name: "packid", type: mssql.TYPES.Int, data: req.params.packid}
+        ])).recordset
+
+        let out = {}
+        for (let item of language_items) {
+            if (!out[item.GameItem]) out[item.GameItem] = {}
+            out[item.GameItem][item.LanguageID] = item.Text
+        }
+        res.header("content-type", "application/json")
+        res.send(JSON.stringify(out))
     }
 })
 
@@ -2503,6 +2631,7 @@ wss.updateBank = async () => {
 }
 
 client.on("ready", async () => {
+    uploadNewPack()
     client.channels.fetch("892518396166569994").then(channel => {
         console_channel = channel
     })
@@ -4222,6 +4351,7 @@ client.on("messageDelete", msg => {
 
 // Setup
 async function setup() {
+    let array_entities;
     try {
         await mssql.connect("Server=localhost,1433;Database=CrashBot;User Id=node_js;Password=rDmX#8rAXAFa&ppD;trustServerCertificate=true")
         // console.log(await safeQuery("SELECT * FROM dbo.Users"))
@@ -4243,8 +4373,9 @@ async function setup() {
             let queries = []
 
             for (let item of Object.keys(sound_defs)) {
-                await safeQuery("INSERT INTO CrashBot.dbo.PackSoundDefinitions (Name) VALUES (@name);", [
-                    {name: "name", type: mssql.TYPES.VarChar, data: item}
+                await safeQuery("INSERT INTO CrashBot.dbo.PackSoundDefinitions (Name, category) VALUES (@name, @category);", [
+                    {name: "name", type: mssql.TYPES.VarChar, data: item},
+                    {name: "category", type: mssql.TYPES.VarChar, data: sound_defs[item].category}
                 ])
                 sound_defs[item].id = (await safeQuery("SELECT SoundDefID FROM CrashBot.dbo.PackSoundDefinitions WHERE Name = @name;", [
                     {name: "name", type: mssql.TYPES.VarChar, data: item}
@@ -4252,8 +4383,8 @@ async function setup() {
 
                 for (let sound of sound_defs[item].sounds) {
                     if (typeof sound === "string") {
-                        queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID)
-                                      VALUES (${sound_defs[item].id})`)
+                        queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, DefaultFile)
+                                      VALUES (${sound_defs[item].id}, '${sound}')`)
                     } else {
                         // safeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch) VALUES (@defid, @is3D, @vol, @pitch);", [
                         //     {name: "defid", type: mssql.TYPES.Int, data: sound_defs[item].id},
@@ -4262,12 +4393,12 @@ async function setup() {
                         //     {name: "pitch", type: mssql.TYPES.Decimal, data: sound.pitch || 1},
                         //     {name: "weight", type: mssql.TYPES.Int, data: sound.weight || 1}
                         // ])
-                        queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch)
-                                      VALUES (${sound_defs[item].id}, ${sound.is3D ? 1 : 0}, ${sound.volume || 1},
-                                              ${sound.pitch || 1})`)
+                        queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, DefaultFile)
+                                      VALUES (${sound_defs[item].id}, ${sound.is3D || typeof sound.is3D === "undefined" ? 1 : 0}, ${sound.volume || 1},
+                                              ${sound.pitch || 1}, '${sound.name}')`)
                     }
                 }
-                console.log(sound_defs[item].id)
+                // console.log(sound_defs[item].id)
             }
             await safeQuery(queries.join(";") + ";")
 
@@ -4347,6 +4478,8 @@ async function setup() {
                     type: mssql.TYPES.VarChar,
                     data: sound
                 }])).recordset[0].SoundGroupID
+
+                sounds.entity_sounds.entities[sound].id = _sounds[sound].id
 
                 for (let event of Object.keys(_sounds[sound].events)) {
                     if (!_sounds[sound].events[event].sound) continue
@@ -4495,6 +4628,8 @@ async function setup() {
                         data: sound
                     }])).recordset[0].SoundGroupID
 
+                    sounds.interactive_sounds.entity_sounds.entities[sound].id = _sounds[sound].id
+
                     if (!_sounds[sound].events) continue
                     for (let event of Object.keys(_sounds[sound].events)) {
                         if (!_sounds[sound].events[event].sound) continue
@@ -4636,11 +4771,24 @@ async function setup() {
                 return JSON.parse(fs.readFileSync(__dirname + "/assets/pack/entity/" + file).toString())
             })
             let entities = {}
+            // De-duplicate entities
+            for (let entity of array_entities) entities[entity["minecraft:client_entity"]["description"]["identifier"]] = entity
+            array_entities = Object.values(entities)
+            entities = {}
+
             for (let entity of array_entities) {
                 let identifier = entity["minecraft:client_entity"]["description"]["identifier"]
                 entities[identifier] = entity
-                await safeQuery("INSERT INTO CrashBot.dbo.PackEntities (PackID, identifier) VALUES (1, @name);", [
-                    {name: "name", type: mssql.TYPES.VarChar, data: identifier}
+                let sound_group = sounds.entity_sounds.entities[identifier.split(":")[1]] || null
+                let interactive_sound_group = sounds.interactive_sounds.entity_sounds.entities[identifier.split(":")[1]] || null
+                await safeQuery("INSERT INTO CrashBot.dbo.PackEntities (PackID, identifier, SoundGroupID, InteractiveSoundGroupID) VALUES (1, @name, @sgroup, @isgroup);", [
+                    {name: "name", type: mssql.TYPES.VarChar, data: identifier},
+                    {name: "sgroup", type: mssql.TYPES.Int, data: sound_group ? sound_group.id : null},
+                    {
+                        name: "isgroup",
+                        type: mssql.TYPES.Int,
+                        data: interactive_sound_group ? interactive_sound_group.id : null
+                    }
                 ])
                 entities[identifier].id = (await safeQuery("SELECT EntityID FROM dbo.PackEntities WHERE identifier = @name", [
                     {name: "name", type: mssql.TYPES.VarChar, data: identifier}
@@ -4674,6 +4822,43 @@ async function setup() {
             //     console.log(item)
             //     await processItem(__dirname + "/assets/pack/assets/", __dirname + "/assets/pack/assets/realms", item)
             // }
+
+            // IMPORT LANGUAGES
+            // console.log("Importing languages")
+            // let percent = 0
+            //
+            // let languages = JSON.parse(fs.readFileSync(__dirname + "/assets/pack/texts/language_names.json").toString())
+            // queries = []
+            // for (let i = 0; i < languages.length; i++) {
+            //     let language = languages[i]
+            //     queries.push(`INSERT INTO CrashBot.dbo.PackLanguages (LanguageID, LanguageName, PackID)
+            //                   VALUES ('${language[0]}', '${language[1]}', 1);`)
+            //
+            //     // Parse language items
+            //     let language_items = fs.readFileSync(__dirname + "/assets/pack/texts/" + language[0] + ".lang").toString().split("\n")
+            //     for (let r = 0; r < language_items.length; r++) {
+            //         let item = language_items[r]
+            //         if (item.startsWith("#")) continue // This is a comment line
+            //         if (!(item.includes("=") && item.includes("#"))) continue // Invalid line
+            //
+            //         let item_split = item.split("=")
+            //         let game_item = item_split[0]
+            //
+            //         let item_split_2 = item_split[1].split("#")
+            //         let name = item_split_2[0]
+            //         await safeQuery("INSERT INTO CrashBot.dbo.PackLanguageItems (LanguageID, Text, GameItem) VALUES (@language, @text, @item)", [
+            //             {name: "language", type: mssql.TYPES.Char(5), data: language[0]},
+            //             {name: "text", type: mssql.TYPES.VarChar, data: name},
+            //             {name: "item", type: mssql.TYPES.VarChar, data: game_item}
+            //         ])
+            //         if (Math.floor(((r + (i * language_items.length)) / (language_items.length * languages.length)) * 100) > percent) {
+            //             percent = Math.floor(((r + (i * language_items.length)) / (language_items.length * languages.length)) * 100)
+            //             console.log(percent + "%")
+            //         }
+            //     }
+            // }
+            // await safeQuery(queries.join(";") + ";")
+            queries = []
 
             console.log("DONE!")
         } else {
@@ -4857,7 +5042,354 @@ async function generateRandomCaptureMsg() {
     }
 }
 
+async function generatePackArchive(pack_id, increase_version_num = false, ...archive_options) {
+    console.log(archive_options)
+    let archive = new archiver(...archive_options)
+
+    await generatePack(pack_id, increase_version_num, (file, location) => {
+        archive.append(file, {name: location})
+    })
+
+    archive.finalize()
+    return archive
+}
+
+async function generatePack(pack_id, increase_version_num = false, onFile = (file, location) => {}, onPackFound = (p) => {}) {
+    let pack = (await safeQuery("SELECT * FROM dbo.Packs WHERE pack_id = @packid", [
+        {name: "packid", type: mssql.TYPES.Int, data: parseInt(pack_id)}
+    ])).recordset[0]
+
+    if (increase_version_num) {
+        if (pack.version_num_3 < 255) {
+            pack.version_num_3 += 1
+        } else if (pack.version_num_2 < 255) {
+            pack.version_num_2 += 1
+            pack.version_num_3 = 0
+        } else if (pack.version_num_1 < 255) {
+            pack.version_num_3 = 0
+            pack.version_num_2 = 0
+            pack.version_num_1 += 1
+        } else {console.log("VERSION NUMBERS EXCEEDED")}
+        await safeQuery("UPDATE CrashBot.dbo.Packs SET version_num_1 = @n1, version_num_2 = @n2, version_num_3 = @n3 WHERE pack_id = @packid;", [
+            {name: "n1", type: mssql.TYPES.TinyInt, data: pack.version_num_1},
+            {name: "n2", type: mssql.TYPES.TinyInt, data: pack.version_num_2},
+            {name: "n3", type: mssql.TYPES.TinyInt, data: pack.version_num_3},
+            {name: "packid", type: mssql.TYPES.Int, data: parseInt(pack_id)}
+        ])
+    }
+    onPackFound(pack)
+
+    // Load sounds
+    console.log("LOADING SOUNDS")
+    let sounds = (await safeQuery("SELECT * FROM dbo.PackSounds WHERE PackID = @packid", [
+        {name: "packid", type: mssql.TYPES.Int, data: parseInt(pack_id)}
+    ])).recordset
+
+    // Check for sounds that are not default
+    let sounds_folder = path.join(__dirname, "assets", "pack_sounds")
+    for (let sound of sounds) {
+        sound.changed = fs.existsSync(path.join(sounds_folder, sound.SoundID + ".ogg"))
+    }
+
+    // Load sound definitions
+    console.log("LOADING SOUND DEFINITIONS")
+    let sound_definitons = (await safeQuery("SELECT * FROM dbo.PackSoundDefinitions WHERE PackID = @packid", [
+        {name: "packid", type: mssql.TYPES.Int, data: parseInt(pack_id)}
+    ])).recordset
+
+    console.log("EXPORTING SOUNDS")
+    let sound_definitions_out = {
+        "format_version": "1.14.0",
+        "sound_definitions": {}
+    }
+
+    // Parse sound definitions into sound definitions JSON file
+    for (let definition of sound_definitons) {
+        // Check all linked sounds
+        let linked_sounds = sounds.filter(sound => sound.SoundDefID === definition.SoundDefID)
+        if (linked_sounds.length === 0 || linked_sounds.filter(sound => sound.changed).length === 0) {
+            definition.changed = false
+            continue
+        } // Ignore this definition as it has not changed.
+        definition.changed = true
+        sound_definitions_out.sound_definitions[definition.Name] = {
+            category: definition.category,
+            sounds: linked_sounds.map(sound => {
+                return {
+                    is3D: sound.is3D,
+                    volume: sound.volume,
+                    pitch: sound.pitch,
+                    weight: sound.weight,
+                    name: sound.changed ? "sounds/i/" + sound.SoundID : sound.DefaultFile
+                }
+            })
+        }
+    }
+
+    // Append files to archive
+    console.log("APPENDING SOUNDS TO ARCHIVE")
+    console.log(sound_definitions_out)
+    for (let sound of sounds.filter(sound => sound.changed)) {
+        onFile(fs.readFileSync(path.join(sounds_folder, sound.SoundID + ".ogg")), "sounds/i/" + sound.SoundID + ".ogg")
+    }
+
+    // Cleanup
+    delete sounds
+
+    // Export sound groups
+    let sound_groups = (await safeQuery("SELECT * FROM dbo.PackSoundGroups WHERE PackSoundGroups.PackID = @packid", [
+        {name: "packid", type: mssql.TYPES.Int, data: parseInt(pack_id)}
+    ])).recordset
+
+    let sound_groups_out = {
+        "block_sounds": {},
+        "entity_sounds": {entities: {}},
+        "individual_event_sounds": {
+            "events": {}
+        },
+        "interactive_sounds": {
+            "block_sounds": {},
+            "entity_sounds": {
+                "defaults": {
+                    "events": {
+                        "fall": {
+                            "default": {
+                                "pitch": 0.750,
+                                "sound": "",
+                                "volume": 1.0
+                            }
+                        },
+                        "jump": {
+                            "default": {
+                                "pitch": 0.750,
+                                "sound": "",
+                                "volume": 0.250
+                            }
+                        }
+                    },
+                    "pitch": 1.0,
+                    "volume": 0.250
+                },
+                "entities": {}
+            }
+        }
+    }
+    for (let item of sound_groups) {
+        let events = (await safeQuery("SELECT * FROM dbo.PackSoundGroupEvents WHERE PackSoundGroupEvents.SoundGroupID = @id", [
+            {name: "id", type: mssql.TYPES.Int, data: item.SoundGroupID}
+        ])).recordset
+
+        let _events = {}
+
+        for (let event of events) {
+            // Check if event has changed
+            let sound_definition = sound_definitons.find(definition => definition.SoundDefID === event.SoundDefID)
+            event.definition = sound_definition
+
+            _events[event.EventType] = {
+                sound: event.definition.Name,
+                volume: event.vol_lower === event.vol_higher ? event.vol_lower : [event.vol_lower, event.vol_higher],
+                pitch: event.pitch_lower === event.pitch_higher ? event.pitch_lower : [event.pitch_lower, event.pitch_higher],
+            }
+        }
+
+        if (!events.find(event => event.definition.changed)) continue
+
+        let _item = {
+            pitch: item.pitch_lower === item.pitch_higher ? item.pitch_lower : [item.pitch_lower, item.pitch_higher],
+            volume: item.vol_lower === item.vol_higher ? item.vol_lower : [item.vol_lower, item.vol_higher],
+            events: _events
+        }
+
+        if (item.type === "block_sounds") {
+            sound_groups_out["block_sounds"][item.GroupName] = _item
+        } else if (item.type === "entity_sounds") {
+            sound_groups_out.entity_sounds.entities[item.GroupName] = _item
+        } else if (item.type === "individual_event_sounds") {
+            sound_groups_out.individual_event_sounds.events = _item
+        } else if (item.type === "interactive_sounds.block_sounds") {
+            sound_groups_out.interactive_sounds.block_sounds[item.GroupName] = _item.events
+        } else if (item.type === "interactive_sounds.entity_sounds") {
+            sound_groups_out.interactive_sounds.entity_sounds.entities[item.GroupName] = _item
+        }
+    }
+
+
+    onFile(Buffer.from(JSON.stringify(sound_definitions_out)), "sounds/sound_definitions.json")
+    onFile(Buffer.from(JSON.stringify(sound_groups_out)), "sounds.json")
+
+    // Export terrain textures
+    let terrain_textures_array = (await safeQuery(`SELECT dbo.PackTextureGroups.GameID  AS 'identifier',
+                                                          dbo.PackTextures.DefaultFile  AS 'DefaultFile',
+                                                          dbo.PackTextures.OverlayColor AS 'OverlayColor',
+                                                          dbo.PackTextures.TextureID
+                                                   FROM dbo.PackTextureGroups
+                                                            JOIN dbo.PackTextures ON dbo.PackTextures.TextureGroupID =
+                                                                                     dbo.PackTextureGroups.TextureGroupID
+                                                   WHERE dbo.PackTextureGroups.PackID = @packid
+                                                     AND type = 'terrain_texture'
+                                                   ORDER BY GameID ASC, Position ASC`, [
+        {name: "packid", type: mssql.TYPES.Int, data: pack_id}
+    ])).recordset
+
+    let terrain_textures = {
+        num_mip_levels: 4, padding: 8, resource_pack_name: "vanilla", texture_data: {}
+    }
+    for (let texture of terrain_textures_array) {
+        if (!terrain_textures.texture_data[texture.identifier]) {
+            terrain_textures.texture_data[texture.identifier] = {textures: []}
+
+            let _path = texture.DefaultFile
+            if (fs.existsSync(path.join(__dirname, "assets", "pack_textures", texture.TextureID + ".png"))) {
+                onFile(fs.readFileSync(path.join(__dirname, "assets", "pack_textures", texture.TextureID + ".png")), "textures/i/" + texture.TextureID + ".png")
+                _path = "textures/i/" + texture.TextureID
+            }
+
+            if (texture.OverlayColor) {
+                terrain_textures.texture_data[texture.identifier].textures.push({
+                    overlay_color: "#" + texture.OverlayColor,
+                    path: _path
+                })
+            } else terrain_textures.texture_data[texture.identifier].textures.push(_path)
+        }
+    }
+
+    // Export blocks
+    let blocks_array = (await safeQuery(`
+        SELECT PB.GameID AS 'GameID', PBT.Type AS 'type', PTG.GameID AS 'TextureGameID', PSG.GroupName AS 'SoundGameID'
+        FROM dbo.PackBlocks PB
+                 JOIN dbo.PackBlockTextures PBT on PB.BlockID = PBT.BlockID
+                 JOIN dbo.PackTextureGroups PTG ON PBT.TextureGroupID = PTG.TextureGroupID
+                 JOIN dbo.PackSoundGroups PSG on PB.SoundGroupID = PSG.SoundGroupID
+        WHERE PB.PackID = @packid`,
+        [
+            {name: "packid", type: mssql.TYPES.Int, data: pack_id}
+        ])).recordset
+    onFile(Buffer.from(JSON.stringify(terrain_textures)), "textures/terrain_texture.json")
+
+    let blocks = {}
+    for (let block of blocks_array) {
+        if (!blocks[block.GameID]) blocks[block.GameID] = {textures: {}}
+        if (block.SoundGameID) blocks[block.GameID].sound = block.SoundGameID
+        blocks[block.GameID].textures[block.type] = block.TextureGameID
+    }
+    onFile(Buffer.from(JSON.stringify(blocks)), "blocks.json")
+
+    onFile(Buffer.from(JSON.stringify({
+        "format_version": 2,
+        "header": {
+            "description": "Re-Flesh SEASON 5",
+            "name": "Re-Flesh SEASON 5",
+            "uuid": "5eb74438-a581-4b21-97bf-c13e4c4522f5",
+            "version": [pack.version_num_1, pack.version_num_2, pack.version_num_3],
+            "min_engine_version": [1, 19, 50]
+        },
+        "modules": [
+            {
+                "description": "Example vanilla resource pack",
+                "type": "resources",
+                "uuid": "b1b947d5-dece-484d-a6c8-6a0c829d5d96",
+                "version": [0, 0, 3]
+            }
+        ]
+    })), "manifest.json")
+    onFile(fs.readFileSync(path.join(__dirname, "assets", "pack", "pack_icon.png")), "pack_icon.png")
+}
+
+function uploadNewPack() {
+    let connection = new ftp()
+    connection.on("ready", async () => {
+        console.log("GENERATING PACK DATA...")
+
+        connection.changeDirectory = (path) => {
+            return new Promise((resolve, reject) => {
+                connection.cwd(path, (e) => {
+                    if (e) {
+                        if (e.code === 550) {
+                            // Folder does not exist, so make it
+                            connection.mkdir(path, async (e) => {
+                                if (e) reject(e)
+                                else resolve(await connection.changeDirectory(path))
+                            })
+                        } else {reject(e)}
+                    } else resolve()
+                })
+            })
+        }
+        connection.toParent = () => {
+            return new Promise(resolve => {
+                connection.cdup(() => {resolve()})
+            })
+        }
+        connection.removeDirectory = (path) => {
+            return new Promise((resolve, reject) => {
+                connection.rmdir(path, true, (e) => {if (e) reject(e); else resolve()})
+            })
+        }
+
+        let version = []
+
+        let current_dir = []
+        let items = []
+        await generatePack(1, true, (file, location) => {
+            items.push({file, location})
+        }, (pack) => {
+            version = [pack.version_num_1, pack.version_num_2, pack.version_num_3]
+        })
+
+        connection.put(Buffer.from(JSON.stringify(
+            [
+
+                {
+                    "pack_id" : "674d81cc-5d05-ca69-dc85-59f6504c3df1",
+                    "version" : [ 4, 0, 0 ]
+                },
+
+                {
+                    "pack_id" : "5eb74438-a581-4b21-97bf-c13e4c4522f5",
+                    version
+                }
+            ]
+        )), "world_resource_packs.json", (err) => {
+            console.log(err)
+        })
+
+        await connection.changeDirectory("worlds")
+        await connection.changeDirectory("Bedrock level")
+        await connection.changeDirectory("resource_packs")
+        await connection.removeDirectory("reflesh_rp")
+        await connection.changeDirectory("reflesh_rp")
+
+        for (let item of items) {
+            let folder = path.dirname(item.location)
+            if (path.dirname(folder) !== current_dir.join("/")) {
+                let loop = current_dir.length
+                for (let i = 0; i < loop; i++) await connection.toParent()
+                for (let _folder of folder.split("/")) await connection.changeDirectory(_folder)
+                current_dir = folder === "." ? [] : folder.split("/")
+            }
+            console.log(item.location, current_dir)
+            connection.put(item.file, path.basename(item.location), (err) => {
+                console.log(err)
+            })
+        }
+        console.log("DONE")
+        connection.end()
+
+        // setTimeout(() => {
+        //     console.log("DISCONNECTING...")
+        // }, 5000)
+    })
+
+    connection.connect({
+        host: "syd-5800x-4.server.pro",
+        user: "41553",
+        password: "2BBfnmXDdKcF5aC"
+    })
+}
+
 setup()
+
 
 
 // wss.on("connection", socket => {
