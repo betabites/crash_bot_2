@@ -1,4 +1,7 @@
 // Copyright 2022 - Jack Hawinkels - All Rights Reserved
+// import {EndBehaviorType} from "@discordjs/voice";
+
+const opus = require("prism-media").opus
 const express = require("express");
 const fileUpload = require('express-fileupload');
 const ws = require("ws");
@@ -8,24 +11,30 @@ const path = require("path")
 const {spawn, exec} = require("child_process")
 const ytdl = require("ytdl-core")
 const ytpl = require("ytpl")
+const yts = require("yt-search")
 const spotifydl = require("spotifydl-core").default
 const spotify = new spotifydl({
     clientId: "d93604d756db4462b019784e67b2e064",
     clientSecret: "fb849fadf5fb4404887cd27fe3cd0ad1"
 })
+const HOT_POTATO_CHANNEL_ID = "1108718443525586944"
+const inspirobot = require("inspirobot.js")
 // const spotify = require("spottydl")
-const {REST} = require('@discordjs/rest');
-const {Routes} = require('discord-api-types/v9');
 const events = require("events")
 const Jimp = require("jimp")
 const ftp = require('ftp')
 let ffmpeg = require("fluent-ffmpeg");
 const archiver = require('archiver');
+const { PassThrough } = require("stream")
 let http = require("http")
 let https = require("https")
 let Discord = require("discord.js")
 let audio_queue
+let hot_potato_timer_ms = 5.76e+7
+let hot_potato_holder
+let hot_potato_penalty = 0
 const discord_voice = require('@discordjs/voice');
+
 let console_channel, chat_channel, command_channel
 let client = new Discord.Client({
     intents: [
@@ -43,11 +52,132 @@ let pack_updated = true
 let auto_pack_update_timeout
 let schedule = require('node-schedule');
 let dah
-const {getAudioDurationInSeconds} = require("get-audio-duration");
-const WaveformData = require("waveform-data");
-const {readJson} = require("fs-extra");
+let chatgpt
+import("chatgpt").then(lib => {
+    console.log("Imported ChatGPT")
+    chatgpt = new lib.ChatGPTAPI({
+        apiKey: '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'
+    })
+})
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
 const mssql = require("mssql")
+const randomWords = require("random-words")
+const bad_baby_words = require("./badwords.json")
+const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
+const d2_quotes = [
+    {"quote": "Eyes up, Guardian.", "character": "Ghost"},
+    {"quote": "We need to step up our patrols.", "character": "Zavala"},
+    {"quote": "I could tell you of the great battle centuries ago, how the Traveler was crippled. I could tell you of the power of the Darkness, its ancient enemy. There are many tales told throughout the City to frighten children. Lately, those tales have stopped. Now, the children are frightened anyway. The Darkness is coming back. We will not survive it this time.", "character": "Speaker"},
+    {"quote": "I don't have time to explain what I don't have time to understand!", "character": "Exo Stranger"},
+    {"quote": "The Light lives in all places, in all things. You can block it, even try to trap it, but the Light will find its way.", "character": "The Speaker"},
+    {"quote": "You have to be willing to die over and over again. You have to be that brave.", "character": "Ikora Rey"},
+    {"quote": "Guardians never die. But we don't forget those who do.", "character": "Lord Shaxx"},
+    {"quote": "When you see an opportunity, take it.", "character": "Cayde-6"},
+    {"quote": "Do not go quietly.", "character": "Eris Morn"},
+    {"quote": "I am a monument to all your sins.", "character": "Gravemind"},
+    {"quote": "It is not enough to stand and fight. You must stand and win.", "character": "Lord Saladin"},
+    {"quote": "Guardian, down!", "character": "Ghost"},
+    {"quote": "There will be a ton of loot!", "character": "Failsafe"},
+    {"quote": "Tell the Warlocks your cloak is frabjous. They respect words they don't understand.", "character": "Cayde-6"},
+    {"quote": "Nothin' kills a Guardian faster than another Guardian.", "character": "Lord Shaxx"},
+    {"quote": "A side should always be taken, little Light. Even if it's the wrong side.", "character": "Drifter"},
+    {"quote": "We all make choices in life, but in the end, our choices make us.", "character": "Eris Morn"},
+    {"quote": "Show them that their Gods and their slums have nothing on our power.", "character": "Ikora Rey"},
+    {"quote": "I could tell you of a great battle centuries ago... How the Traveler was crippled. I could tell you of the power of the Darkness, its ancient enemy. There are many tales told throughout the City to frighten children. Lately those tales have stopped. Now, the children are frightened anyway. The Darkness is coming back. We will not survive it this time.", "character": "The Speaker"},
+    {"quote": "We fight together or we die alone.", "character": "Lord Shaxx"},
+    {"quote": "Whether we wanted it or not, we've stepped into a war with the Cabal on Mars.", "character": "Zavala"},
+    {"quote": "Eyes up, Guardian.", "character": "Ghost"},
+    {"quote": "This is a fallen house sigil. I don't recognize it, though. Nor the crew.", "character": "Ghost"},
+    {"quote": "The line between light and dark is so very thin. Do you know which side you're on?", "character": "Uldren Sov"},
+    {"quote": "A side should always be taken, little Light. Even if it's the wrong side.", "character": "Drifter"},
+    {"quote": "You're not brave. You've merely forgotten the fear of death.", "character": "Ghaul"},
+    {"quote": "For centuries we feared the forces of Darkness massing against us. We sought to hide and cower beneath a broken God. No more. These Guardians... they stood against a god and did not falter.", "character": "Zavala"},
+    {"quote": "The Traveler has chosen you. Your Ghost will guide you. I only hope he chose wisely.", "character": "Zavala"},
+    {"quote": "Our numbers will blot out the stars.", "character": "Dominus Ghaul"},
+    {"quote": "Let's get you back out there.", "character": "Lord Shaxx"},
+    {"quote": "I once walked these same steps, but now... I walk in the Light.", "character": "Osiris"},
+    {"quote": "You know this planet? What's it called?","character": "Ghost"},
+    {"quote": "We're surrounded by Fallen. Well, Fallen and Hive.", "character": "Ghost"},
+    {"quote": "Guardians never die. But we don't forget those who do.", "character": "Lord Shaxx"},
+    {"quote": "We don't know what we'll find in the Black Garden. It's not a place the Traveler goes.", "character": "Ghost"},
+    {"quote": "We fought to keep our beautiful creation safe. And now this beast has come, claiming to be king.", "character": "Calus"},
+    {"quote": "You have to be willing to die over and over again. You have to be that brave.", "character": "Ikora Rey"},
+    {"quote": "I am the wall, and I am your salvation.", "character": "Saint-14"},
+    {"quote": "I've got a plan. Fall in, Guardians!", "character": "Cayde-6"},
+    {"quote": "I could tell you of the great battle centuries ago, how the Traveler was crippled. I could tell you of the power of the Darkness, its ancient enemy. There are many tales told throughout the City to frighten children. Lately, those tales have stopped. Now, the children are frightened anyway. The Darkness is coming back. We will not survive it this time.", "character": "Speaker"},
+    {"quote": "Whether we wanted it or not, we've stepped into a war with the Cabal on Mars. So let's get to taking out their command, one by one.", "character": "Zavala"},
+    {"quote": "Tell the Warlocks your cloak is frabjous. They respect words they don't understand.", "character": "Cayde-6"},
+    {"quote": "Nothin' kills a Guardian faster than another Guardian.", "character": "Lord Shaxx"},
+    {"quote": "I have no time to explain... why I don't have time to explain.", "character": "Exo Stranger"},
+    {"quote": "There is still so much more to do.", "character": "Eris Morn"},
+    {"quote": "You are a dead thing made by a dead power in the shape of the dead. All you will ever do is kill. You cannot create.", "character": "Ghaul"},
+    {"quote": "What kind of guardian are you?", "character": "Ghost"},
+    {"quote": "You want the Crucible? I am the Crucible.", "character": "Lord Shaxx"},
+    {"quote": "There is hope for humanity, and victory is in sight.", "character": "Commander Zavala"},
+    {"quote": "Welcome to the trials of the Nine.", "character": "The Emissary"},
+    {"quote": "That feeling... when you're about to die but you realize you haven't cleaned your room.", "character": "Cayde-6"},
+    {"quote": "I am a monument to all your sins.", "character": "Gravemind"},
+    {"quote": "We all make choices in life, but in the end, our choices make us.", "character": "Eris Morn"},
+    {"quote": "Embrace the Praxic Fire. It is only in their service that the Iron Lords truly live.", "character": "Lord Saladin"},
+    {"quote": "There will be a ton of loot!", "character": "Failsafe"},
+    {"quote": "Show them that their Gods and their slums have nothing on our power.", "character": "Ikora Rey"},
+    {"quote": "I could tell you of a great battle centuries ago... How the Traveler was crippled. I could tell you of the power of the Darkness, its ancient enemy. There are many tales told throughout the City to frighten children. Lately those tales have stopped. Now, the children are frightened anyway. The Darkness is coming back. We will not survive it this time.", "character": "The Speaker"},
+    {"quote": "You stand before the mighty Calus, the last and greatest emperor of the Cabal.", "character": "Calus"},
+    {"quote": "The sun shines brightest on those who do not fear to walk in its light.", "character": "Saint-14"},
+    {"quote": "Fight forever, Guardian!", "character": "Lord Shaxx"},
+    {"quote": "We fight together or we die alone.", "character": "Lord Shaxx"},
+    {"quote": "Guardian, down!", "character": "Ghost"},
+    {"quote": "Why did I move here? I guess it was the weather.", "character": "Michael De Santa"},
+    {"quote": "Ah, 'cunning' linguist. That ain't what I meant!", "character": "Trevor Philips"},
+    {"quote": "Just keep your mouth shut about me, amigo!", "character": "Franklin Clinton"},
+    {"quote": "I'm not a good guy. I'm a killer.", "character": "Trevor Philips"},
+    {"quote": "The moment has arrived! Either I'm going home a free man or I'm going home in a bag!", "character": "Michael De Santa"},
+    {"quote": "My back's gone; I can't even move right!", "character": "Lamar Davis"},
+    {"quote": "You forget a thousand things every day. How about you make sure this is one of them?", "character": "Michael De Santa"},
+    {"quote": "That's right, fool! Now, who's 'bougie'?", "character": "Franklin Clinton"},
+    {"quote": "I ain't afraid of you, weak-ass mark!", "character": "Lamar Davis"},
+    {"quote": "Ain't nobody got time for this shit!", "character": "Trevor Philips"},
+    {"quote": "You got a bag on your head, huh? I think that's a good look for you!", "character": "Michael De Santa"},
+    {"quote": "You know what, old man? You're a fool!", "character": "Franklin Clinton"},
+    {"quote": "I'm trying to merge with traffic!", "character": "Lamar Davis"},
+    {"quote": "Let's bounce!", "character": "Trevor Philips"},
+    {"quote": "Can I get a signature, sir?", "character": "Strangers and Freaks"},
+    {"quote": "Man, I ain't scared of nothing!", "character": "Franklin Clinton"},
+    {"quote": "You've got to give me that!", "character": "Trevor Philips"},
+    {"quote": "No one makes me bleed my own blood!", "character": "Michael De Santa"},
+    {"quote": "Man, I'm just trying to make some paper!", "character": "Franklin Clinton"},
+    {"quote": "Shit, homie, you gonna drop all that bread on that gear? You might as well get a haircut too!", "character": "Lamar Davis"},
+    {"quote": "I'm a walking combat situation, man!", "character": "Trevor Philips"},
+    {"quote": "Man, I'm just keeping it real.", "character": "Franklin Clinton"},
+    {"quote": "Ain't this the best time to pick up shit?", "character": "Trevor Philips"},
+    {"quote": "You know I don't even like sports.", "character": "Michael De Santa"},
+    {"quote": "I keep my eyes on the hood; I know it better than anyone.", "character": "Franklin Clinton"},
+    {"quote": "Don't get careless, homie!", "character": "Lamar Davis"},
+    {"quote": "I'm a father, a son, a husband! You can't kill me!", "character": "Michael De Santa"},
+    {"quote": "I just wanna get home and watch the game, alright?", "character": "Franklin Clinton"},
+    {"quote": "Hey, listen, this the one thing you gotta remember: I will always be honest with you, Michael.", "character": "Trevor Philips"},
+    {"quote": "Man, this is the spot!", "character": "Lamar Davis"},
+    {"quote": "We out here gang banging like it's '91!", "character": "Franklin Clinton"},
+    {"quote": "Man, I don't want your clumsy-ass falling down these stairs, fool. They were carpeted!", "character": "Lamar Davis"},
+    {"quote": "I'm your fucking nightmare!", "character": "Trevor Philips"},
+    {"quote": "Shit, not the whip!", "character": "Franklin Clinton"},
+    {"quote": "Can I stay at your place? I promise I won't talk in my sleep.", "character": "Trevor Philips"},
+    {"quote": "This is some really heavy shit, man. Fucking Heavy.", "character": "Michael De Santa"},
+    {"quote": "Man, that's an advantage of having low expectations.", "character": "Franklin Clinton"},
+    {"quote": "This is the place!", "character": "Lamar Davis"},
+    {"quote": "If you want to leave, you can go. I don't give a fuck. I'm just trying to be helpful.", "character": "Trevor Philips"},
+    {"quote": "Man, I can't hang with your ass for a while, bro!", "character": "Franklin Clinton"},
+    {"quote": "I'm a loner, Dottie. A rebel.", "character": "Trevor Philips"},
+    {"quote": "How can you sit there and watch your daughter get treated like that? Hey, you're raising a spoiled brat!", "character": "Michael De Santa"},
+    {"quote": "You don't want to fight me!", "character": "Franklin Clinton"},
+    {"quote": "You got scraps, huh?", "character": "Lamar Davis"}
+]
+
+let remote_status_server
+let last_hot_potato_player = ""
+let hot_potato_timer
+
+
 let search_index = []
 // let banner_images = JSON.parse(fs.readFileSync(__dirname + "/assets/html/web_assets/banner_images.json").toString())
 let server_env_options = {
@@ -90,6 +220,16 @@ sanitiseThrowTemplates()
 setTimeout(async () => {
     search_index = search_index_flattener(dirTree(__dirname + "/assets/pack"))
 }, 10000)
+
+setInterval(async () => {
+    let res = await safeQuery("SELECT * FROM dbo.Webhook WHERE timeout < GETDATE()")
+    for (let _webhook of res.recordset) {
+        let webhook = new Discord.WebhookClient({id: _webhook.webhook_id, token: _webhook.token})
+        webhook.delete()
+    }
+    await safeQuery("DELETE FROM dbo.Webhook WHERE timeout < GETDATE()")
+}, 60000)
+
 let search_index_updater = setInterval(() => {
     search_index = search_index_flattener(dirTree(__dirname + "/assets/pack"))
 }, 30000)
@@ -99,7 +239,8 @@ function search_index_flattener(directory) {
     for (let item of directory.children) {
         if (item.type === "folder") {
             out = out.concat(search_index_flattener(item))
-        } else {
+        }
+        else {
             out.push(item.path)
         }
     }
@@ -107,6 +248,7 @@ function search_index_flattener(directory) {
 }
 
 class keyManager {
+    private map: Map<unknown, unknown>;
     constructor() {
         let data = JSON.parse(fs.readFileSync(__dirname + "/assets/json/keys.json").toString())
         this.map = new Map(data)
@@ -153,8 +295,8 @@ class keyManager {
             if (!await this.checkKey(key)) break
         }
 
-        let req = await safeQuery(` INSERT INTO dbo.Users (player_name, discord_id, avatar_url, shortcode)
-                                    VALUES (@playername, @discordid, @avatarurl, @shortcode)`, [
+        let req = await safeQuery(`INSERT INTO dbo.Users (player_name, discord_id, avatar_url, shortcode)
+                                   VALUES (@playername, @discordid, @avatarurl, @shortcode)`, [
             {name: "playername", type: mssql.TYPES.VarChar(30), data: player_name},
             {name: "discordid", type: mssql.TYPES.VarChar(30), data: user.id},
             {name: "avatarurl", type: mssql.TYPES.VarChar(200), data: user.avatarURL()},
@@ -179,9 +321,9 @@ class keyManager {
         if (include_currency) {
             return (await safeQuery(`SELECT player_name, avatar_url, currency
                                      FROM dbo.Users`)).recordset
-        } else {
-            (await safeQuery(`SELECT player_name,
-                              FROM dbo.Users`)).recordset
+        }
+        else {
+            (await safeQuery(`SELECT player_name FROM dbo.Users`)).recordset
         }
     }
 }
@@ -259,7 +401,8 @@ class CrashBotUser {
             data = await safeQuery("SELECT playlist_id FROM dbo.Playlists WHERE type = 1 OR owner_id = @id ORDER BY type ASC, playlist_name ASC", [
                 {name: "id", type: mssql.TYPES.Int, data: this.id}
             ])
-        } else {
+        }
+        else {
             data = await safeQuery("SELECT playlist_id FROM dbo.Playlists WHERE owner_id = @id ORDER BY playlist_name ASC", [
                 {name: "id", type: mssql.TYPES.Int, data: this.id}
             ])
@@ -291,9 +434,11 @@ class Playlist {
         let player, id
         if (url.startsWith("https://m.youtube.com") || url.startsWith("https://youtube.com") || url.startsWith("https://youtu.be") || url.startsWith("https://www.youtube.com") || url.startsWith("https://www.youtu.be")) {
             [player, id] = [0, ytdl.getURLVideoID(url)]
-        } else if (url.startsWith("https://open.spotify.com/track/")) {
+        }
+        else if (url.startsWith("https://open.spotify.com/track/")) {
             [player, id] = [1, url.replace("https://open.spotify.com/track/", "")]
-        } else {
+        }
+        else {
             throw "Invalid URL"
         }
         await this.addTrack(player, id)
@@ -325,6 +470,7 @@ class DAHServer extends EventEmitter {
             if (data.includes("Server ready")) {
                 self.emit("ready")
             }
+            console.log(data.toString())
         })
         this.process.on("close", (code) => {
             clearTimeout(self.timer)
@@ -382,66 +528,34 @@ async function wait(milliseconds) {
 //     )
 // })
 
-async function update_banner() {
-    let banners = (await safeQuery("SELECT * FROM dbo.Banners")).recordset
-
-    if (Math.random() < 0.2) {
-        let capture = (await safeQuery("SELECT * FROM dbo.Memories WHERE data LIKE '%.jpg' ORDER BY NEWID()")).recordset[0]
-        console.log(capture)
-        client.guilds.cache.get("892518158727008297").setBanner(
-            "https://cdn.discordapp.com/attachments/" + capture.channel_id + "/" + capture.attachment_id + "/" + capture.data
-        )
-    } else {
-        console.log("HERE!")
-        client.guilds.cache.get("892518158727008297").setBanner(banners[Math.floor(Math.random() * banners.length)].url)
-        client.user.setAvatar(banners[Math.floor(Math.random() * banners.length)].url)
-    }
-}
-
 function date_to_sql_date(date) {
     return (1900 + date.getYear()).toString() + "-" + ("0" + date.getMonth().toString()).slice(-2) + "-" + ("0" + date.getDate().toString()).slice(-2) + " " + ("0" + date.getHours().toString()).slice(-2) + ":" + ("0" + date.getMinutes().toString()).slice(-2) + ":" + ("0" + date.getSeconds().toString()).slice(-2)
 }
 
-schedule.scheduleJob("0 0 * * * *", update_banner)
-schedule.scheduleJob("0 30 * * * *", update_banner)
-schedule.scheduleJob("0 30 1 * * *", uploadNewPack)
+schedule.scheduleJob("0 0 */2 * * *", () => {
+    rot_potato()
+})
+
+// // Schedule April Fools day event
+// const aprilfools = schedule.scheduleJob("0 0 0 1 4 *", () => {
+//     client.channels.fetch("892518365766242375")
+//         .then(channel => {
+//             // let embed = new Discord.MessageEmbed()
+//             // embed.setTitle("QUEST UNLOCKED!")
+//             // embed.setDescription("Ruin Post Validator's day by continuously pinging it.")
+//             // embed.setFooter("WARNING: Foul language")
+//             // embed.addField("")
+//
+//             safeQuery("UPDATE CrashBot.dbo.Users SET experimentBabyWords = TRUE WHERE 1=1")
+//             channel.send({
+//                 content: "@here HELP! Post Validator has stole the keys to baby speak and enabled it for everyone! Let's ping the f\\*k out of them!"
+//             })
+//         })
+// })
 
 function spawnServer() {
     return spawn(server_env_options.shell, server_env_options.arguments, {
         cwd: server_env_options.cwd
-    })
-}
-
-function safeQuery(sql, params = []) {
-    // {name: '', type: mssql.VarChar, data: '')
-    return new Promise((resolve, reject) => {
-        const ps = new mssql.PreparedStatement()
-        let _params = {}
-        for (let param of params) {
-            ps.input(param.name, param.type)
-            _params[param.name] = param.data
-        }
-
-        ps.prepare(sql, err => {
-            if (err) {
-                reject(err);
-                return
-            }
-
-            ps.execute(_params, (err, result) => {
-                if (err) {
-                    reject(err);
-                    return
-                }
-                ps.unprepare(err => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    resolve(result)
-                })
-            })
-        })
     })
 }
 
@@ -799,7 +913,8 @@ function create_pack(name, output_stream = null) {
         let output
         if (output_stream === null) {
             output = fs.createWriteStream(__dirname + '/' + name)
-        } else {
+        }
+        else {
             output = output_stream
         }
         console.log(__dirname + '/' + name)
@@ -907,7 +1022,8 @@ class queueItem extends EventEmitter {
                 obj.title = data.name
                 obj.thumbnail = data.cover_url
                 resolve()
-            } else {
+            }
+            else {
                 let data = await ytdl.getInfo("https://www.youtube.com/watch?v=" + obj.id)
                 obj.title = data.videoDetails.title
                 obj.thumbnail = data.videoDetails.thumbnails[data.videoDetails.thumbnails.length - 1].url
@@ -951,10 +1067,12 @@ class queueItem extends EventEmitter {
 
     stream(callback) {
         this.__stream2callback = callback
+
         if (this.player_type === "spotifydl" && this.downloaded !== 2) {
             this.__spotifyDownload()
             this.on("trackDownloaded", this.__stream2)
-        } else {
+        }
+        else {
             this.__stream2()
         }
     }
@@ -969,7 +1087,10 @@ class queueItem extends EventEmitter {
 
         if (this.player_type === "spotifydl") {
             this.__stream2callback(fs.createReadStream(this.temp_path))
-        } else {
+        }
+        else {
+            console.log("Streaming YTDL..", "https://www.youtube.com/watch?v=" + this.id)
+            // console.log(await ytdl.getInfo(this.id))
             this.__stream2callback(await ytdl("https://www.youtube.com/watch?v=" + this.id, {
                 filter: "audioonly",
                 fmt: "mp3",
@@ -1000,301 +1121,6 @@ function shuffleArray(array) {
         array[randId] = tmp;
     }
     return array;
-}
-
-class audioQueueManager extends EventEmitter {
-    constructor(vc_connection, channel) {
-        super();
-        this.vc_connection = vc_connection
-        this.pos = 0
-        this.queue = []
-        this.ended = true
-        this.paused = false
-        this.player = discord_voice.createAudioPlayer({
-            behaviors: {
-                noSubscriber: discord_voice.NoSubscriberBehavior.Pause
-            }
-        })
-        this.challenge_mode = false
-        this.channel = channel
-        this.player.on(discord_voice.AudioPlayerStatus.Idle, () => {
-            this.nextTrack()
-        })
-        this.subscription = this.vc_connection.subscribe(this.player)
-
-        this.interval2 = setInterval(() => {
-            this.updateQueueMsg()
-        }, 10000)
-    }
-
-    updateQueueMsgTimeout(timeout = 1000) {
-        if (this.interval1) {
-            clearTimeout(this.interval1)
-        }
-        this.interval1 = setTimeout(() => {
-            this.updateQueueMsg()
-        }, timeout)
-    }
-
-    async updateQueueMsg() {
-        try {
-            if (this.interval1) {
-                clearTimeout(this.interval1)
-            }
-            if (!this.msg) await this.fetchQueueMessage()
-
-            let embed = new Discord.MessageEmbed()
-            if (!this.challenge_mode) {
-                embed.setTitle("Play Queue (" + this.queue.length + " items currently)")
-
-                if (this.queue.length > 0) {
-                    if (this.queue[0].thumbnail) {
-                        embed.setFooter({text: this.queue[0].title, iconURL: this.queue[0].thumbnail})
-                        embed.setImage(this.queue[0].thumbnail)
-                    } else {
-                        embed.setFooter({text: this.queue[0].title})
-                    }
-                }
-
-                let desc = []
-                for (let i in this.queue) {
-                    let line = i + ". "
-                    let _i = parseInt(i)
-                    if (_i === 0 && this.queue[_i].downloaded === 0) {
-                        line += "⌛"
-                    }
-                    if (this.queue[_i].title === "") {
-                        line += "*Data downloading...*"
-                    } else {
-                        line += this.queue[_i].title
-                    }
-
-                    desc.push(line)
-                    if (parseInt(i) >= 20) {
-                        desc.push("...")
-                        break
-                    }
-                }
-                if (this.queue.length === 0) {
-                    embed.setImage("https://live.staticflickr.com/4361/36571823423_fa9f33d0dc_b.jpg")
-                    embed.setFooter({text: "\"New Zealand - Castlepoint\" by Leni Sediva is licensed under CC BY-SA 2.0. "})
-                }
-                embed.setDescription(desc.join("\n"))
-                if (track_info_get_queue.started) {
-                    embed.setFooter({text: "Some information may be missing as data is still being downloaded. This may take awhile depending on the size of the queue."})
-                }
-                this.msg.edit({
-                    content: " ", embeds: [embed], components: [
-                        new Discord.MessageActionRow()
-                            .addComponents([
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_rewind")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏮"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_pause")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏯"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_skip")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏭"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_shuffle")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("🔀"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_stop")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏹"),
-                            ]),
-                        new Discord.MessageActionRow().addComponents([
-                            new Discord.MessageButton()
-                                .setCustomId("audio_challenge")
-                                .setStyle("SECONDARY")
-                                .setLabel("Challenge Mode")
-                                .setEmoji("🏅")
-                        ])
-                    ]
-                })
-            } else {
-                embed.setTitle("🏅 Challenge mode enabled!")
-                embed.setDescription("Challenge mode has been enabled! See if you can guess the songs! To disable challenge mode, click 'Challenge Mode' again.")
-                this.msg.edit({
-                    content: " ", embeds: [embed], components: [
-                        new Discord.MessageActionRow()
-                            .addComponents([
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_rewind")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏮"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_pause")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏯"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_skip")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏭"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_shuffle")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("🔀"),
-                                new Discord.MessageButton()
-                                    .setCustomId("audio_stop")
-                                    .setStyle("SECONDARY")
-                                    .setLabel(" ")
-                                    .setEmoji("⏹")
-                            ]),
-                        new Discord.MessageActionRow().addComponents([
-                            new Discord.MessageButton()
-                                .setCustomId("audio_challenge")
-                                .setStyle("PRIMARY")
-                                .setLabel("Challenge Mode")
-                                .setEmoji("🏅")
-                        ])
-                    ]
-                })
-            }
-        } catch (e) {
-        }
-    }
-
-    async fetchQueueMessage() {
-        return new Promise((resolve, reject) => {
-            client.channels.fetch("999848214691852308").then(channel => {
-                channel.messages.fetch("1000265020795535430").then(msg => {
-                    this.msg = msg
-                    resolve()
-                })
-            })
-        })
-    }
-
-    async addToQueue(url) {
-        // Detect whether it's YouTube or Spotify
-        let queue_item, queue_pos = this.queue.length + 1
-        if (url.startsWith("https://m.youtube.com") || url.startsWith("https://youtube.com") || url.startsWith("https://youtu.be") || url.startsWith("https://www.youtube.com") || url.startsWith("https://www.youtu.be")) {
-            // YouTube
-
-            // Validate the URL
-            if (!ytdl.validateURL(url)) {
-                throw "Invalid URL - ytdl"
-            }
-
-            queue_item = new queueItem("ytdl", ytdl.getURLVideoID(url), queue_pos)
-        } else if (url.startsWith("https://open.spotify.com/track/")) {
-            // Spotify
-
-            // Validate the URL
-            try {
-                await spotify.getTrack(url)
-                queue_item = new queueItem("spotifydl", url.replace("https://open.spotify.com/track/", ""), queue_pos)
-                if (queue_pos - 2 < this.pos) {
-                    queue_item.__spotifyDownload()
-                }
-            } catch (e) {
-                console.error(e)
-                throw "Invalid URL - spotifydl"
-            }
-        }
-
-        this.queue.push(queue_item)
-        if (this.queue.length === 1) {
-            this.startTrack()
-        }
-        this.updateQueueMsgTimeout()
-    }
-
-    async nextTrack() {
-        console.log("Loading next track...")
-        // this.pos += 1
-        await this.queue.shift().unload()
-        await this.startTrack()
-    }
-
-    async startTrack() {
-        console.log("Starting track....")
-        this.ended = false
-        this.updateQueueMsgTimeout()
-        this.queue[this.pos].stream(stream => {
-            this.updateQueueMsg()
-            if (typeof stream === "undefined") {
-                console.error("Failed to stream a track. Skipping...")
-            } else {
-                this.player.play(discord_voice.createAudioResource(stream))
-            }
-        })
-    }
-
-    shuffle() {
-        let cur_item = this.queue.shift()
-        this.queue = shuffleArray(this.queue)
-        this.queue.unshift(cur_item)
-        this.updateQueueMsg()
-    }
-
-    async stop() {
-        this.player.stop()
-        try {
-            await this.queue[0].unload()
-        } catch (e) {
-        }
-        this.queue = []
-        await this.updateQueueMsg()
-        this.challenge_mode = false
-
-        this.subscription.unsubscribe()
-        this.vc_connection.disconnect()
-        clearInterval(this.interval1)
-        clearInterval(this.interval2)
-        try {
-            track_info_get_queue.stop()
-        } catch (e) {
-        }
-        delete this.channel
-    }
-
-    skip() {
-        this.player.pause()
-        this.nextTrack()
-    }
-
-    rewind() {
-        this.startTrack()
-    }
-
-    pause() {
-        if (this.paused) {
-            this.player.unpause()
-            this.paused = false
-        } else {
-            this.player.pause();
-            this.paused = true
-        }
-    }
-
-    async challenge() {
-        if (this.challenge_mode) {
-            this.challenge_mode = false
-            this.updateQueueMsg()
-            return false
-        } else {
-            this.challenge_mode = true
-            this.shuffle()
-            await this.nextTrack()
-            return true
-        }
-    }
 }
 
 // setTimeout(() => {
@@ -1330,7 +1156,8 @@ function dirTree(filename, parentFolder = "") {
         info.children = fs.readdirSync(filename).map(function (child) {
             return dirTree(filename + '/' + child, parentFolder);
         });
-    } else {
+    }
+    else {
         // Assuming it's a file. In real life it could be a symlink or
         // something else!
         info.type = "file";
@@ -1345,7 +1172,8 @@ app.get("/home/:key", async (req, res) => {
         let user = new CrashBotUser(req.params.key)
         await user.get()
         html = fs.readFileSync(__dirname + "/assets/html/index.html").toString().replace(/:keyhere:/g, req.params.key).replace(/\[owned]/g, JSON.stringify(await user.getOwned())).replace(/:username:/g, user.data["player_name"])
-    } else {
+    }
+    else {
         html = "Invalid key"
     }
     // console.log(html)
@@ -1433,13 +1261,15 @@ app.post("/", async (req, res) => {
                     })
                     .run()
             })
-        } else {
+        }
+        else {
             try {
                 let video_info = await ytdl.getInfo(ytdl.getURLVideoID(req.body.yturi))
 
                 if (parseInt(video_info.videoDetails.lengthSeconds) >= 420) {
                     res.send("TOO LONG")
-                } else {
+                }
+                else {
                     try {
                         fs.unlinkSync(output)
                     } catch (e) {
@@ -1476,7 +1306,8 @@ app.post("/", async (req, res) => {
             }
 
         }
-    } else if (output.endsWith(".png") || output.endsWith(".jpg")) {
+    }
+    else if (output.endsWith(".png") || output.endsWith(".jpg")) {
         output.replace(".jpg", ".png")
         req.files.file.mv(req.files.file.tempFilePath + req.files.file.filename).then(r => {
             ffmpeg(req.files.file.tempFilePath + req.files.file.filename)
@@ -1497,10 +1328,12 @@ app.post("/", async (req, res) => {
                 })
                 .run()
         })
-    } else if (output.endsWith(".json")) {
+    }
+    else if (output.endsWith(".json")) {
         if (req.body.json.length > 34275800) {
             res.end("ERROR: JSON is too long")
-        } else {
+        }
+        else {
             try {
                 // Check that JSON is valid
                 let data = JSON.parse(req.body.json)
@@ -1543,9 +1376,11 @@ app.post("/reset", async (req, res) => {
     let or_file
     if (fs.existsSync(__dirname + "/assets/default_pack" + or_file_search + ".fsb")) {
         or_file = __dirname + "/assets/default_pack" + or_file_search + ".fsb"
-    } else if (fs.existsSync(__dirname + "/assets/default_pack" + or_file_search + ".png")) {
+    }
+    else if (fs.existsSync(__dirname + "/assets/default_pack" + or_file_search + ".png")) {
         or_file = __dirname + "/assets/default_pack" + or_file_search + ".png"
-    } else if (fs.existsSync(__dirname + "/assets/default_pack" + or_file_search + ".tga")) {
+    }
+    else if (fs.existsSync(__dirname + "/assets/default_pack" + or_file_search + ".tga")) {
         or_file = __dirname + "/assets/default_pack" + or_file_search + ".tga"
     }
     if (!or_file) {
@@ -1632,17 +1467,6 @@ app.post("/newthrow", async (req, res) => {
         }))
     }
 })
-
-function makeid(length) {
-    var result = '';
-    var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    var charactersLength = characters.length;
-    for (var i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() *
-            charactersLength));
-    }
-    return result;
-}
 
 // app.post("/addOwnership/:key", (req, res) => {
 //     keys.saveOwnership(req.params.key, req.body.fileLocation)
@@ -1806,7 +1630,8 @@ app.get("/assets/*", (req, res) => {
                 }
             })
             .run()
-    } else if (req.url.endsWith(".wav")) {
+    }
+    else if (req.url.endsWith(".wav")) {
         console.log("Live converting wav...")
         console.log(req.headers)
         let output = Math.floor(Math.random() * 10000000000).toString() + "_temp.wav"
@@ -1827,7 +1652,8 @@ app.get("/assets/*", (req, res) => {
                 }
             })
             .run()
-    } else if (fs.lstatSync(__dirname + "/assets/pack" + req.url.replace("/assets", "")).isDirectory()) {
+    }
+    else if (fs.lstatSync(__dirname + "/assets/pack" + req.url.replace("/assets", "")).isDirectory()) {
         res.set("Content-Type", "application/json")
         let file_location = __dirname + "/assets/pack" + req.url.replace("/assets", "")
         if (file_location.slice(-1) !== "/") {
@@ -1856,7 +1682,8 @@ app.get("/assets/*", (req, res) => {
         })
 
         res.send(JSON.stringify(files))
-    } else {
+    }
+    else {
         try {
             res.sendFile(__dirname + "/assets/pack" + req.url.replace("/assets", ""))
         } catch (e) {
@@ -1920,7 +1747,8 @@ app.get("/memories/fetch/channel/:channelid/*.zip", async (req, res) => {
         memories = await safeQuery(`SELECT *
                                     FROM dbo.Memories
                                     WHERE (type = 1 OR attachment_id IS NOT NULL)`)
-    } else {
+    }
+    else {
         memories = await safeQuery(`SELECT *
                                     FROM dbo.Memories
                                     WHERE (type = 1 OR attachment_id IS NOT NULL)
@@ -1933,10 +1761,13 @@ app.get("/memories/fetch/channel/:channelid/*.zip", async (req, res) => {
             let extension = memory.data.split(".")[memory.data.split(".").length - 1]
             if (extension === "jpg" || extension === "jpeg" || extension === "png") {
                 queue.pushToQueue(download_discord_attachment_with_info, [memory.msg_id, memory.channel_id, "https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
-            } else {
+            }
+            else {
                 queue.pushToQueue(download_discord_attachment, ["https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
             }
-        } else {
+        }
+        else {
+            // console.log([memory.data, archive])
             queue.pushToQueue(download_ytdl, [memory.data, archive])
         }
     }
@@ -1967,7 +1798,8 @@ app.get("/memories/fetch/user/:userId/*.zip", async (req, res) => {
         memories = await safeQuery(`SELECT *
                                     FROM dbo.Memories
                                     WHERE (type = 1 OR attachment_id IS NOT NULL)`)
-    } else {
+    }
+    else {
         memories = await safeQuery(`SELECT *
                                     FROM dbo.Memories
                                     WHERE (type = 1 OR attachment_id IS NOT NULL)
@@ -1982,10 +1814,12 @@ app.get("/memories/fetch/user/:userId/*.zip", async (req, res) => {
             let extension = memory.data.split(".")[memory.data.split(".").length - 1]
             if (extension === "jpg" || extension === "jpeg" || extension === "png") {
                 queue.pushToQueue(download_discord_attachment_with_info, [memory.msg_id, memory.channel_id, "https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
-            } else {
+            }
+            else {
                 queue.pushToQueue(download_discord_attachment, ["https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
             }
-        } else {
+        }
+        else {
             queue.pushToQueue(download_ytdl, [memory.data, archive])
         }
     }
@@ -2104,7 +1938,8 @@ app.get("/packs/:packid/blocks/:blockid", async (req, res) => {
             {name: "blockid", type: mssql.TYPES.Int, data: parseInt(req.params.blockid)}
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2139,7 +1974,8 @@ app.get("/packs/:packid/entities/:entityid", async (req, res) => {
             {name: "entity", type: mssql.TYPES.Int, data: data.recordset[0].EntityID}
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2174,7 +2010,8 @@ app.get("/packs/:packid/textures/groups/:groupid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].TextureGroupID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2199,7 +2036,8 @@ app.get("/packs/:packid/textures/:textureid", async (req, res) => {
 
     if (data.recordset.length === 1) {
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2209,7 +2047,8 @@ app.post("/packs/:packid/textures/:textureid/upload", async (req, res) => {
     if (!req.files.file) {
         res.send("No file attached")
         return
-    } else if (!req.files.file.name.endsWith(".png")) {
+    }
+    else if (!req.files.file.name.endsWith(".png")) {
         res.send("PNGs only")
         return
     }
@@ -2229,7 +2068,8 @@ app.get("/packs/:packid/textures/:textureid/stream", async (req, res) => {
         let _path = path.join(__dirname, "assets", "pack_textures", data.recordset[0].TextureID.toString() + ".png")
         if (fs.existsSync(_path)) res.sendFile(_path)
         else res.sendFile(path.join(__dirname, "assets", "pack", data.recordset[0].DefaultFile + ".png"))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2243,7 +2083,8 @@ app.get("/packs/:packid/textures/:textureid/stream/original", async (req, res) =
 
     if (data.recordset.length === 1) {
         res.sendFile(path.join(__dirname, "assets", "pack", data.recordset[0].DefaultFile + ".png"))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2278,7 +2119,8 @@ app.get("/packs/:packid/sounds/groups/:groupid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].SoundGroupID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2313,7 +2155,8 @@ app.get("/packs/:packid/sounds/definitions/:groupid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].SoundDefID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2451,7 +2294,8 @@ app.get("/packs/:packid/sounds/:soundid", async (req, res) => {
 
     if (data.recordset.length === 1) {
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2468,7 +2312,8 @@ app.get("/packs/:packid/sounds/:soundid/stream", async (req, res) => {
         let _path = path.join(__dirname, "assets", "pack_sounds", data.recordset[0].SoundID.toString() + ".ogg")
         if (fs.existsSync(_path)) res.sendFile(_path)
         else res.sendFile(path.join(__dirname, "assets", "pack_sounds", "template.mp3"))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2504,7 +2349,8 @@ app.get("/packs/:packid/items/:itemid", async (req, res) => {
             {name: "id", type: mssql.TYPES.Int, data: parseInt(data.recordset[0].TextureGroupID)},
         ])).recordset
         res.send(JSON.stringify(data.recordset[0]))
-    } else {
+    }
+    else {
         res.status(404)
         res.send("{\"error\":404}")
     }
@@ -2517,7 +2363,8 @@ app.get("/packs/:packid/languages/items", async (req, res) => {
             {name: "packid", type: mssql.TYPES.Int, data: req.params.packid}
         ])
 
-    } else {
+    }
+    else {
         let language_items = (await safeQuery("SELECT * FROM dbo.PackLanguageItems WHERE PackID = @packid", [
             {name: "packid", type: mssql.TYPES.Int, data: req.params.packid}
         ])).recordset
@@ -2632,6 +2479,20 @@ wss.updateBank = async () => {
 
 client.on("ready", async () => {
     uploadNewPack()
+    // client.channels.fetch("892518365766242375")
+    //     .then(channel => {
+    //         // let embed = new Discord.MessageEmbed()
+    //         // embed.setTitle("QUEST UNLOCKED!")
+    //         // embed.setDescription("Ruin Post Validator's day by continuously pinging it.")
+    //         // embed.setFooter("WARNING: Foul language")
+    //         // embed.addField("")
+    //
+    //         safeQuery("UPDATE CrashBot.dbo.Users SET experimentBabyWords = TRUE WHERE 1=1")
+    //         channel.send({
+    //             content: "@here HELP! Post Validator has stole the keys to baby speak and enabled it for everyone! Let's ping the f\\*k out of them!"
+    //         })
+    //     })
+
     client.channels.fetch("892518396166569994").then(channel => {
         console_channel = channel
     })
@@ -2656,7 +2517,8 @@ client.on("ready", async () => {
                     ]
                 })
                 command_channel.queue_array = []
-            } else {
+            }
+            else {
                 command_channel.queue_timeout = setTimeout(() => {
                     let embed = new Discord.MessageEmbed()
                     embed.setDescription(command_channel.queue_array.join("\n"))
@@ -2671,8 +2533,72 @@ client.on("ready", async () => {
         }
     })
 
+    client.application.commands.create({
+        name: "record",
+        description: "Record yourself in a voice channel",
+        defaultPermission: true,
+        options: [
+            {
+                type: 1, // Sub command
+                name: "last",
+                description: "Get an automatic recording of your voice from the last few minutes",
+                options: [
+                    {
+                        type: 4,
+                        name: "minutes",
+                        description: "How many minutes back would you like to look?",
+                        required: true
+                    }
+                ]
+            }
+        ]
+    }).then(res => {
+        console.log("Created /record!")
+    }).catch(e => {
+        console.log("Failed to create /play")
+        console.error(e)
+    })
+
     // Setup slash commands
-    client.guilds.fetch("892518158727008297").then(async guild => {
+    const guilds = ["892518158727008297", "830587774620139580"]
+    const processGuild = guild => {
+        if (guild.id === "892518158727008297") {
+            guild.commands.create({
+                name: "minecraft",
+                description: "Minecraft",
+                defaultPermission: false,
+                options: [
+                    {
+                        type: 1, // Sub command
+                        name: "share_location",
+                        description: "Share your current in-game location",
+                    },
+                    {
+                        type: 1, // Sub command
+                        name: "detailed_scoreboard",
+                        description: "Set whether your online status is detailed (true) or not (false)",
+                        options: [
+                            {
+                                type: 5,
+                                name: "setting",
+                                description: "Detailed scorebaord (true). Basic scoreboard (false)",
+                                required: true
+                            }
+                        ]
+                    }
+                ]
+            })
+            setTimeout(() => {
+                guild.roles.fetch("1109290382812004492").then(role => {
+                    console.log("GOT ROLE!", role.members)
+                    role.members.forEach((member, id) => {
+                        console.log(member)
+                        hot_potato_holder = member
+                    })
+                })
+            }, 10000)
+        }
+
         guild.commands.create({
             name: "throw",
             description: "Throw a random user",
@@ -2691,7 +2617,10 @@ client.on("ready", async () => {
                 }
             ]
         })
-
+        guild.commands.create({
+            name: "vanish",
+            description: "Magically vanish for a few minutes, then return!"
+        })
         guild.commands.create({
             name: "cheese",
             description: "Become the cheese",
@@ -2704,7 +2633,6 @@ client.on("ready", async () => {
                 }
             ]
         })
-
         guild.commands.create({
             name: "bread",
             description: "Become wholesome",
@@ -2717,7 +2645,6 @@ client.on("ready", async () => {
                 }
             ]
         })
-
         guild.commands.create({
             name: "butter",
             description: "Spread the bread",
@@ -2742,12 +2669,10 @@ client.on("ready", async () => {
                 }
             ]
         })
-
         guild.commands.create({
             name: "changemyname",
             description: "Change your nickname to something random. Will you get a good one, or one of the bad bad ones?"
         })
-
         guild.commands.create({
             name: "peanutbutter",
             description: "Excreteing Peanut Butter. Be back shortly.",
@@ -2760,87 +2685,82 @@ client.on("ready", async () => {
                 }
             ]
         })
-
         guild.commands.create({
             name: "random_capture",
             description: "Receive the blessing (or curse) of a random screenshot.",
         })
-
-        guild.commands.create({
-            name: "economy_stats",
-            description: "The server's economy system"
-        })
-
-        guild.commands.create({
-            name: "economy_modify_stocks",
-            description: "Modify the bank's stocks",
-            defaultPermission: false,
-            options: [
-                {
-                    type: 3,
-                    name: "resource_tag_name",
-                    description: "Example: iron_ingot",
-                    required: true
-                },
-                {
-                    type: 4,
-                    name: "stock_count",
-                    description: "How stocked the bank is on this item",
-                    required: true
-                },
-                {
-                    type: 4,
-                    name: "max_stock_count",
-                    description: "The maximum amount of stock the bank will take",
-                    required: true
-                }
-                ,
-                {
-                    type: 4,
-                    name: "baseline_price",
-                    description: "The minimum price that this item will sell for.",
-                    required: true
-                }
-            ]
-        }).then(command => {
-            guild.commands.permissions.add({
-                command: command.id, permissions: [{
-                    id: "894177595833339914",
-                    type: "ROLE",
-                    permission: true,
-                }]
-            })
-        })
-
-        guild.commands.create({
-            name: "economy_modify_bank_accounts",
-            description: "Modify the bank's stocks",
-            defaultPermission: false,
-            options: [
-                {
-                    type: 3,
-                    name: "mc_username",
-                    description: "The Minecraft username of the player who's bank account you are modifying",
-                    required: true
-                },
-                {
-                    type: 4,
-                    name: "coins",
-                    description: "Set the number of coins this player should have",
-                    required: true
-                }
-            ]
-        })
-            .then(command => {
-                guild.commands.permissions.add({
-                    command: command.id, permissions: [{
-                        id: "894177595833339914",
-                        type: "ROLE",
-                        permission: true
-                    }]
-                })
-            })
-
+        // guild.commands.create({
+        //     name: "economy_stats",
+        //     description: "The server's economy system"
+        // })
+        // guild.commands.create({
+        //     name: "economy_modify_stocks",
+        //     description: "Modify the bank's stocks",
+        //     defaultPermission: false,
+        //     options: [
+        //         {
+        //             type: 3,
+        //             name: "resource_tag_name",
+        //             description: "Example: iron_ingot",
+        //             required: true
+        //         },
+        //         {
+        //             type: 4,
+        //             name: "stock_count",
+        //             description: "How stocked the bank is on this item",
+        //             required: true
+        //         },
+        //         {
+        //             type: 4,
+        //             name: "max_stock_count",
+        //             description: "The maximum amount of stock the bank will take",
+        //             required: true
+        //         }
+        //         ,
+        //         {
+        //             type: 4,
+        //             name: "baseline_price",
+        //             description: "The minimum price that this item will sell for.",
+        //             required: true
+        //         }
+        //     ]
+        // }).then(command => {
+        //     guild.commands.permissions.add({
+        //         command: command.id, permissions: [{
+        //             id: "894177595833339914",
+        //             type: "ROLE",
+        //             permission: true,
+        //         }]
+        //     })
+        // })
+        // guild.commands.create({
+        //     name: "economy_modify_bank_accounts",
+        //     description: "Modify the bank's stocks",
+        //     defaultPermission: false,
+        //     options: [
+        //         {
+        //             type: 3,
+        //             name: "mc_username",
+        //             description: "The Minecraft username of the player who's bank account you are modifying",
+        //             required: true
+        //         },
+        //         {
+        //             type: 4,
+        //             name: "coins",
+        //             description: "Set the number of coins this player should have",
+        //             required: true
+        //         }
+        //     ]
+        // })
+        //     .then(command => {
+        //         guild.commands.permissions.add({
+        //             command: command.id, permissions: [{
+        //                 id: "894177595833339914",
+        //                 type: "ROLE",
+        //                 permission: true
+        //             }]
+        //         })
+        //     })
         guild.commands.create({
             name: "getcode",
             description: "Get another player's access code/key",
@@ -2863,129 +2783,115 @@ client.on("ready", async () => {
                     }]
                 })
             })
-
-        guild.commands.create({
-            name: "addclaim",
-            description: "Allow a user to edit an item in the resource pack editor",
-            defaultPermission: false,
-            options: [
-                {
-                    type: 3,
-                    name: "mc_username",
-                    description: "The player's Minecraft username",
-                    required: true
-                },
-                {
-                    type: 3,
-                    name: "item_location",
-                    description: "The location of the item. Example; /sounds/mob/chicken/say1.ogg",
-                    required: true
-                }
-            ]
-        })
-            .then(command => {
-                guild.commands.permissions.add({
-                    command: command.id, permissions: [{
-                        id: "894177595833339914",
-                        type: "ROLE",
-                        permission: true
-                    }]
-                })
-            })
-
-        guild.commands.create({
-            name: "restart_server",
-            description: "This will restart the server",
-            defaultPermission: false
-        })
-            .then(command => {
-                guild.commands.permissions.add({
-                    command: command.id, permissions: [{
-                        id: "894177595833339914",
-                        type: "ROLE",
-                        permission: true
-                    }]
-                })
-            })
-
-        guild.commands.create({
-            name: "force_pack_update",
-            description: "Negates the 5 minute wait that a resource pack update would usually have",
-            defaultPermission: false
-        })
-            .then(command => {
-                guild.commands.permissions.add({
-                    command: command.id, permissions: [{
-                        id: "894177595833339914",
-                        type: "ROLE",
-                        permission: true
-                    }]
-                })
-            })
-
+        // guild.commands.create({
+        //     name: "addclaim",
+        //     description: "Allow a user to edit an item in the resource pack editor",
+        //     defaultPermission: false,
+        //     options: [
+        //         {
+        //             type: 3,
+        //             name: "mc_username",
+        //             description: "The player's Minecraft username",
+        //             required: true
+        //         },
+        //         {
+        //             type: 3,
+        //             name: "item_location",
+        //             description: "The location of the item. Example; /sounds/mob/chicken/say1.ogg",
+        //             required: true
+        //         }
+        //     ]
+        // })
+        //     .then(command => {
+        //         guild.commands.permissions.add({
+        //             command: command.id, permissions: [{
+        //                 id: "894177595833339914",
+        //                 type: "ROLE",
+        //                 permission: true
+        //             }]
+        //         })
+        //     })
+        // guild.commands.create({
+        //     name: "restart_server",
+        //     description: "This will restart the server",
+        //     defaultPermission: false
+        // })
+        //     .then(command => {
+        //         guild.commands.permissions.add({
+        //             command: command.id, permissions: [{
+        //                 id: "894177595833339914",
+        //                 type: "ROLE",
+        //                 permission: true
+        //             }]
+        //         })
+        //     })
+        // guild.commands.create({
+        //     name: "force_pack_update",
+        //     description: "Negates the 5 minute wait that a resource pack update would usually have",
+        //     defaultPermission: false
+        // })
+        //     .then(command => {
+        //         guild.commands.permissions.add({
+        //             command: command.id, permissions: [{
+        //                 id: "894177595833339914",
+        //                 type: "ROLE",
+        //                 permission: true
+        //             }]
+        //         })
+        //     })
         guild.commands.create({
             name: "getlink",
             description: "Get your website link",
             defaultPermission: true
         })
-
         guild.commands.create({
-            name: "#banner",
-            defaultPermission: true,
-            type: "MESSAGE"
-        })
-
-        guild.commands.create({
-            name: "play",
+            name: "experiments",
             description: "Manage play queue",
             defaultPermission: true,
             options: [
                 {
                     type: 1, // Sub command
-                    name: "track",
-                    description: "Add a track to the play queue",
+                    name: "quoteresponseai",
+                    description: "Toggle the 'quote response ai' experiment",
                     options: [
                         {
-                            type: 3,
-                            name: "url",
-                            description: "The link to the track. Only YouTube and Spotify are supported.",
+                            type: 5,
+                            name: "setting",
+                            description: "Would you like to enable (true) or disable (false) this experiment?",
                             required: true
-                        },
-                        {
-                            type: 7,
-                            name: "channel",
-                            description: "The channel",
-                            channelTypes: [2]
                         }
                     ]
                 },
                 {
                     type: 1, // Sub command
-                    name: "playlist",
-                    description: "Add a playlist to the play queue",
+                    name: "words",
+                    description: "Enable or disable the words experiment",
                     options: [
                         {
-                            type: 3,
-                            name: "url",
-                            description: "The link to the playlist. Only YouTube and Spotify are supported.",
+                            type: 5,
+                            name: "setting",
+                            description: "Would you like to enable (true) or disable (false) this experiment?",
                             required: true
-                        },
+                        }
+                    ]
+                },
+                {
+                    type: 1, // Sub command
+                    name: "babyspeak",
+                    description: "Enable or disable the baby speak experiment",
+                    options: [
                         {
-                            type: 7,
-                            name: "channel",
-                            description: "The channel",
-                            channelTypes: [2]
+                            type: 5,
+                            name: "setting",
+                            description: "Would you like to enable (true) or disable (false) this experiment?",
+                            required: true
                         }
                     ]
                 }
             ]
         }).then(res => {
-            console.log("Created /play!")
-        }).catch(e => {
-            console.log("Failed to create /play")
-            console.error(e)
+            console.log("Created /experiments!")
         })
-
         guild.commands.create({
             name: "playlist",
             description: "Manage your playlists",
@@ -3078,19 +2984,6 @@ client.on("ready", async () => {
                 }
             ]
         })
-
-        guild.commands.create({
-            name: "dah-start",
-            description: "Want to play Cards Against Humanity? Run this command to launch a game server and play!",
-            defaultPermission: true
-        })
-
-        guild.commands.create({
-            name: "dah-forceend",
-            description: "This command is only available for admins",
-            defaultPermission: false
-        })
-
         // let secret_santa = ["291063946008592388", "393955339550064641", "404507305510699019", "405302588377006081", "633083986968576031", "741149173595766824"]
         // let secret_santa_2
         // while (true) {
@@ -3104,7 +2997,6 @@ client.on("ready", async () => {
         //     }
         //     if (check) break
         // }
-
         // let test_user = await guild.members.fetch("404507305510699019")
         // for (let i = 0; i < secret_santa.length; i++) {
         //     let santa = await guild.members.fetch(secret_santa[i])
@@ -3123,20 +3015,29 @@ client.on("ready", async () => {
         // guild.channels.fetch("899848529890148382").then(channel => {
         //     channel.send("Secret santa has begun! Please check your DMs for who you got. Maximum price limit is $40, but we recommend trying to stay around the $20 mark.")
         // })
-    })
-    client.application.commands.create({
-        name: "username",
-        description: "Add or change your name on our Minecraft server's whitelist",
-        options: [
-            {
-                type: 3,
-                name: "mc_username",
-                description: "Your Minecraft username",
-                required: true
-            }
-        ]
-    })
+    }
+    for (let id of guilds) {
+        client.guilds.fetch(id).then(processGuild)
+    }
 
+    // client.application.commands.fetch().then(commands => {
+    //     for (let command of commands) {
+    //         command[1].delete()
+    //     }
+    // })
+
+    // client.application.commands.create({
+    //     name: "username",
+    //     description: "Add or change your name on our Minecraft server's whitelist",
+    //     options: [
+    //         {
+    //             type: 3,
+    //             name: "mc_username",
+    //             description: "Your Minecraft username",
+    //             required: true
+    //         }
+    //     ]
+    // })
 
     // Update player profile pictures
     // for (let player of keys.map) {
@@ -3145,19 +3046,6 @@ client.on("ready", async () => {
     //         console.log(user.username + ": " + player[1].avatar_url)
     //     }).catch(e => {})
     // }
-
-    // Setup player active recorder
-    let active_hours_message
-    // client.channels.fetch("924454857908293713").then(channel => {
-    //     channel.send({
-    //         embeds : [new Discord.MessageEmbed().setTitle("Hold on a minute while we load player active hours...")]
-    //     }).then(msg => {
-    //         active_hours_message = msg
-    //     })
-    // })
-    client.channels.fetch("924454857908293713").then(async channel => {
-        active_hours_message = await channel.messages.fetch("926249152197832744")
-    })
 
     // setInterval(() => {
     //     let embed = new Discord.MessageEmbed()
@@ -3209,8 +3097,253 @@ client.on("ready", async () => {
     //         embeds: [embed]
     //     })
     // }, 30000)
+
+    // Setup Minecraft remote status server
+    import("./RemoteStatusServer/index.js")
+        .then(i => {
+            remote_status_server = new i.default("hrX7mRR6wUchfwdnRdJ80NpD4XvVGMn0s6oCMY/nXFk=", ["pczWlxfMzPmuI6yjQMaQYA=="])
+
+            let connection = remote_status_server.connections["pczWlxfMzPmuI6yjQMaQYA=="]
+
+            client.channels.fetch("968298113427206195")
+                .then(channel => {
+                    setInterval(async () => {
+                        connection.requestPlayerList()
+                        setTimeout(() => {
+                            updateScoreboard()
+                        }, 10000)
+                    }, 10000)
+
+                    connection.on("message", async (message, player) => {
+                        console.log(player.id)
+
+                        safeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
+                            {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id},
+                        ])
+                            .then(res => {
+                                if (res.recordset.length === 0) {
+                                    sendImpersonateMessage(channel, channel.guild.me, message)
+                                }
+                                else {
+                                    if (message.includes("@")) {
+                                        connection.broadcastCommand(`tellraw ${player.username} ["",{"text":"[Crash Bot - Messaging System] ","bold":true,"color":"dark_red"},{"text":"To prevent ping spam, the '@' symbol is prohibited.'","color":"white"}]`)
+                                    }
+
+                                    channel.guild.members.fetch(res.recordset[0].discord_id).then(member => {
+                                        sendImpersonateMessage(channel, member, message.replaceAll("@", ""))
+                                    })
+                                }
+                            })
+                    })
+
+                    connection.on("playerConnect", async player => {
+                        let data = await safeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
+                            {name: "mcid", type: mssql.TYPES.VarChar, data: player.id}
+                        ])
+                        safeQuery(`UPDATE dbo.Users
+                                   SET mc_connected = 1
+                                   WHERE mc_id = @mcid`, [
+                            {name: "mcid", type: mssql.TYPES.VarChar, data: player.id}
+                        ])
+
+                        if (data.recordset.length === 0) {
+                            let embed = new Discord.MessageEmbed()
+                            embed.setAuthor({
+                                name: `${player.username} joined the game`,
+                                iconURL: "http://canada1.national.edu/wp-content/uploads/2018/05/iStock-504858574.jpg"
+                            })
+
+                            let row = new Discord.MessageActionRow()
+                                .addComponents(
+                                    new Discord.MessageButton()
+                                        .setCustomId("link_minecraft_" + player.id)
+                                        .setLabel("This is me. Link my account.")
+                                        .setStyle("SECONDARY")
+                                )
+
+                            channel.send({content: ' ', embeds: [embed], components: [row]})
+                        }
+                        else {
+                            let member = await channel.guild.members.fetch(data.recordset[0].discord_id)
+
+                            let embed = new Discord.MessageEmbed()
+                            embed.setAuthor({
+                                name: `${player.username} joined the game`,
+                                iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32})
+                            })
+                            embed.setDescription(`<@${data.recordset[0].discord_id}>`)
+                            channel.send({content: ' ', embeds: [embed]})
+                        }
+                        updateScoreboard()
+                    })
+
+                    connection.on("playerDisconnect", async player => {
+                        let data = await safeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
+                            {name: "mcid", type: mssql.TYPES.VarChar, data: player.id}
+                        ])
+                        safeQuery(`UPDATE dbo.Users
+                                   SET mc_connected = 0
+                                   WHERE mc_id = @mcid`, [
+                            {name: "mcid", type: mssql.TYPES.VarChar, data: player.id}
+                        ])
+
+                        if (data.recordset.length === 0) {
+                            let embed = new Discord.MessageEmbed()
+                            embed.setAuthor({
+                                name: `${player.username} left the game`,
+                                iconURL: "http://canada1.national.edu/wp-content/uploads/2018/05/iStock-504858574.jpg"
+                            })
+
+                            let row = new Discord.MessageActionRow()
+                                .addComponents(
+                                    new Discord.MessageButton()
+                                        .setCustomId("link_minecraft_" + player.id)
+                                        .setLabel("This is me. Link my account.")
+                                        .setStyle("SECONDARY")
+                                )
+
+                            channel.send({content: ' ', embeds: [embed], components: [row]})
+                        }
+                        else {
+                            let member = await channel.guild.members.fetch(data.recordset[0].discord_id)
+
+                            let embed = new Discord.MessageEmbed()
+                            embed.setAuthor({
+                                name: `${player.username} left the game`,
+                                iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32})
+                            })
+                            embed.setDescription(`<@${data.recordset[0].discord_id}>`)
+                            channel.send({content: ' ', embeds: [embed]})
+                        }
+                        await updateScoreboard()
+                    })
+
+                    connection.on("playerDataUpdate", async player => {
+                        await safeQuery(`UPDATE dbo.Users
+                                         SET mc_x   = @mcx,
+                                             mc_y   = @mcy,
+                                             mc_z   = @mcz,
+                                             mc_dim = @mcdim
+                                         WHERE mc_id = @mcid`, [
+                            {name: "mcx", type: mssql.TYPES.BigInt, data: player.position[0]},
+                            {name: "mcy", type: mssql.TYPES.BigInt, data: player.position[1]},
+                            {name: "mcz", type: mssql.TYPES.BigInt, data: player.position[2]},
+                            {name: "mcdim", type: mssql.TYPES.VarChar, data: player.dimension},
+                            {name: "mcid", type: mssql.TYPES.VarChar, data: player.id},
+                        ])
+                        await updateScoreboard()
+
+                        // Check for territory invasions
+                        safeQuery(`SELECT *
+                                   FROM dbo.MCTerritories
+                                   WHERE ${player.position[0]} >= sx
+                                     AND ${player.position[1]} >= sy
+                                     AND ${player.position[2]} >= sz
+                                     AND ${player.position[0]} <= ex
+                                     AND ${player.position[1]} <= ey
+                                     AND ${player.position[2]} <= ez
+                                     AND dimension = '${player.dimension}'`).then(async res => {
+                            if (res.recordset.length === 0) {
+                                await safeQuery(`UPDATE dbo.MCTerritoriesLog
+                                                 SET active = 0
+                                                 WHERE mc_id = '${player.id}'`)
+                            }
+                            else for (let territory of res.recordset) {
+                                let res = await safeQuery("SELECT * FROM dbo.MCTerritoriesLog WHERE territory_id = @tid AND mc_id = @mcid AND active = 1", [
+                                    {name: "tid", type: mssql.TYPES.Int, data: territory.id},
+                                    {name: "mcid", type: mssql.TYPES.VarChar, data: player.id}
+                                ])
+
+                                if (await res.recordset.length === 0) {
+                                    // Check if the player is whitelisted/blacklisted
+                                    let whitelist_entries = await safeQuery(`SELECT *
+                                                                             FROM dbo.MCTerritoriesWhitelist
+                                                                             WHERE player_id = '${player.id}'
+                                                                               AND territory_id = ${territory.id}`)
+                                    if (
+                                        (whitelist_entries.recordset.length !== 0 && !territory.blacklist_mode) ||
+                                        whitelist_entries.recordset.length === 0 && territory.blacklist_mode
+                                    ) continue
+
+                                    console.log(territory.id, player.id)
+                                    console.log("SQL: " + `INSERT INTO dbo.MCTerritoriesLog (territory_id, mc_id)
+                                                           VALUES (${territory.id}, '${player.id}');`)
+                                    await safeQuery(`INSERT INTO dbo.MCTerritoriesLog (territory_id, mc_id, x, y, z)
+                                                     VALUES (${territory.id}, '${player.id}', ${player.position[0]},
+                                                             ${player.position[1]}, ${player.position[2]});`)
+                                    let owner = await client.users.fetch(territory.owner_id)
+                                    owner.send(`${player.username} has entered your territory: ${territory.name} (${player.position[0], player.position[1], player.position[2]})`)
+                                    if (!territory.kill) {
+                                        connection.broadcastCommand(`tellraw ${player.username} ["",{"text":"[Crash Bot - Territories] ","bold":true,"color":"dark_red"},{"text":"You have entered '","color":"white"},{"text":"${territory.name}","bold":true,"color":"white"},{"text":"'. The owner of this territory has indicated that this area is strictly private, and may receive an alert about your presence.","color":"white"}]`)
+                                    }
+                                    else {
+                                        connection.broadcastCommand(`tellraw ${player.username} ["",{"text":"[Crash Bot - Territories]","bold":true,"color":"dark_red"},{"text":" You have entered a territory ('"},{"text":"${territory.name}","bold":true},{"text":"') which you are not permitted to be in. Please leave the area within 10 seconds."}]`)
+                                    }
+                                }
+                                else if (territory.kill) {
+                                    // Teleport the invading player
+                                    connection.broadcastCommand(`tellraw @a ["",{"text":"[Crash Bot - Territories]","bold":true,"color":"dark_red"},{"text":" ${player.username} has been buried for invading a territory. Please do not invade territories."}]`)
+                                    let owner = await client.users.fetch(territory.owner_id)
+
+                                    connection.broadcastCommand(`tp ${player.username} ${player.position[0]} -50 ${player.position[2]}`)
+                                    owner.send(`${player.username} has been buried due to territory invasion.`)
+                                }
+                            }
+                        })
+                    })
+
+                    connection.on("playerAdvancementEarn", async (advancement, player) => {
+                        let data = await safeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
+                            {name: "mcid", type: mssql.TYPES.VarChar, data: player.id}
+                        ])
+                        safeQuery(`UPDATE dbo.Users
+                                   SET mc_connected = 0
+                                   WHERE mc_id = @mcid`, [
+                            {name: "mcid", type: mssql.TYPES.VarChar, data: player.id}
+                        ])
+
+                        if (!advancement.display.title) return
+
+                        if (data.recordset.length === 0) {
+                            let embed = new Discord.MessageEmbed()
+                            embed.setAuthor({
+                                name: `${player.username} just earned [${advancement.display.title}]`,
+                                iconURL: "http://canada1.national.edu/wp-content/uploads/2018/05/iStock-504858574.jpg"
+                            })
+
+                            let row = new Discord.MessageActionRow()
+                                .addComponents(
+                                    new Discord.MessageButton()
+                                        .setCustomId("link_minecraft_" + player.id)
+                                        .setLabel("This is me. Link my account.")
+                                        .setStyle("SECONDARY")
+                                )
+
+                            channel.send({content: ' ', embeds: [embed], components: [row]})
+                        }
+                        else {
+                            let member = await channel.guild.members.fetch(data.recordset[0].discord_id)
+
+                            let embed = new Discord.MessageEmbed()
+                            embed.setAuthor({
+                                name: `${player.username} just earned [${advancement.display.title}]`,
+                                iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32})
+                            })
+                            embed.setDescription(`<@${data.recordset[0].discord_id}>`)
+                            channel.send({content: ' ', embeds: [embed]})
+                        }
+                    })
+
+                    connection.on("playerDeath", (player) => {
+                        channel.send(player.username + " died (rip)")
+                    })
+                })
+        })
 })
 
+client.on("voiceStateUpdate", (oldState, newState) => {
+    VoiceConnectionManager.onVoiceStateUpdate(oldState, newState)
+})
 client.on("userUpdate", (oldUser, newUser) => {
     safeQuery(`UPDATE dbo.Users
                SET avatar_url = @avatarurl
@@ -3219,6 +3352,47 @@ client.on("userUpdate", (oldUser, newUser) => {
         {name: "discordid", type: mssql.TYPES.VarChar(20), data: newUser.id}
     ])
 })
+
+async function sendImpersonateMessage(channel, member, message) {
+    safeQuery("SELECT * FROM dbo.Webhook WHERE channel_id = @channelid AND user_id = @userid", [
+        {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
+        {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
+    ])
+        .then(res => {
+            if (res.recordset.length === 0) throw "Could not find webhook"
+
+            let webhook = new Discord.WebhookClient({id: res.recordset[0].webhook_id, token: res.recordset[0].token})
+            return webhook.send(message)
+        })
+        .catch(e => {
+            // channel.createWebhook(member.nickname || member.user.username, {
+            //     avatar: member.avatarURL() || member.user.avatarURL(),
+            //     reason: "Needed new cheese"
+            // })
+
+            safeQuery("DELETE FROM dbo.Webhook WHERE user_id = @userid AND channel_id = @channelid", [
+                {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
+                {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
+            ]).then(() => {
+                return channel.createWebhook(member.nickname || member.user.username, {
+                    avatar: member.avatarURL() || member.user.avatarURL(),
+                    reason: "Needed new cheese"
+                })
+            })
+                .then(webhook => {
+                    webhook.send(message)
+                    return safeQuery("INSERT INTO dbo.Webhook (user_id, channel_id, webhook_id, token) VALUES (@userid, @channelid, @webhookid, @token)", [
+                        {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
+                        {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
+                        {name: "webhookid", type: mssql.TYPES.VarChar(100), data: webhook.id},
+                        {name: "token", type: mssql.TYPES.VarChar(100), data: webhook.token}
+                    ])
+                })
+                .then(() => {
+                })
+        })
+}
+
 
 function shuffleArray(array) {
     let curId = array.length;
@@ -3245,7 +3419,8 @@ function generateThrow(sender, target, template = null) {
             memes = memes.filter(meme => meme.verified)
             meme = memes[Math.floor(Math.random() * memes.length)]
             temp_name = Math.round(Math.random * 10000000) + meme.location
-        } else {
+        }
+        else {
             meme = memes.find(meme => {
                 return meme.location === template
             })
@@ -3285,14 +3460,16 @@ function generateThrow(sender, target, template = null) {
                             }
                             temp.resize(location.size.x, location.size.y)
                             image.composite(temp, location.location.x, location.location.y)
-                        } else if (location.type === "sender") {
+                        }
+                        else if (location.type === "sender") {
                             let temp = await sender_pfp.clone()
                             if (typeof location.circle !== "undefined") {
                                 temp.circle()
                             }
                             temp.resize(location.size.x, location.size.y)
                             image.composite(temp, location.location.x, location.location.y)
-                        } else if (location.type === "random") {
+                        }
+                        else if (location.type === "random") {
                             let temp = random_users[current_random].avatarURL({format: "jpg"})
                             if (!(temp && temp !== "")) {
                                 temp = random_users[current_random].user.avatarURL({format: "jpg"})
@@ -3306,7 +3483,8 @@ function generateThrow(sender, target, template = null) {
 
                             if (current_random === random_users.length) {
                                 current_random = 0
-                            } else {
+                            }
+                            else {
                                 current_random += 1
                             }
                         }
@@ -3340,7 +3518,8 @@ client.on("interactionCreate", async interaction => {
             interaction.reply({
                 embeds: [embed]
             })
-        } else if (interaction.commandName === "economy_modify_stocks") {
+        }
+        else if (interaction.commandName === "economy_modify_stocks") {
             let target_resource = interaction.options.getString("resource_tag_name")
             let out_resource
             let valid_tags = []
@@ -3357,13 +3536,15 @@ client.on("interactionCreate", async interaction => {
                     content: "Invalid resource tag name. Valid tag names are; `" + valid_tags.join("`, `") + "`.",
                     ephemeral: true
                 })
-            } else {
+            }
+            else {
                 out_resource.stock = interaction.options.getInteger("stock_count")
                 out_resource.max_inventory = interaction.options.getInteger("max_stock_count")
                 out_resource.baseline_price = interaction.options.getInteger("baseline_price")
                 interaction.reply({content: "Resource sucessfully modified", ephemeral: true})
             }
-        } else if (interaction.commandName === "economy_modify_bank_accounts") {
+        }
+        else if (interaction.commandName === "economy_modify_bank_accounts") {
             interaction.reply("This section of the economy manager has been deprecated due to changes in background processing.")
             // let target_player = interaction.options.getString("mc_username")
             // let out_player
@@ -3390,7 +3571,8 @@ client.on("interactionCreate", async interaction => {
             //     })
             //     wss.updateBank()
             // }
-        } else if (interaction.commandName === "getlink") {
+        }
+        else if (interaction.commandName === "getlink") {
             // Get the code
 
             let req = await safeQuery(`SELECT shortcode
@@ -3407,10 +3589,12 @@ client.on("interactionCreate", async interaction => {
                     content: `Your website access link is: https://joemamadf7.jd-data.com:8050/home/${req.recordset[0].shortcode}.`,
                     ephemeral: true
                 })
-            } else {
+            }
+            else {
                 interaction.reply("You don't have a link yet. Run the `/username` command to generate your own link.")
             }
-        } else if (interaction.commandName === "getcode") {
+        }
+        else if (interaction.commandName === "getcode") {
             let mc_username = interaction.options.getString("mc_username")
             let req = await safeQuery(`SELECT shortcode
                                        FROM dbo.Users
@@ -3425,15 +3609,18 @@ client.on("interactionCreate", async interaction => {
                     content: `The player's code is \`${req.recordset[0].shortcode}\`.`,
                     ephemeral: true
                 })
-            } else {
+            }
+            else {
                 interaction.reply({
                     content: "Could not find that player. They must run `/username` before you can get their code.",
                     ephemeral: true
                 })
             }
-        } else if (interaction.commandName === "addclaim") {
+        }
+        else if (interaction.commandName === "addclaim") {
             interaction.reply("Managing claims is currently unsupported")
-        } else if (interaction.commandName === "restart_server") {
+        }
+        else if (interaction.commandName === "restart_server") {
             interaction.reply("Command is currently unavailable")
             // interaction.deferReply().then(async msg => {
             //     interaction.editReply("Shutting down server...")
@@ -3441,7 +3628,8 @@ client.on("interactionCreate", async interaction => {
             //     interaction.editReply("Restarting server...")
             //     mcServer.start()
             // })
-        } else if (interaction.commandName === "force_pack_update") {
+        }
+        else if (interaction.commandName === "force_pack_update") {
             try {
                 clearTimeout(auto_pack_update_timeout)
             } catch (e) {
@@ -3450,28 +3638,120 @@ client.on("interactionCreate", async interaction => {
                 content: "Updating the pack...",
                 ephemeral: true
             })
-        } else if (interaction.commandName === "throw") {
-            // Read available memes
-            interaction.deferReply().then(async () => {
-                generateThrow(await interaction.member.fetch(), await interaction.options.getMember("user").fetch(), interaction.options.getString("template")).then(meme => {
-                    interaction.editReply({
-                        content: "TEMPLATE: `" + meme.template.location + "`", files: [
-                            new Discord.MessageAttachment()
-                                .setFile(fs.readFileSync(meme.file))
-                        ]
-                    }).then(() => {
+        }
+        else if (interaction.commandName === "throw") {
+            if (interaction.channelId === HOT_POTATO_CHANNEL_ID) {
+                let penalty_charged = false
+                await interaction.deferReply()
 
+                // Check that player has permission
+                let member = await interaction.member.fetch()
+                if (!member.roles.cache.has("1109290382812004492")) {
+                    interaction.editReply({content: "Ooops. You need the hot potato to do this.", ephemeral: true})
+                    return
+                }
+
+                // // Check that the targeted player is playing
+                // let target = await interaction.options.getMember("user").fetch()
+                // if (!target.roles.cache.has("1109290501280104549")) {
+                //     interaction.editReply({
+                //         content: "Ooops. You can only pass the potato to someone who is playing.",
+                //         ephemeral: true
+                //     })
+                //     return
+                // }
+
+                if (target.id === member.id) {
+                    interaction.editReply({content: "You can't throw the potato at yourself silly!"})
+                    return
+                }
+
+                // Check that the target does not match the last player to have the potato
+                let potato_players_role = await interaction.guild.roles.fetch("1109290501280104549")
+                if (target.id === last_hot_potato_player?.id || false) {
+                    interaction.editReply({
+                        content: "Ooops. This player had the potato last. Please pass it to someone else.",
+                        ephemeral: true
                     })
-                }).catch(e => {
+                    return
+                }
+
+                // if (Date.now() - hot_potato_penalty >= 300000) {
+                //     penalty_charged = true
+                //     await safeQuery("UPDATE dbo.Users SET PotatoHP = PotatoHP - 10 WHERE discord_id = @discordid", [
+                //         {name: "discordid", type: mssql.TYPES.VarChar, data: hot_potato_holder.id}
+                //     ])
+                // }
+
+                let meme
+                generateThrow(await interaction.member.fetch(), await interaction.options.getMember("user").fetch(), interaction.options.getString("template")).then(_meme => {
+                    meme = _meme
+                    last_hot_potato_player = member
+                    clearTimeout(hot_potato_timer)
+                    hot_potato_timer = setTimeout(() => {
+                        new_hot_potato()
+                    }, hot_potato_timer_ms)
+                    // hot_potato_timer = setTimeout(() => {
+                    //         new_hot_potato()
+                    //     }, 5000)
+                    member.roles.remove("1109290382812004492")
+                    target.roles.add("1109290382812004492")
+
+                    return safeQuery("SELECT * FROM dbo.Users WHERE discord_id = @discordid", [
+                        {name: "discordid", type: mssql.TYPES.VarChar, data: member.id}
+                    ])
+                })
+                    .then(async res => {
+                        let hours = Math.floor(res.recordset[0].PotatoHP / 60)
+                        let minutes = res.recordset[0].PotatoHP % 60
+                        let message
+
+
+                        interaction.editReply({
+                            content: `Your HP will now slowly recharge...`, files: [
+                                new Discord.MessageAttachment()
+                                    .setFile(fs.readFileSync(meme.file))
+                            ]
+                        })
+
+                        hot_potato_penalty = Date.now()
+                    })
+                    .catch(e => {
                     console.log(e)
                     interaction.editReply({
-                        content: e.toString()
+                        content: e.toString(),
+                        ephemeral: true
+                    })
+                }).finally(() => {
+                    hot_potato_holder = target
+                })
+            }
+            else {
+                // Read available memes
+                interaction.deferReply().then(async () => {
+                    generateThrow(await interaction.member.fetch(), await interaction.options.getMember("user").fetch(), interaction.options.getString("template")).then(meme => {
+
+                        interaction.editReply({
+                            content: "TEMPLATE: `" + meme.template.location + "`", files: [
+                                new Discord.MessageAttachment()
+                                    .setFile(fs.readFileSync(meme.file))
+                            ]
+                        }).then(() => {
+
+                        })
+                    }).catch(e => {
+                        console.log(e)
+                        interaction.editReply({
+                            content: e.toString()
+                        })
                     })
                 })
-            })
-        } else if (interaction.commandName === "random_capture") {
+            }
+        }
+        else if (interaction.commandName === "random_capture") {
             interaction.reply(await generateRandomCaptureMsg())
-        } else if (interaction.commandName === "username") {
+        }
+        else if (interaction.commandName === "username") {
             let username = interaction.options.getString("mc_username")
             let member = await interaction.user.fetch()
             // Check if the user has already inputted a username
@@ -3487,7 +3767,8 @@ client.on("interactionCreate", async interaction => {
                 //     "kick " + key[1].player_name + " \"Your Minecraft account was disassociated with a Discord account on the Re-Flesh Discord server.")
 
                 interaction.reply("You have already used `/username`. If you have forgotten or lost your special website link, you can use `/getlink`.")
-            } else {
+            }
+            else {
                 key = keys.newKey(username, interaction.user)
                 member.send({
                     content: "This is your special link to our website. This link will give you access" +
@@ -3515,7 +3796,8 @@ client.on("interactionCreate", async interaction => {
                 })
             }
             // mcServer.sendCommand("whitelist add " + username)
-        } else if (interaction.commandName === "cheese" || interaction.commandName === "butter" || interaction.commandName === "bread" || interaction.commandName === "jam" || interaction.commandName === "peanutbutter") {
+        }
+        else if (interaction.commandName === "cheese" || interaction.commandName === "butter" || interaction.commandName === "bread" || interaction.commandName === "jam" || interaction.commandName === "peanutbutter") {
             // Say something as cheese
             const data = {
                 cheese: {
@@ -3551,12 +3833,44 @@ client.on("interactionCreate", async interaction => {
                             avatar: data[interaction.commandName].avatar,
                             reason: "Needed new cheese"
                         })
-                    } else {
+                    }
+                    else {
                         // console.log([...hooks][0])
                         webhook = [...hooks.filter(hook => hook.name.toLowerCase() === interaction.commandName.toLowerCase())][0][1]
                         console.log(webhook)
                     }
-                    webhook.send(interaction.options.getString("message"))
+
+                    let message = interaction.options.getString("message")
+                        .replace(/<@!(\d+)>/, (match, userId) => {
+                            const member = interaction.guild.members.cache.get(userId)
+                            if (member) {
+                                return member.nickname
+                            }
+                            else {
+                                return match
+                            }
+                        })
+                        .replace(/<@(\d+)>/, (match, userId) => {
+                            const member = interaction.guild.members.cache.get(userId)
+                            if (member) {
+                                return member.user.username
+                            }
+                            else {
+                                return match
+                            }
+                        })
+                        .replace(/<@&(\d+)>/, (match, roleId) => {
+                            const role = interaction.guild.roles.cache.get(roleId)
+                            if (role) {
+                                return role.name
+                            }
+                            else {
+                                return match
+                            }
+                        })
+                        .replaceAll("@", "")
+
+                    webhook.send(message)
                     interaction.reply({
                         content: "Mmm. Cheese.",
                         fetchReply: true
@@ -3564,253 +3878,94 @@ client.on("interactionCreate", async interaction => {
                         msg.delete()
                     })
                 })
-        } else if (interaction.commandName === "play") {
-            if (!interaction.member.voice.channel) {
-                interaction.reply("You need to join a voice channel first")
-                return
-            }
-
+        }
+        else if (interaction.commandName === "record") {
             let com = interaction.options.getSubcommand()
-            let channel = interaction.options.getChannel("channel") || interaction.member.voice.channel
-            if (com === "track") {
-                let url = interaction.options.getString("url")
+            let shortcode = (await getUserData(interaction.member)).shortcode
 
-                // Check audio queue
-                if (!audio_queue) {
-                    audio_queue = new audioQueueManager(discord_voice.joinVoiceChannel({
-                        channelId: channel.id,
-                        guildId: interaction.guild.id,
-                        adapterCreator: interaction.guild.voiceAdapterCreator
-                    }), channel)
-                } else if (!audio_queue.channel) {
-                    delete audio_queue
-                    audio_queue = new audioQueueManager(discord_voice.joinVoiceChannel({
-                        channelId: channel.id,
-                        guildId: interaction.guild.id,
-                        adapterCreator: interaction.guild.voiceAdapterCreator
-                    }), channel)
-                } else if (audio_queue.channel.id !== channel.id) {
-                    console.log(audio_queue.vc_connection)
-                    interaction.reply("I'm already playing music in another channel, sorry.")
-                    return
-                }
-
-                audio_queue.addToQueue(url).then(() => {
-                    interaction.reply({content: "Item has been queued!", ephemeral: true})
-                }).catch(e => {
-                    console.error(e)
-                    interaction.reply({content: "Opps! An error occured.\n```" + e.toString() + "```", ephemeral: true})
-                })
-            } else if (com === "playlist") {
-                let url = interaction.options.getString("url")
-
-                // Check audio queue
-                if (!audio_queue) {
-                    audio_queue = new audioQueueManager(discord_voice.joinVoiceChannel({
-                        channelId: channel.id,
-                        guildId: interaction.guild.id,
-                        adapterCreator: interaction.guild.voiceAdapterCreator
-                    }), channel)
-                } else if (!audio_queue.channel) {
-                    delete audio_queue
-                    audio_queue = new audioQueueManager(discord_voice.joinVoiceChannel({
-                        channelId: channel.id,
-                        guildId: interaction.guild.id,
-                        adapterCreator: interaction.guild.voiceAdapterCreator
-                    }), channel)
-                } else if (audio_queue.channel.id !== channel.id) {
-                    console.log(audio_queue.vc_connection)
-                    interaction.reply("I'm already playing music in another channel, sorry.")
-                    return
-                }
-
-                await interaction.deferReply({ephemeral: true})
-
-                if (url.includes("youtube.com")) {
-                    try {
-                        let playlist = await ytpl(url)
-                        for (let item of playlist.items) {
-                            await audio_queue.addToQueue(item.url)
-                        }
-                        interaction.editReply("Playlist loaded")
-                    } catch (e) {
-                        interaction.editReply("Failed to load playlist")
-                    }
-                } else if (url.includes("spotify.com")) {
-                    if (url.includes("/playlist")) {
-                        try {
-                            let data = await spotify.getPlaylist(url)
-                            console.log(data)
-
-                            for (let item of data.tracks) {
-                                await audio_queue.addToQueue("https://open.spotify.com/track/" + item)
-                            }
-                            interaction.editReply("Loaded Spotify Album")
-                        } catch (e) {
-                            console.error(e)
-                            interaction.editReply("Invalid spotify playlist link")
-                        }
-                    } else if (url.includes("/album")) {
-                        try {
-                            let data = await spotify.getAlbum(url)
-                            console.log(data)
-
-                            for (let item of data.tracks) {
-                                await audio_queue.addToQueue("https://open.spotify.com/track/" + item)
-                            }
-                            interaction.editReply("Loaded Spotify Album")
-                        } catch (e) {
-                            console.error(e)
-                            interaction.editReply("Invalid spotify playlist link")
-                        }
-                    }
-                } else if (url.startsWith("crashbot://playlist/")) {
-                    let playlist_search = await safeQuery("SELECT playlist_id FROM dbo.Playlists WHERE shortcode = @shortcode", [
-                        {name: "shortcode", type: mssql.TYPES.VarChar, data: url.replace("crashbot://playlist/", "")}
-                    ])
-                    if (playlist_search.recordset.length !== 1) {
-                        interaction.reply({
-                            content: "An error occured while trying to load the playlist. Please ensure that the shortcode is correct first",
-                            ephemeral: true
-                        })
-                        return
-                    }
-
-                    let playlist = new Playlist(playlist_search.recordset[0].playlist_id)
-                    let tracks = await playlist.getPlaylistItems()
-                    for (let item of tracks) {
-                        console.log(item)
-                        if (item.player === 0) {
-                            await audio_queue.addToQueue("https://www.youtube.com/watch?v=" + item.source_id)
-                        } else if (item.player === 1) {
-                            await audio_queue.addToQueue("https://open.spotify.com/track/" + item.source_id)
-                        }
-                    }
-
-                    audio_queue.startTrack()
-                    interaction.editReply("Playlist is loading.  " + tracks.length + " tracks are being added to the queue")
-                } else {
-                    interaction.editReply("Only Spotify and YouTube are supported")
-                }
-            }
-        } else if (interaction.commandName === "playlist") {
-            let com = interaction.options.getSubcommand()
-            let shortcode
-            try {
-                shortcode = (await safeQuery(`SELECT shortcode
-                                              FROM dbo.Users
-                                              WHERE discord_id = @discordid`, [
-                    {name: "discordid", type: mssql.TYPES.VarChar(20), data: interaction.member.id}
-                ])).recordset[0].shortcode
-            } catch (e) {
-                interaction.reply("You have not run `/username`. You need to run `/username` before you can use this functionality.")
-                return
-            }
-            await interaction.deferReply({ephemeral: true})
             let user = new CrashBotUser(shortcode)
-            if (com === "list") {
-                // List all available playlists
-                let playlists = await user.getPlaylists(true)
-                let embed = new Discord.MessageEmbed()
-                for (let playlist of playlists) await playlist.get()
-                embed.setTitle("Your playlists")
-                embed.setDescription(playlists.map(playlist => {
-                    if (playlist.data.type === 0) {
-                        return '`private` ' + playlist.data.playlist_name + " `crashbot://playlist/" + playlist.data.shortcode + "`"
-                    } else if (playlist.data.type === 1) {
-                        return '`public` ' + playlist.data.playlist_name + " `crashbot://playlist/" + playlist.data.shortcode + "`"
+            if (com === "last") {
+                let minutes = interaction.options.getInteger("minutes")
+
+                let recordings = await safeQuery("SELECT filename, start FROM dbo.VoiceRecordings WHERE user_id = @userid AND start >= DATEADD(MINUTE, @minutes, GETDATE())", [
+                    {name: "userid", type: mssql.TYPES.VarChar, data: interaction.member.id},
+                    {name: "minutes", type: mssql.TYPES.Int, data: 0 - minutes}
+                ])
+
+                if (recordings.recordset.length === 0) {
+                    interaction.reply({content: "No recordings from within the specified timeframe", ephemeral: true})
+                    return
+                }
+                interaction.reply({content: "We're processing the audio. You'll receive a DM once processing is complete.", ephemeral: true})
+
+                const command = ffmpeg()
+                const write_stream = new PassThrough()
+
+                let first_track_start = recordings.recordset[0].start
+                let filters = []
+                let i = 0
+                for (let recording of recordings.recordset) {
+                    let seek = (recording.start.getTime() - first_track_start.getTime())
+                    console.log(recording, seek)
+                    command.input(path.join(__dirname, "voice_recordings", recording.filename))
+
+
+                    if (i !== 0) {
+                        filters.push({
+                            filter: "adelay",
+                            options: seek + "|" + seek,
+                            inputs: i.toString(),
+                            outputs: `[a${i}]`
+                        })
+                    } else {
+                        filters.push({
+                            filter: "adelay",
+                            options: "0|0",
+                            inputs: i.toString(),
+                            outputs: `[a${i}]`
+                        })
                     }
-                }).join("\n"))
-                interaction.editReply({content: " ", embeds: [embed]})
-            } else if (com === "setactive") {
-                await user.get()
-                let playlist_search = await safeQuery("SELECT playlist_id FROM dbo.Playlists WHERE shortcode = @shortcode AND owner_id = @owner", [
+                    i++
+                }
+                // command.format("mp3")
+                command.complexFilter([
+                    ...filters,
                     {
-                        name: "shortcode",
-                        type: mssql.TYPES.VarChar,
-                        data: interaction.options.getString("shortcode").replace("crashbot://playlist/", "")
-                    },
-                    {name: "owner", type: mssql.TYPES.Int, data: user.id}
-                ])
-                if (playlist_search.recordset.length !== 1) {
-                    interaction.editReply({
-                        content: "An error occured while trying to load the playlist. Please ensure that the shortcode/url is correct first, and that you are the playlist owner.",
-                        ephemeral: true
-                    })
-                    return
-                }
-
-                active_playlist_modifications[interaction.member.id] = {
-                    playlist: new Playlist(playlist_search.recordset[0].playlist_id),
-                    timeout: setTimeout(() => {
-                        delete active_playlist_modifications[interaction.member.id]
-                    }, 300000)
-                }
-                interaction.editReply("Playlist selected successfully! You can now use other `/playlist` commands to modify it.")
-            } else if (com === "new") {
-                await user.get()
-                let [shortcode, name, type] = [makeid(10), interaction.options.getString("name"), interaction.options.getBoolean("public")]
-                await safeQuery("INSERT INTO Playlists (owner_id, playlist_name, shortcode, type) VALUES (@owner, @name, @shortcode, @type)", [
-                    {name: "owner", type: mssql.TYPES.Int, data: user.id},
-                    {name: "name", type: mssql.TYPES.VarChar(50), data: name},
-                    {name: "shortcode", type: mssql.TYPES.VarChar(10), data: shortcode},
-                    {name: "type", type: mssql.TYPES.TinyInt, data: type ? 1 : 0}
-                ])
-                interaction.editReply({
-                    content: "New playlist created!", embeds: [new Discord.MessageEmbed()
-                        .setTitle("New playlist")
-                        .addFields([
-                            {name: "Playlist name", value: name},
-                            {name: "Public?", value: type ? "Playlist is public" : "Playlist is not public"},
-                            {
-                                name: "URL and shortcode",
-                                value: `URL: \`crashbot://playlist/${shortcode}\`\nShortcode: ${shortcode}`
-                            }
-                        ])
-                    ]
-                })
-            } else if (com === "addtrack") {
-                if (typeof active_playlist_modifications[interaction.member.id] === "undefined") {
-                    interaction.editReply("You need to select the playlist you want to odify first. use `/playlist setactive` to select the playlist.")
-                    return
-                }
-
-                clearTimeout(active_playlist_modifications[interaction.member.id].timeout)
-                active_playlist_modifications[interaction.member.id].timeout = setTimeout(() => {
-                    delete active_playlist_modifications[interaction.member.id]
-                }, 300000)
-
-                try {
-                    await active_playlist_modifications[interaction.member.id].playlist.addTrackUrl(interaction.options.getString("url"))
-                } catch (e) {
-                    interaction.editReply("Failed to add that track to your playlist: " + e)
-                    return
-                }
-                interaction.editReply("The track has been added!")
-            } else if (com === "addqueue") {
-                if (typeof active_playlist_modifications[interaction.member.id] === "undefined") {
-                    interaction.editReply("You need to select the playlist you want to odify first. use `/playlist setactive` to select the playlist.")
-                    return
-                }
-
-                clearTimeout(active_playlist_modifications[interaction.member.id].timeout)
-                active_playlist_modifications[interaction.member.id].timeout = setTimeout(() => {
-                    delete active_playlist_modifications[interaction.member.id]
-                }, 300000)
-
-                let [total, success, failed] = [audio_queue.queue.length, 0, 0]
-                for (let item of audio_queue.queue) {
-                    try {
-                        await active_playlist_modifications[interaction.member.id].playlist.addTrack(item.player === "ytdl" ? 0 : 1, item.id)
-                        success += 1
-                    } catch (e) {
-                        failed += 1
+                        filter: "amix",
+                        options: "inputs=" + filters.length,
+                        inputs: filters.map(i => i.outputs),
+                        outputs: "[b]"
                     }
-                }
-
-                interaction.editReply(`Saved the queue items to the playlist!\nTotal: ${total}, Successful: ${success}, Failed: ${failed}`)
+                ])
+                command.outputOption("-map", "[b]")
+                command.output(path.join(__dirname, "HERE.mp3"))
+                // command.output(write_stream, {end: true})
+                command.on("end", () => {
+                    interaction.user.send({
+                        content: "Enjoy your recording!",
+                        files: [{
+                            attachment: "HERE.mp3",
+                            name: "recording.mp3",
+                            file: "HERE.mp3"
+                        }]
+                    }).catch(e => {
+                        interaction.user.send({
+                            content: "Oh no! Your audio may have been too large to send! Please try again."
+                        })
+                    })
+                })
+                command.on("error", (e) => {
+                    console.error(e)
+                    interaction.user.send({
+                        content: "Oh no! An error occured while processing your audio. Please try again."
+                    })
+                })
+                command.run()
+                // command.output(write_stream, {end: true})
+                // command.run()
             }
-        } else if (interaction.commandName === "dah-start") {
+        }
+        else if (interaction.commandName === "dah-start") {
             if (dah) {
                 // A game is already in progress
                 interaction.reply({
@@ -3829,7 +3984,8 @@ client.on("interactionCreate", async interaction => {
             dah.on("end", () => {
                 dah = null
             })
-        } else if (interaction.commandName === "dah-forceend") {
+        }
+        else if (interaction.commandName === "dah-forceend") {
             if (!dah) {
                 // A game is already in progress
                 interaction.reply({content: "There is no active game", ephemeral: true})
@@ -3838,36 +3994,114 @@ client.on("interactionCreate", async interaction => {
 
             dah.process.kill()
             interaction.reply("The game server has been killed")
-        } else if (interaction.commandName === "changemyname") {
-            const nicknames = [
-                "target's WaiFu", "Asian target", "No air frier :'(", "Numb Nuts - The Man", "Oh Daddy", "B*tch (luv u)",
-                "British target", "Not target (sadly)", "target (but hairier)", "Zavala", "OoOoOoOoOoO I'M A GHOST", "Your mother", "Afraid of target",
-                "Nerd", "Geek 2.0", "O-O", "OwO", "Free Robux (click for info)", "Free Minecraft Servers", "I no like nickname :(", "2:33 AM", "pls watch my yt apology video",
-                "Crash Bot rules!", "Crash Bot sucks! :("
-            ]
-            let target = shuffleArray((await interaction.guild.members.fetch()).map(i => {
-                return i
-            }))[0]
-            let or_nickname = (await interaction.member.fetch()).nickname
-            let nickname = nicknames[Math.floor(Math.random() * nicknames.length)].replace("target", target.user.username.length < (target.nickname || "").length ? target.user.username : target.nickname)
+        }
+        else if (interaction.commandName === "experiments") {
+            // Used to manage experimental features
+            let com = interaction.options.getSubcommand()
+            if (com === "quoteresponseai") {
+                let bool = interaction.options.getBoolean("setting")
+                // Ensure that the user is in the database
+                let user = await getUserData(interaction.member)
+                let req = await safeQuery(`UPDATE CrashBot.dbo.Users
+                                           SET experimentAIQuoteResponse = ${bool ? 1 : 0}
+                                           WHERE discord_id = @discordid`, [{
+                    name: "discordid", type: mssql.TYPES.VarChar(20), data: interaction.user.id
+                }])
 
-            interaction.member.setNickname(nickname).then(m => {
+                interaction.reply({
+                    content: "Set `quoteresponseai` to: `" + (bool ? "true" : "false") + "`",
+                    ephemeral: true
+                })
+            }
+            else if (com === "words") {
+                let bool = interaction.options.getBoolean("setting")
+                // Get the user's key
+                let user = await getUserData(interaction.member)
+                let req = await safeQuery(`UPDATE CrashBot.dbo.Users
+                                           SET experimentWords = ${bool ? 1 : 0}
+                                           WHERE discord_id = @discordid`, [{
+                    name: "discordid", type: mssql.TYPES.VarChar(20), data: interaction.user.id
+                }])
+
+                interaction.reply({
+                    content: "Set `experimentWords` to: `" + (bool ? "true" : "false") + "`. Individual words that you say, will now be saved. Words are saved independently of each other for security (not as full sentences).",
+                    ephemeral: true
+                })
+            }
+            else if (com === "babyspeak") {
+                let bool = interaction.options.getBoolean("setting")
+                // Get the user's key
+                let user = await getUserData(interaction.member)
+                let req = await safeQuery(`UPDATE CrashBot.dbo.Users
+                                           SET experimentBabyWords = ${bool ? 1 : 0}
+                                           WHERE discord_id = @discordid`, [{
+                    name: "discordid", type: mssql.TYPES.VarChar(20), data: interaction.user.id
+                }])
+
+                interaction.reply({
+                    content: "Set `experimentBabyWords` to: `" + (bool ? "true" : "false") + "`.",
+                    ephemeral: true
+                })
+            }
+        }
+        else if (interaction.commandName === "minecraft") {
+            // Used to manage experimental features
+            let com = interaction.options.getSubcommand()
+            if (com === "share_location") {
+                console.log("Getting user coordinates..")
+
+                // Ensure that the user is in the database
+                let user = await getUserData(interaction.member)
+
+                if (!user.mc_id) {
+                    interaction.reply("You haven't linked your Minecraft account yet. You must do this first.")
+                    return
+                }
+                if (user.mc_connected) {
+                    await remote_status_server.connections["pczWlxfMzPmuI6yjQMaQYA=="].requestPlayerList()
+                    user = await getUserData(interaction.member)
+                }
+
+                let member = await interaction.member.fetch()
+                let player = remote_status_server.connections["pczWlxfMzPmuI6yjQMaQYA=="].getPlayer(user.mc_id)
+
                 let embed = new Discord.MessageEmbed()
-                embed.setTitle("New nickname!")
-                if (or_nickname) {
-                    embed.setDescription("Your nickname was `" + or_nickname + "`. It is now `" + nickname + "`")
-                } else embed.setDescription("Your nickname was proudly generated by Crash Bot.")
-                interaction.reply("Hello `" + nickname + "`!", {embeds: [embed]})
-            }).catch(e => {
-                console.log(e)
-                interaction.reply("Your nickname is too powerful! I was gonna call you `" + nickname + "` but Discord didn't let me :'(.")
-            })
+                embed.setAuthor({
+                    name: `${member.user.username} (${player?.username || "not connected"})`,
+                    iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32})
+                })
+                if (player) embed.setDescription(`Currently exploring \`${user.mc_dim}\` at \`X${user.mc_x} Y${user.mc_y} Z${user.mc_z}\``)
+                else embed.setDescription(`Last seen in \`${user.mc_dim}\` at \`X${user.mc_x} Y${user.mc_y} Z${user.mc_z}\``)
+                interaction.reply({content: ' ', embeds: [embed]})
+            }
+            else if (com === "detailed_scoreboard") {
+                let bool = interaction.options.getBoolean("setting")
+                // Get the user's key
+                let user = await getUserData(interaction.member)
+                let req = await safeQuery(`UPDATE CrashBot.dbo.Users
+                                           SET mc_detailed_scoreboard = ${bool ? 1 : 0}
+                                           WHERE discord_id = @discordid`, [{
+                    name: "discordid", type: mssql.TYPES.VarChar(20), data: interaction.user.id
+                }])
 
-        } else {
+                updateScoreboard()
+                interaction.reply({
+                    content: "Set `detailed scoreboard` to: `" + (bool ? "true" : "false") + "`.",
+                    ephemeral: true
+                })
+            }
+        }
+        else if (interaction.commandName === "vanish") {
+            interaction.member.timeout(5 * 60 * 1000, "They vanished!")
+                .then(() => interaction.reply("You have vanished for 5 minutes!"))
+                .catch(e => {interaction.reply("Oh no! My magic doesn't work on you!")})
+        }
+        else {
             console.log("Unknown command interaction picked up")
             console.log(interaction)
         }
-    } else if (interaction.isMessageContextMenu()) {
+    }
+    else if (interaction.isMessageContextMenu()) {
         interaction.targetMessage.fetch().then(async msg => {
             try {
                 let count = 0
@@ -3887,11 +4121,13 @@ client.on("interactionCreate", async interaction => {
                                 count += 1
                             }
                         }
-                    } else {
+                    }
+                    else {
                         interaction.reply("For privacy, security, and a few other reasons, you can only reply to messages with #banner if the original message was also sent by you. If the original message was sent by someone else, please ask them to add it to the banner queue.")
                     }
                     interaction.reply(`${count} banners have been added!`)
-                } else {
+                }
+                else {
                     interaction.reply({content: "This command is only available to users who have linked a Minecraft account to their Discord. Please use `/username` to link yours first."})
                 }
             } catch (e) {
@@ -3899,7 +4135,9 @@ client.on("interactionCreate", async interaction => {
                 interaction.reply("Failed to add you banner(s). Please try again.")
             }
         })
-    } else if (interaction.isButton()) {
+    }
+    else if (interaction.isButton()) {
+        console.log("HERE!")
         if (interaction.customId === "getlink") {
             // Get the code
 
@@ -3914,10 +4152,12 @@ client.on("interactionCreate", async interaction => {
                     content: `Your website access link is: https://joemamadf7.jd-data.com:8050/home/${req.recordset[0].shortcode}. It has also been DMed to you to help you find it again later.`,
                     ephemeral: true
                 })
-            } else {
+            }
+            else {
                 interaction.reply("You don't have a link yet. Run the `/username` command to generate your own link.")
             }
-        } else if (interaction.customId.startsWith("verify_throw_")) {
+        }
+        else if (interaction.customId.startsWith("verify_throw_")) {
             let template_id = interaction.customId.replace("verify_throw_", "")
             console.log(template_id)
 
@@ -3928,49 +4168,95 @@ client.on("interactionCreate", async interaction => {
             if (!meme) {
                 interaction.reply("Ooop. We could not find that template")
                 return false
-            } else {
+            }
+            else {
                 memes[memes.indexOf(meme)].verified = true
                 fs.writeFileSync(__dirname + "/assets/throw/memes.json", JSON.stringify(memes))
                 interaction.reply("👍 Verified")
             }
-        } else if (interaction.customId === "audio_shuffle") {
+        }
+        else if (interaction.customId === "audio_shuffle") {
             if (audio_queue) {
                 audio_queue.shuffle()
                 interaction.reply({content: "The queue has been shuffled", ephemeral: true})
-            } else {
+            }
+            else {
                 interaction.reply("There is no active queue. Connect to a voice channel and run `/play` first.")
             }
-        } else if (interaction.customId === "audio_stop") {
+        }
+        else if (interaction.customId === "audio_stop") {
             if (audio_queue) {
                 interaction.reply({content: "Stopping audio...", ephemeral: true})
                 audio_queue.stop()
-            } else {
+            }
+            else {
                 interaction.reply({content: "Queue is empty", ephemeral: true})
             }
-        } else if (interaction.customId === "audio_rewind") {
+        }
+        else if (interaction.customId === "audio_rewind") {
             interaction.reply({content: "Rewinding track...", ephemeral: true})
             audio_queue.rewind()
-        } else if (interaction.customId === "audio_pause") {
+        }
+        else if (interaction.customId === "audio_pause") {
             interaction.reply({content: "Pausing/Resuming track...", ephemeral: true})
             audio_queue.pause()
-        } else if (interaction.customId === "audio_skip") {
+        }
+        else if (interaction.customId === "audio_skip") {
             interaction.reply({content: "Skipping track...", ephemeral: true})
             audio_queue.skip()
-        } else if (interaction.customId === "audio_challenge") {
+        }
+        else if (interaction.customId === "audio_challenge") {
             let res = await audio_queue.challenge()
             if (res) {
                 interaction.reply("Challenge mode has been enabled!")
-            } else {
+            }
+            else {
                 interaction.reply("Challenge mode has been disabled.")
             }
-        } else if (interaction.customId === "random_capture") {
+        }
+        else if (interaction.customId === "random_capture") {
             interaction.reply(await generateRandomCaptureMsg())
+        }
+        else if (interaction.customId.startsWith("link_minecraft_")) {
+            let player_id = interaction.customId.replace("link_minecraft_", "")
+            console.log(player_id)
+            let player = remote_status_server.connections["pczWlxfMzPmuI6yjQMaQYA=="].getPlayer(player_id)
+
+            if (!player) {
+                interaction.reply({
+                    content: "Could not find that player. The player must be connected to the Minecraft Server.",
+                    ephemeral: true
+                })
+                return
+            }
+            let res = await safeQuery("SELECT * FROM CrashBot.dbo.users WHERE mc_id = @mcid", [
+                {name: "mcid", type: mssql.TYPES.VarChar, data: player.id},
+            ])
+            if (res.recordset.length > 0) {
+                interaction.reply({
+                    content: `This account was already linked to <@${res.recordset[0].discord_id}>. If this is incorrect, please contact <@404507305510699019>.`,
+                    ephemeral: true
+                })
+                return
+            }
+            await safeQuery("UPDATE CrashBot.dbo.Users SET mc_id = @mcid WHERE discord_id = @discordid", [
+                {name: "mcid", type: mssql.TYPES.VarChar, data: player.id},
+                {name: "discordid", type: mssql.TYPES.VarChar, data: interaction.member.id}
+            ])
+
+            interaction.reply({content: "Successfully linked!", ephemeral: true})
+        }
+        else if (interaction.customId === "offensive_inspiro_quote") {
+            interaction.message.delete()
+            interaction.reply({content: "That's ok. Inspirobot isn't perfect, and can sometimes create some offensive quotes.", ephemeral: true})
+        }
+        else if (interaction.customId === "another_inspiro_quote") {
+            quoteReply(interaction.channel, interaction)
         }
     }
 })
 
 client.on("messageCreate", async msg => {
-    console.log(msg.content.toLowerCase().replace(/\W/g, '').includes('bruh'))
     if (msg.author.bot) return
     if (msg.content.toLowerCase() === "who's not touching grass?") {
         msg.reply("This command is currently unavailable")
@@ -3991,64 +4277,97 @@ client.on("messageCreate", async msg => {
         // msg.reply({content: " ", embeds: [embed]})
     }
 
+    if (msg.channel.id === "968298113427206195") {
+        let message = msg.content
+            .replace(/<@!(\d+)>/, (match, userId) => {
+                const member = msg.guild.members.cache.get(userId)
+                if (member) {
+                    return member.nickname
+                }
+                else {
+                    return match
+                }
+            })
+            .replace(/<@(\d+)>/, (match, userId) => {
+                const member = msg.guild.members.cache.get(userId)
+                if (member) {
+                    return member.user.username
+                }
+                else {
+                    return match
+                }
+            })
+            .replace(/<@&(\d+)>/, (match, roleId) => {
+                const role = msg.guild.roles.cache.get(roleId)
+                if (role) {
+                    return role.name
+                }
+                else {
+                    return match
+                }
+            })
+            .replaceAll("@", "")
+            .replaceAll("\"", "\\\"")
+        remote_status_server.broadcastCommand(`tellraw @a ["",{"text":"[${msg.member.nickname || msg.member.user.username} via Discord]","color":"${msg.member.displayHexColor}"},{"text":" ${message}"}]`)
+    }
     // if (msg.channel.id === "892518396166569994" && msg.author.bot === false) {
     //     // mcServer.sendCommand(msg.content)
     // }
-    if (msg.author.id === "404507305510699019" && msg.content.startsWith("test")) {
-        console.log("RUNNING TEST...")
-        let attachment = msg.attachments.first()
-        console.log(attachment)
-        let name = attachment.name.split(".")
-        let extension = name[name.length - 1]
-        let file = await download_discord_attachment(attachment.url, extension)
-        let font_big = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
-        let font_small = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE)
-        Jimp.read(file)
-            .then(async image => {
-                // console.log(image.getWidth(), image.getHeight())
-                let width = image.getWidth()
-                let height = image.getHeight()
-
-                if (width > height && width > 1080) {
-                    height = (height / width) * 1080
-                    width = 1080
-                    image.resize(width, height)
-                } else if (height > width && height > 1080) {
-                    width = (width / height) * 1080
-                    height = 1080
-                    image.resize(width, height)
-                }
-
-                // Place black bar along bottom
-                let color = Jimp.rgbaToInt(255, 255, 255, .75)
-                new Jimp(width, height + 130, "#000", async (err, out) => {
-                    out.composite(image, 0, 0)
-
-                    let author = await Jimp.read(msg.member.avatarURL({format: "jpg"}) || msg.author.avatarURL({format: "jpg"}))
-                    author.resize(100, 100)
-                    author.circle()
-                    out.composite(author, 20, height + 20)
-
-                    out.print(font_big, 140, height + 20, msg.member.nickname || msg.author.username)
-                    out.print(font_small, 140, height + 80, "#" + msg.channel.name)
-                    if (msg.content && msg.content.length < 100) out.print(font_small, 200, height + 20, {
-                            text: msg.content,
-                            alignmentX: Jimp.HORIZONTAL_ALIGN_RIGHT
-                            // alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE
-                        },
-                        width - 220,
-                        height)
-                    out.getBufferAsync(Jimp.MIME_JPEG).then(buffer => {
-                        msg.reply({
-                            content: "TEST", files: [
-                                new Discord.MessageAttachment()
-                                    .setFile(buffer)
-                            ]
-                        })
-                    })
-                })
-            })
-    }
+    // if (msg.author.id === "404507305510699019" && msg.content.startsWith("test")) {
+    //     console.log("RUNNING TEST...")
+    //     let attachment = msg.attachments.first()
+    //     console.log(attachment)
+    //     let name = attachment.name.split(".")
+    //     let extension = name[name.length - 1]
+    //     let file = await download_discord_attachment(attachment.url, extension)
+    //     let font_big = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
+    //     let font_small = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE)
+    //     Jimp.read(file)
+    //         .then(async image => {
+    //             // console.log(image.getWidth(), image.getHeight())
+    //             let width = image.getWidth()
+    //             let height = image.getHeight()
+    //
+    //             if (width > height && width > 1080) {
+    //                 height = (height / width) * 1080
+    //                 width = 1080
+    //                 image.resize(width, height)
+    //             } else if (height > width && height > 1080) {
+    //                 width = (width / height) * 1080
+    //                 height = 1080
+    //                 image.resize(width, height)
+    //             }
+    //
+    //             // Place black bar along bottom
+    //             let color = Jimp.rgbaToInt(255, 255, 255, .75)
+    //             new Jimp(width, height + 130, "#000", async (err, out) => {
+    //                 out.composite(image, 0, 0)
+    //
+    //                 let author = await Jimp.read(msg.member.avatarURL({format: "jpg"}) || msg.author.avatarURL({format: "jpg"}))
+    //                 author.resize(100, 100)
+    //                 author.circle()
+    //                 out.composite(author, 20, height + 20)
+    //
+    //                 out.print(font_big, 140, height + 20, msg.member.nickname || msg.author.username)
+    //                 out.print(font_small, 140, height + 80, "#" + msg.channel.name)
+    //                 if (msg.content && msg.content.length < 100) out.print(font_small, 200, height + 20, {
+    //                         text: msg.content,
+    //                         alignmentX: Jimp.HORIZONTAL_ALIGN_RIGHT
+    //                         // alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE
+    //                     },
+    //                     width - 220,
+    //                     height)
+    //                 out.getBufferAsync(Jimp.MIME_JPEG).then(buffer => {
+    //                     msg.reply({
+    //                         content: "TEST", files: [
+    //                             new Discord.MessageAttachment()
+    //                                 .setFile(buffer)
+    //                         ]
+    //                     })
+    //                 })
+    //             })
+    //         })
+    // }
     if (msg.channel.id === "968298113427206195" && msg.author.bot === false) {
         let content = ["", {
             text: "["
@@ -4072,14 +4391,16 @@ client.on("messageCreate", async msg => {
             }
         }
         // mcServer.sendCommand("tellraw @a " + JSON.stringify(content))
-    } else if (msg.content.toLowerCase() === "guess what?") {
+    }
+    else if (msg.content.toLowerCase() === "guess what?") {
         msg.reply({
             content: "_", files: [
                 new Discord.MessageAttachment()
                     .setFile(fs.readFileSync(__dirname + "/assets/guess_what.jpg"))
             ]
         })
-    } else if (msg.content.toLowerCase() === "aughua" && msg.author.bot !== true) {
+    }
+    else if (msg.content.toLowerCase() === "aughua" && msg.author.bot !== true) {
         const responses = [
             "Nuh uh uh!",
             "That's illegal",
@@ -4107,7 +4428,8 @@ client.on("messageCreate", async msg => {
 
                 })
             }).catch(e => msg.reply(e))
-        } else {
+        }
+        else {
             msg.reply(msg_txt).then(_msg => {
                 // setTimeout(() => {
                 //     _msg.delete()
@@ -4124,7 +4446,8 @@ client.on("messageCreate", async msg => {
                 embeds: [embed]
             })
         })
-    } else if (msg.content.replace("#banner").length !== msg.content.length && msg.author.bot === false) {
+    }
+    else if (msg.content.replace("#banner").length !== msg.content.length && msg.author.bot === false) {
         try {
             if (msg.channel.nsfw) {
                 msg.reply("For the safety of users in this server, setting banners inside an NSFW channel is prohibbited.")
@@ -4158,7 +4481,8 @@ client.on("messageCreate", async msg => {
                                 count += 1
                             }
                         }
-                    } else {
+                    }
+                    else {
                         msg.reply("For privacy, security, and a few other reasons, you can only reply to messages with #banner if the original message was also sent by you. If the original message was sent by someone else, please ask them to add it to the banner queue.")
                     }
                 }
@@ -4174,72 +4498,43 @@ client.on("messageCreate", async msg => {
                             ])
                     ]
                 })
-            } else {
+            }
+            else {
                 msg.reply("It seems you haven't linked a Minecraft account yet. Please go into my DMs and use the slash command `/username` to link your Minecraft **Java** account. **If you do not have a Minecraft Java account**, just use enter a random username instead.")
             }
         } catch (e) {
             console.error(e)
             msg.reply("Failed to add your banner(s). Please try again.")
         }
-    } else if (msg.content.toLowerCase().replace(/\W/g, '').includes('bruh')) {
-        let rand_member = shuffleArray((await msg.guild.members.fetch()).map(i => {
-            return i
-        }))[0]
-        const msgs = [
-            "balls",
-            "That is quite the bruh moment",
-            "This is not actually " + (rand_member.username || rand_member.user.username),
-            "BALLS",
-            "https://tenor.com/view/bruh-be-bruh-beluga-gif-25964074",
-            "https://tenor.com/view/what-bruh-steve-harvey-shocked-surprised-gif-17654826",
-            "https://tenor.com/view/bruh-gif-13889648",
-            "Choccy milk anyone?",
-            "https://tenor.com/view/bowling-ball-bowling-alley-bowling-pin-gif-25336718",
-            "https://tenor.com/view/patrick-star-stare-spongebob-squarepants-gif-17131706",
-            "https://tenor.com/view/kirakat5-liver-gif-25650211",
-            "https://tenor.com/view/grill-grill-fail-idiot-fire-gif-25095963",
-            "https://tenor.com/view/bench-warmers-throw-john-heder-lawn-mower-gif-11416065",
-            "https://tenor.com/view/kermit-kermit-the-frog-bruh-smiling-drive-gif-15005835",
-            "https://tenor.com/view/minecraft-meme-deepfried-oh-nah-bruh-gif-23469570",
-            "https://tenor.com/view/dog-ball-dog-gets-ball-meme-bottles-gif-25461285",
-            "https://tenor.com/view/balls-jaws-gumball-meme-gif-21859168",
-            "https://tenor.com/view/sad-gif-18026986",
-            "https://tenor.com/view/bruh-moai-moyai-zemby7-big_funky-gif-23796913"
-        ]
-        console.log("Someone bruhed")
-
-        msg.channel.createWebhook(rand_member.nickname || rand_member.user.username, {
-            avatar: rand_member.user.avatarURL(),
-            reason: "Needed new cheese"
-        }).then(webhook => {
-            webhook.send(msgs[Math.floor(Math.random() * msgs.length)]).then(() => {
-                webhook.delete()
-            })
-        }).catch(e => {
-            console.error(e)
-        })
-    } else if ((msg.content.toLowerCase().replace(/\W/g, '').includes("augh")) && !msg.author.bot) {
-        msg.reply(msg.content)
-    } else if (msg.content.toLowerCase() === "damn it stinks" && msg.member.voice.channelId) {
+    }
+    else if ((msg.content.toLowerCase().replace(/\W/g, '').includes("augh")) && !msg.author.bot) {
+        let embed = new Discord.MessageEmbed()
+        embed.setDescription(msg.content)
+        msg.reply({content: " ", embeds: [embed]})
+    }
+    else if (msg.content.toLowerCase() === "damn it stinks" && msg.member.voice.channelId) {
         if (!fart_player || msg.guild.me.voice.channelId !== msg.member.voice.channelId) {
             msg.reply("Wasn't me")
-        } else {
+        }
+        else {
             fart_connection.unsubscribe()
             fart_connection.disconnect()
             fart_player = null
             msg.reply("sorry")
         }
-    } else if (msg.content.toLowerCase().replaceAll(/[^a-zA-Z0-9]/g, "") === "herecomesanotherchineseearthquake") {
+    }
+    else if (msg.content.toLowerCase().replaceAll(/[^a-zA-Z0-9]/g, "") === "herecomesanotherchineseearthquake") {
         msg.reply({content: "e" + "br".repeat(Math.floor(Math.random() * 999)), tts: true})
-    } else if (msg.content.length <= 5 && (!isNaN(msg.content))) {
+    }
+    else if (msg.content.length <= 5 && (!isNaN(msg.content))) {
         if (!isNaN((parseFloat(msg.content) - 1))) setTimeout(() => {
             let num = parseFloat(msg.content)
             msg.reply((num - 1).toString())
         }, 1000)
-    } else if (msg.mentions.has(client.user)) {
+    }
+    else if (msg.mentions.has(client.user)) {
         // Read available memes
         let memes = fetchThrowTemplates().filter(meme => meme.verified)
-        is
         let meme, temp_name, t
         // Pick a random meme
         meme = memes[Math.floor(Math.random() * memes.length)]
@@ -4255,86 +4550,499 @@ client.on("messageCreate", async msg => {
 
             })
         }).catch(e => msg.reply(e))
-    } else if (msg.content.toLowerCase().replaceAll(/[^a-zA-Z0-9]/g, "").includes("destiny2")) {
-        let rand_member = shuffleArray((await msg.guild.members.fetch()).map(i => {
-            return i
-        }))[0]
-
-        const memes = [
-            "https://tenor.com/view/destiny-best-mates-sami-glitch-sami-destiny2-gif-15811476",
-            "https://tenor.com/view/destiny-destiny2-titan-taunt-dance-gif-16756581",
-            "https://tenor.com/view/sami-glitch-sami-julian-caddie-smooth-destiny-gif-15813239",
-            "https://tenor.com/view/sami-glitch-sami-destiny2-destiny-best-mates-gif-15811472",
-            "https://tenor.com/view/destiny2-destiny-best-mates-dance-phantoms-gif-15811468"
-        ]
-        msg.channel.createWebhook(rand_member.nickname || rand_member.user.username, {
-            avatar: rand_member.user.avatarURL(),
-            reason: "Needed new cheese"
-        }).then(webhook => {
-            webhook.send(memes[Math.floor(Math.random() * memes.length)]).then(() => {
-                webhook.delete()
-            })
-        }).catch(e => {
-            console.error(e)
-        })
     }
-    if (msg.channel.id === "910649212264386583" && msg.content.replace(/[^"]/g, "").length >= 2) {
+    if ((msg.channel.id === "910649212264386583" || msg.channel.id === "892518396166569994") && msg.content.replace(/[^"“”‘’]/g, "").length >= 2) {
         // Assume this message is a quote
         await safeQuery("INSERT INTO dbo.Quotes (msg_id, quote) VALUES (@msg,@quote)", [
             {name: "msg", type: mssql.TYPES.VarChar, data: msg.id},
             {name: "quote", type: mssql.TYPES.VarChar, data: msg.content}
         ])
         msg.react("🫃")
-    }
 
-    if (imageCaptureChannels.indexOf(msg.channel.id) !== -1 && !msg.author.bot) {
-        let urls = msg.content.match(/\bhttps?:\/\/\S+/gi) || []
-        let yt_urls = []
-        for (let url of urls) {
-            if (ytdl.validateURL(url)) yt_urls.push(url)
+        // Check to see if all users have 'quoteresponseai' enabled
+        let users = [].concat(Array.from(msg.mentions.users.values()).map(u => u.id), msg.member.id)
+        let ai = true
+        for (let id of users) {
+            console.log(id)
+            let req = await safeQuery(`SELECT experimentAIQuoteResponse
+                                       FROM dbo.Users
+                                       WHERE discord_id = @discordid`, [{
+                name: "discordid",
+                type: mssql.TYPES.VarChar(20),
+                data: id
+            }])
+            let user = await getUserData(id)
+
+            if (user["experimentAIQuoteResponse"] === false) {
+                console.log(req.recordset[0])
+                ai = false
+                break
+            }
         }
 
-        if (msg.attachments.size > 0 || yt_urls.length > 0) {
-            msg.react("❌").then(reaction => {
-                msg.awaitReactions({
-                    filter: (reaction, user) => {
-                        return reaction.emoji.name === "❌" && user.id === msg.author.id
-                    },
-                    max: 1,
-                    time: 15000
-                }).then(async reactions => {
-                    if (reactions.size === 0) {
-                        console.log("Saving memory...")
-                        for (let attachment of msg.attachments) {
-                            console.log(attachment)
-                            await safeQuery("INSERT INTO dbo.Memories (author_discord_id, channel_id, data, msg_id, attachment_id) VALUES (@author,@channel,@data,@msg,@attachmentid)", [
-                                {name: "author", type: mssql.TYPES.VarChar, data: msg.author.id},
-                                {name: "channel", type: mssql.TYPES.VarChar, data: msg.channel.id},
-                                {name: "data", type: mssql.TYPES.VarChar, data: attachment[1].name},
-                                {name: "msg", type: mssql.TYPES.VarChar, data: msg.id},
-                                {name: "attachmentid", type: mssql.TYPES.VarChar, data: attachment[1].id}
-                            ])
-                            console.log("Saved attachment")
-                        }
+        if (ai) {
+            console.log("AI responding...")
+            let AIres = await chatgpt.sendMessage(
+                "respond to this quote in a funny way:\n\n" +
+                msg.content
+            )
+            let embed = new Discord.MessageEmbed()
+            embed.setDescription(AIres.text)
+            msg.reply({embeds: [embed]})
+        }
+    }
+    if (msg.content.toLowerCase() === "what are my most popular words?") {
+        getUserData(msg.member)
+            .then(res => {
+                if (res.experimentWords === false) {
+                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
+                    return
+                }
 
-                        for (let url of yt_urls) {
-                            await safeQuery("INSERT INTO dbo.Memories (author_discord_id, channel_id, data, msg_id, type) VALUES (@author,@channel,@data,@msg,1)", [
-                                {name: "author", type: mssql.TYPES.VarChar, data: msg.author.id},
-                                {name: "channel", type: mssql.TYPES.VarChar, data: msg.channel.id},
-                                {name: "data", type: mssql.TYPES.VarChar, data: url},
-                                {name: "msg", type: mssql.TYPES.VarChar, data: msg.id}
-                            ])
+                safeQuery("SELECT word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                    {name: "discordid", type: mssql.TYPES.VarChar, data: msg.member.id}
+                ])
+                    .then(res => {
+                        if (res.recordset.length < 20) {
+                            msg.reply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
                         }
-                    }
-                }).catch(e => {
-                })
-                    .finally(() => {
-                        reaction.remove()
+                        else {
+                            let embed = new Discord.MessageEmbed()
+                            let top = res.recordset.slice(0, 20).map((i, index) => {
+                                return "`" + toTitleCase(i.word) + "` " + i.sum + " times"
+                            })
+                            embed.setTitle("You've said...")
+                            embed.setDescription(top.join("\n"))
+                            embed.setFooter({text: "Crash Bot words experiment"})
+                            msg.reply({content: " ", embeds: [embed]})
+                        }
                     })
             })
+    }
+    else if (msg.content.toLowerCase().includes("how many times have i said ")) {
+        getUserData(msg.member)
+            .then(async res => {
+                if (res.experimentWords === false) {
+                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
+                    return
+                }
+
+                let words = msg.content.toLowerCase().split("how many times have i said ")[1].replace(/[^A-Za-z ]/g, "").split(" ")
+                let words_results = []
+                let embed = new Discord.MessageEmbed()
+
+                for (let word of words) {
+                    if (word === "") continue
+
+                    let res = await safeQuery("SELECT word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid AND word = @word GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                        {name: "discordid", type: mssql.TYPES.VarChar, data: msg.member.id},
+                        {name: "word", type: mssql.TYPES.VarChar, data: word}
+                    ])
+                    if (res.recordset.length === 0) {
+                        words_results.push("You haven't said `" + toTitleCase(word) + "` yet.")
+                    }
+                    else {
+                        words_results.push("`" + toTitleCase(word) + "` " + res.recordset[0].sum + " times")
+                    }
+                }
+
+                embed.setTitle("You've said...")
+                embed.setDescription(words_results.join("\n"))
+                embed.setFooter({text: "Crash Bot words experiment"})
+                msg.reply({content: " ", embeds: [embed]})
+            })
+    }
+    else if (msg.content.toLowerCase().includes("how many times have we said ")) {
+        getUserData(msg.member)
+            .then(async res => {
+                if (res.experimentWords === false) {
+                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
+                    return
+                }
+
+                let words = msg.content.toLowerCase().split("how many times have we said ")[1].replace(/[^A-Za-z ]/g, "").split(" ")
+                let words_results = []
+                let embed = new Discord.MessageEmbed()
+
+                for (let word of words) {
+                    if (word === "") continue
+
+                    let res = await safeQuery("SELECT word, SUM(count) as 'sum' FROM WordsExperiment WHERE word = @word AND guild_id = @guildid GROUP BY word ORDER BY sum DESC", [
+                        {name: "word", type: mssql.TYPES.VarChar, data: word},
+                        {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild.id},
+                    ])
+                    if (res.recordset.length === 0) {
+                        words_results.push("We haven't said `" + toTitleCase(word) + "` yet.")
+                    }
+                    else {
+                        words_results.push("We've said `" + toTitleCase(word) + "` " + res.recordset[0].sum + " times")
+                    }
+                }
+
+                embed.setTitle("Of all the people on this server who have the experiment enabled...")
+                embed.setDescription(words_results.join("\n"))
+                embed.setFooter({text: "Crash Bot words experiment"})
+                msg.reply({content: " ", embeds: [embed]})
+            })
+    }
+    else if (msg.content.toLowerCase() === "what is my catchphrase?") {
+        getUserData(msg.member)
+            .then(res => {
+                if (res.experimentWords === false) {
+                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
+                    return
+                }
+
+                safeQuery("SELECT TOP 30 word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                    {name: "discordid", type: mssql.TYPES.VarChar, data: msg.member.id}
+                ])
+                    .then(async res => {
+                        if (res.recordset.length < 20) {
+                            msg.reply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
+                        }
+                        else {
+                            let top = shuffleArray(res.recordset).slice(0, 20).map((i, index) => {
+                                return toTitleCase(i.word)
+                            })
+                            chatgpt.sendMessage(
+                                "Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
+                                top.join(", ")
+                            )
+                                .then(AIres => {
+                                    let embed = new Discord.MessageEmbed()
+                                    console.log("Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
+                                        top.join(", "))
+
+                                    embed.setTitle("Is this your catchphrase?")
+                                    embed.setDescription(AIres.text)
+                                    embed.setFooter({text: "Crash Bot words experiment"})
+                                    msg.reply({content: " ", embeds: [embed]})
+                                })
+                                .catch(e => {
+                                    console.log(e)
+                                    let embed = new Discord.MessageEmbed()
+                                    embed.setTitle("Service unavailable")
+                                    embed.setDescription("This service is currently unavailable. Please try again later")
+                                    embed.setColor("RED")
+                                    embed.setFooter({text: "Crash Bot words experiment"})
+                                    msg.reply({content: " ", embeds: [embed]})
+                                })
+                        }
+                    })
+            })
+    }
+    else if (msg.content.toLowerCase().replaceAll(" ", "").startsWith("whatis<@") && msg.content.toLowerCase().replaceAll(" ", "").endsWith("'scatchphrase?") && msg.mentions.members.size > 0) {
+        getUserData(msg.member)
+            .then(res => {
+                if (res.experimentWords === false) {
+                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
+                    return
+                }
+
+                safeQuery("SELECT TOP 30 word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                    {name: "discordid", type: mssql.TYPES.VarChar, data: msg.mentions.members.firstKey()}
+                ])
+                    .then(async res => {
+                        if (res.recordset.length < 20) {
+                            msg.reply("We don't quite have enough data yet. The user you mentioned may not have this experiment enabled.")
+                        }
+                        else {
+                            let top = shuffleArray(res.recordset).slice(0, 20).map((i, index) => {
+                                return toTitleCase(i.word)
+                            })
+                            chatgpt.sendMessage(
+                                "Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
+                                top.join(", ")
+                            )
+                                .then(AIres => {
+                                    let embed = new Discord.MessageEmbed()
+                                    console.log("Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
+                                        top.join(", "))
+
+                                    embed.setTitle("Is this your catchphrase?")
+                                    embed.setDescription(AIres.text)
+                                    embed.setFooter({text: "Crash Bot words experiment"})
+                                    msg.reply({content: " ", embeds: [embed]})
+                                })
+                                .catch(e => {
+                                    console.log(e)
+                                    let embed = new Discord.MessageEmbed()
+                                    embed.setTitle("Service unavailable")
+                                    embed.setDescription("This service is currently unavailable. Please try again later")
+                                    embed.setColor("RED")
+                                    embed.setFooter({text: "Crash Bot words experiment"})
+                                    msg.reply({content: " ", embeds: [embed]})
+                                })
+                        }
+                    })
+            })
+    }
+    else if (msg.content.toLowerCase().replace(/[^a-z]/g, '') === "whatisourserverscatchphrase") {
+        getUserData(msg.member)
+            .then(res => {
+                if (res.experimentWords === false) {
+                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
+                    return
+                }
+
+                safeQuery("SELECT TOP 40 word, SUM(count) as 'sum' FROM WordsExperiment WHERE guild_id = @guildid GROUP BY word ORDER BY sum DESC",
+                    [{name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild.id},
+                    ]
+                )
+                    .then(async res => {
+                        if (res.recordset.length < 20) {
+                            msg.reply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
+                        }
+                        else {
+                            let top = shuffleArray(res.recordset).slice(0, 20).map((i, index) => {
+                                return {
+                                    word: i.word,
+                                    sum: i.sum
+                                }
+                            })
+                            chatgpt.sendMessage(
+                                "Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
+                                top.map(i => i.word).join(", ")
+                            )
+                                .then(AIres => {
+                                    let embed = new Discord.MessageEmbed()
+
+                                    embed.setTitle("Would this be a suitable catchphrase?")
+                                    embed.setDescription(AIres.text)
+                                    embed.setFooter({text: "Crash Bot words experiment"})
+                                    embed.setFields([{name: "Sampled words", value: top.map(i => i.word).join(", ")}])
+                                    msg.reply({content: " ", embeds: [embed]})
+                                })
+                                .catch(e => {
+                                    console.log(e)
+                                    let embed = new Discord.MessageEmbed()
+                                    embed.setTitle("Service unavailable")
+                                    embed.setDescription("This service is currently unavailable. Please try again later")
+                                    embed.setColor("RED")
+                                    embed.setFooter({text: "Crash Bot words experiment"})
+                                    msg.reply({content: " ", embeds: [embed]})
+                                })
+                        }
+                    })
+            })
+    }
+    else if (msg.content.toLowerCase().startsWith("correct hot potato holder") && msg.member.id === "404507305510699019") {
+        hot_potato_holder = msg.mentions.members.first()
+        msg.delete()
+    }
+    else if (msg.content.toLowerCase().replaceAll(/[^a-zA-Z0-9]/g, "").includes("destiny2")) {
+        let quote = d2_quotes[Math.floor(Math.random() * d2_quotes.length)]
+        msg.channel.send(`"${quote.quote}" - ${quote.character}`)
+    }
+    else if (msg.channel.id !== "892518159167393823" && (Math.random() <= 0.01 || msg.content.toLowerCase() === "i need inspiring")) {
+        quoteReply(msg.channel)
+    }
+    else if (msg.channel.id === "892518396166569994") {
+        let url = msg.content
+        msg.delete()
+
+        // Check audio queue
+        VoiceConnectionManager.join(msg.channel.guild, msg.member.voice.channel)
+            .then(manager => {
+                manager.addToQueue(url).then(() => {
+                    interaction.reply({content: "Item has been queued!", ephemeral: true})
+                }).catch(e => {
+                    console.error(e)
+                    interaction.reply({content: "Opps! An error occured.\n```" + e.toString() + "```", ephemeral: true})
+                })
+            })
+            .catch(e => {console.log(e)})
+    }
+    else {
+        // Do word count
+        getUserData(msg.member)
+            .then(async res => {
+                if (res.experimentBabyWords && msg.mentions.members.size === 0 && msg.mentions.roles.size === 0) {
+                    // Talk like a 5-year-old
+                    if (msg.content.startsWith("b - ")) return
+
+                    let _words = msg.content.split(" ")
+
+                    for (let i in _words) {
+                        if (_words[i].startsWith("http") || _words[i].startsWith("<") || _words[i].startsWith(">") || _words[i].startsWith("`")) continue
+                        if (_words[i] in bad_baby_words.words) _words[i] = "dumb"
+                        if (Math.random() < .1) _words[i] = randomWords(1)[0]
+
+                        let letters = _words[i].split("")
+                        for (let r in letters) {
+                            if (Math.random() < .1) letters[r] = baby_alphabet[Math.floor(Math.random() * baby_alphabet.length)]
+                        }
+                        _words[i] = letters.join("")
+                        console.log(_words[i])
+
+                    }
+
+                    if (Math.random() < .1) {
+                        _words = [].concat(_words.map(word => word.toUpperCase()), ["\n", "sorry.", "I", "left", "caps", "lock", "on"])
+                    }
+                    msg.channel
+                        .fetchWebhooks()
+                        .then(hooks => {
+                            let webhook = hooks.find(hook => {
+                                return hook.name === (msg.member.nickname || msg.member.user.username)
+                            })
+                            if (webhook) {
+                                return new Promise((resolve) => {
+                                    resolve(webhook)
+                                })
+                            }
+                            else {
+                                return msg.channel.createWebhook(msg.member.nickname || msg.member.user.username, {
+                                    avatar: msg.member.avatarURL() || msg.member.user.avatarURL(),
+                                    reason: "Needed new cheese"
+                                })
+                            }
+                        })
+                        .then(webhook => {
+                            console.log(webhook)
+                            webhook.send(_words.join(' ')).then(() => {
+                                msg.delete()
+                                webhook.delete()
+                            })
+                        }).catch(e => {
+                        console.error(e)
+                    })
+                }
+                if (res.experimentWords) {
+                    let words = msg.content.replace(/[^A-Za-z ]/g, "").toLowerCase().split(" ")
+                    let spam = false
+                    for (let word of words) {
+                        let appears = words.filter(i => i === word)
+                        if ((appears.length / words.length) > 0.40 && words.length > 5) {
+                            spam = true
+                            continue
+                        }
+
+                        if (word.length > 100) continue
+                        if (word === "") continue
+                        let data = await safeQuery("SELECT * FROM dbo.WordsExperiment WHERE discord_id = @discordid AND word = @word AND guild_id = @guildid", [
+                            {name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.member.id},
+                            {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild.id},
+                            {name: "word", type: mssql.TYPES.VarChar(100), data: word}
+                        ])
+                        if (data.recordset.length === 0) {
+                            await safeQuery("INSERT INTO dbo.WordsExperiment (word, discord_id, guild_id) VALUES (@word, @discordid, @guildid);", [
+                                {name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.member.id},
+                                {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild.id},
+                                {name: "word", type: mssql.TYPES.VarChar(100), data: word}
+                            ])
+                        }
+                        else {
+                            await safeQuery("UPDATE dbo.WordsExperiment SET count=count + 1 WHERE id = @id", [
+                                {name: "id", type: mssql.TYPES.BigInt, data: data.recordset[0].id}
+                            ])
+                            let res = await safeQuery("SELECT SUM(count) AS 'sum' FROM dbo.WordsExperiment WHERE word = @word AND guild_id = @guildid", [
+                                {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild.id},
+                                {name: "word", type: mssql.TYPES.VarChar(100), data: word}
+                            ])
+                            if (!res.recordset[0].sum) return
+                            if ((res.recordset[0].sum % 500) === 0) {
+                                client.channels.fetch("950939869776052255")
+                                    .then(channel => {
+                                        let embed = new Discord.MessageEmbed()
+                                        embed.setTitle("<@" + msg.author.id + "> just said `" + word + "` for the " + res.recordset[0].sum + "th time!")
+                                        embed.setDescription("Of all users with this experiment enabled, <@" + msg.author.id + "> just said " + word + " for the " + res.recordset[0].sum + "th time!")
+                                        channel.send({content: ' ', embeds: [embed]})
+                                        msg.reply(`Of everyone with the words experiment enabled, you just said \`${word}\` for the ${res.recordset[0].sum}th time!`)
+                                    })
+
+                            }
+                        }
+                    }
+                }
+            })
+        if (imageCaptureChannels.indexOf(msg.channel.id) !== -1 && !msg.author.bot) {
+            let urls = msg.content.match(/\bhttps?:\/\/\S+/gi) || []
+            let yt_urls = []
+            for (let url of urls) {
+                if (ytdl.validateURL(url)) yt_urls.push(url)
+            }
+
+            if (msg.attachments.size > 0 || yt_urls.length > 0) {
+                msg.react("❌").then(reaction => {
+                    msg.awaitReactions({
+                        filter: (reaction, user) => {
+                            return reaction.emoji.name === "❌" && user.id === msg.author.id
+                        },
+                        max: 1,
+                        time: 15000
+                    }).then(async reactions => {
+                        if (reactions.size === 0) {
+                            console.log("Saving memory...")
+                            for (let attachment of msg.attachments) {
+                                console.log(attachment)
+                                await safeQuery("INSERT INTO dbo.Memories (author_discord_id, channel_id, data, msg_id, attachment_id) VALUES (@author,@channel,@data,@msg,@attachmentid)", [
+                                    {name: "author", type: mssql.TYPES.VarChar, data: msg.author.id},
+                                    {name: "channel", type: mssql.TYPES.VarChar, data: msg.channel.id},
+                                    {name: "data", type: mssql.TYPES.VarChar, data: attachment[1].name},
+                                    {name: "msg", type: mssql.TYPES.VarChar, data: msg.id},
+                                    {name: "attachmentid", type: mssql.TYPES.VarChar, data: attachment[1].id}
+                                ])
+                                console.log("Saved attachment")
+                            }
+
+                            for (let url of yt_urls) {
+                                await safeQuery("INSERT INTO dbo.Memories (author_discord_id, channel_id, data, msg_id, type) VALUES (@author,@channel,@data,@msg,1)", [
+                                    {name: "author", type: mssql.TYPES.VarChar, data: msg.author.id},
+                                    {name: "channel", type: mssql.TYPES.VarChar, data: msg.channel.id},
+                                    {name: "data", type: mssql.TYPES.VarChar, data: url},
+                                    {name: "msg", type: mssql.TYPES.VarChar, data: msg.id}
+                                ])
+                            }
+                        }
+                    }).catch(e => {
+                    })
+                        .finally(() => {
+                            reaction.remove()
+                        })
+                })
+            }
         }
     }
 })
+
+function quoteReply(channel, interaction = null) {
+    inspirobot.generateImage()
+        .then(image => {
+            let msg_content = {
+                content: 'Created by: inspirobot.me',
+                files: [
+                    new Discord.MessageAttachment()
+                        .setFile(image)
+                        .setName("quote.jpg")
+                ],
+                components: [
+                    new Discord.MessageActionRow()
+                        .addComponents(
+                            new Discord.MessageButton()
+                                .setCustomId("another_inspiro_quote")
+                                .setLabel("Another!")
+                                .setStyle("PRIMARY"),
+                            new Discord.MessageButton()
+                                .setCustomId("offensive_inspiro_quote")
+                                .setLabel("I found this offensif")
+                                .setStyle("SECONDARY")
+                        )
+                ]
+            }
+            if (interaction) interaction.reply(msg_content)
+            else channel.send(msg_content)
+        })
+}
+
+function toTitleCase(str) {
+    return str.replace(
+        /\w\S*/g,
+        function (txt) {
+            return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        }
+    );
+}
 
 client.on("messageDelete", msg => {
     console.log(msg)
@@ -4353,7 +5061,6 @@ client.on("messageDelete", msg => {
 async function setup() {
     let array_entities;
     try {
-        await mssql.connect("Server=localhost,1433;Database=CrashBot;User Id=node_js;Password=rDmX#8rAXAFa&ppD;trustServerCertificate=true")
         // console.log(await safeQuery("SELECT * FROM dbo.Users"))
         //
         // let tracks = JSON.parse(fs.readFileSync(__dirname + "/tracks.json").toString())
@@ -4385,7 +5092,8 @@ async function setup() {
                     if (typeof sound === "string") {
                         queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, DefaultFile)
                                       VALUES (${sound_defs[item].id}, '${sound}')`)
-                    } else {
+                    }
+                    else {
                         // safeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch) VALUES (@defid, @is3D, @vol, @pitch);", [
                         //     {name: "defid", type: mssql.TYPES.Int, data: sound_defs[item].id},
                         //     {name: "is3D", type: mssql.TYPES.Bit, data: sound.is3D || false},
@@ -4394,7 +5102,9 @@ async function setup() {
                         //     {name: "weight", type: mssql.TYPES.Int, data: sound.weight || 1}
                         // ])
                         queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, DefaultFile)
-                                      VALUES (${sound_defs[item].id}, ${sound.is3D || typeof sound.is3D === "undefined" ? 1 : 0}, ${sound.volume || 1},
+                                      VALUES (${sound_defs[item].id},
+                                              ${sound.is3D || typeof sound.is3D === "undefined" ? 1 : 0},
+                                              ${sound.volume || 1},
                                               ${sound.pitch || 1}, '${sound.name}')`)
                     }
                 }
@@ -4686,7 +5396,8 @@ async function setup() {
                             {name: "pos", type: mssql.TYPES.Int, data: i},
                             {name: "deffile", type: mssql.TYPES.VarChar, data: sub_textures[i]}
                         ])
-                    } else {
+                    }
+                    else {
                         safeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile, OverlayColor) VALUES (@id, @pos, @deffile, @color)", [
                             {name: "id", type: mssql.TYPES.Int, data: terrain_textures[item].id},
                             {name: "pos", type: mssql.TYPES.Int, data: i},
@@ -4724,7 +5435,8 @@ async function setup() {
                             {name: "pos", type: mssql.TYPES.Int, data: i},
                             {name: "deffile", type: mssql.TYPES.VarChar, data: sub_textures[i]}
                         ])
-                    } else {
+                    }
+                    else {
                         safeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile, OverlayColor) VALUES (@id, @pos, @deffile, @color)", [
                             {name: "id", type: mssql.TYPES.Int, data: item_textures[item].id},
                             {name: "pos", type: mssql.TYPES.Int, data: i},
@@ -4861,9 +5573,10 @@ async function setup() {
             queries = []
 
             console.log("DONE!")
-        } else {
+        }
+        else {
             console.log("Logging into Discord...")
-            client.login("ODkyNTM1ODY0MTkyODI3Mzky.GBe_2E.iFchqslODvFaIimIiD0itIz_INcU-U_YgSbMfc")
+            client.login(fs.readFileSync(path.join(__dirname, "botToken")).toString())
         }
     } catch (e) {
         console.log("Unable to connect to SQL server")
@@ -4876,7 +5589,7 @@ function download_discord_attachment_with_info(msg_id, channel_id, url, extensio
     return new Promise(async resolve => {
         let msg
         try {
-            let msg = await (await client.channels.fetch(channel_id)).messages.fetch(msg_id)
+            msg = await (await client.channels.fetch(channel_id)).messages.fetch(msg_id)
         } catch (e) {
             resolve(download_discord_attachment(url, extension, archive))
             return
@@ -4895,7 +5608,8 @@ function download_discord_attachment_with_info(msg_id, channel_id, url, extensio
                     height = (height / width) * 1080
                     width = 1080
                     image.resize(width, height)
-                } else if (height > width && height > 1080) {
+                }
+                else if (height > width && height > 1080) {
                     width = (width / height) * 1080
                     height = 1080
                     image.resize(width, height)
@@ -4969,6 +5683,7 @@ function download_ytdl(url, archive) {
         }
         try {
             await ytdl.getInfo(url, {filter: "audioandvideo"})
+            console.log("GOT INFO!")
             let audio_download = ytdl(url, {filter: "audioonly", quality: "highestaudio"})
             audio_download.pipe(fs.createWriteStream("ffmpeg_tmp/" + name + ".mp3"))
             audio_download.on("end", () => {
@@ -4997,6 +5712,50 @@ function download_ytdl(url, archive) {
         }
     })
 }
+//
+// setTimeout(() => {
+//     rot_potato()
+// }, 30000)
+
+let last_scoreboard_update = new Date()
+
+async function updateScoreboard() {
+    if (Date.now() < last_scoreboard_update + 30000) return
+    last_scoreboard_update = Date.now()
+
+    let channel = await client.channels.fetch("968298113427206195")
+    let msg = await channel.messages.fetch("1105257601450651719")
+
+    let embed = new Discord.MessageEmbed
+    embed.setTitle("Scoreboard")
+    embed.setDescription("Here you can see a list of online players")
+
+    let res = await safeQuery("SELECT * FROM dbo.Users WHERE mc_id IS NOT NULL")
+    for (let user of res.recordset) {
+        let member = await channel.guild.members.fetch(user.discord_id)
+        let player = remote_status_server.connections["pczWlxfMzPmuI6yjQMaQYA=="].getPlayer(user.mc_id)
+
+        if (player && user.mc_detailed_scoreboard) {
+            embed.addFields({
+                name: member.nickname || member.user.username,
+                value: `Currently exploring: \`${player.dimension}\``
+            })
+        }
+        else if (player) {
+            embed.addFields({
+                name: member.nickname || member.user.username,
+                value: `Online`
+            })
+        }
+        // else {
+        //     embed.addFields({
+        //         name: member.nickname || member.user.username,
+        //         value: "offline"
+        //     })
+        // }
+    }
+    msg.edit({content: ' ', embeds: [embed]})
+}
 
 async function generateRandomCaptureMsg() {
     let capture = (await safeQuery("SELECT TOP 1 * from dbo.Memories ORDER BY NEWID()")).recordset[0]
@@ -5020,7 +5779,8 @@ async function generateRandomCaptureMsg() {
                         )
                 ]
             }
-        } else {
+        }
+        else {
             return {
                 content: "Unfortunately this capture does not support previewing. Click the button below to see it.",
                 components: [
@@ -5054,7 +5814,9 @@ async function generatePackArchive(pack_id, increase_version_num = false, ...arc
     return archive
 }
 
-async function generatePack(pack_id, increase_version_num = false, onFile = (file, location) => {}, onPackFound = (p) => {}) {
+async function generatePack(pack_id, increase_version_num = false, onFile = (file, location) => {
+}, onPackFound = (p) => {
+}) {
     let pack = (await safeQuery("SELECT * FROM dbo.Packs WHERE pack_id = @packid", [
         {name: "packid", type: mssql.TYPES.Int, data: parseInt(pack_id)}
     ])).recordset[0]
@@ -5062,14 +5824,19 @@ async function generatePack(pack_id, increase_version_num = false, onFile = (fil
     if (increase_version_num) {
         if (pack.version_num_3 < 255) {
             pack.version_num_3 += 1
-        } else if (pack.version_num_2 < 255) {
+        }
+        else if (pack.version_num_2 < 255) {
             pack.version_num_2 += 1
             pack.version_num_3 = 0
-        } else if (pack.version_num_1 < 255) {
+        }
+        else if (pack.version_num_1 < 255) {
             pack.version_num_3 = 0
             pack.version_num_2 = 0
             pack.version_num_1 += 1
-        } else {console.log("VERSION NUMBERS EXCEEDED")}
+        }
+        else {
+            console.log("VERSION NUMBERS EXCEEDED")
+        }
         await safeQuery("UPDATE CrashBot.dbo.Packs SET version_num_1 = @n1, version_num_2 = @n2, version_num_3 = @n3 WHERE pack_id = @packid;", [
             {name: "n1", type: mssql.TYPES.TinyInt, data: pack.version_num_1},
             {name: "n2", type: mssql.TYPES.TinyInt, data: pack.version_num_2},
@@ -5203,13 +5970,17 @@ async function generatePack(pack_id, increase_version_num = false, onFile = (fil
 
         if (item.type === "block_sounds") {
             sound_groups_out["block_sounds"][item.GroupName] = _item
-        } else if (item.type === "entity_sounds") {
+        }
+        else if (item.type === "entity_sounds") {
             sound_groups_out.entity_sounds.entities[item.GroupName] = _item
-        } else if (item.type === "individual_event_sounds") {
+        }
+        else if (item.type === "individual_event_sounds") {
             sound_groups_out.individual_event_sounds.events = _item
-        } else if (item.type === "interactive_sounds.block_sounds") {
+        }
+        else if (item.type === "interactive_sounds.block_sounds") {
             sound_groups_out.interactive_sounds.block_sounds[item.GroupName] = _item.events
-        } else if (item.type === "interactive_sounds.entity_sounds") {
+        }
+        else if (item.type === "interactive_sounds.entity_sounds") {
             sound_groups_out.interactive_sounds.entity_sounds.entities[item.GroupName] = _item
         }
     }
@@ -5250,18 +6021,19 @@ async function generatePack(pack_id, increase_version_num = false, onFile = (fil
                     overlay_color: "#" + texture.OverlayColor,
                     path: _path
                 })
-            } else terrain_textures.texture_data[texture.identifier].textures.push(_path)
+            }
+            else terrain_textures.texture_data[texture.identifier].textures.push(_path)
         }
     }
 
     // Export blocks
     let blocks_array = (await safeQuery(`
-        SELECT PB.GameID AS 'GameID', PBT.Type AS 'type', PTG.GameID AS 'TextureGameID', PSG.GroupName AS 'SoundGameID'
-        FROM dbo.PackBlocks PB
-                 JOIN dbo.PackBlockTextures PBT on PB.BlockID = PBT.BlockID
-                 JOIN dbo.PackTextureGroups PTG ON PBT.TextureGroupID = PTG.TextureGroupID
-                 JOIN dbo.PackSoundGroups PSG on PB.SoundGroupID = PSG.SoundGroupID
-        WHERE PB.PackID = @packid`,
+                SELECT PB.GameID AS 'GameID', PBT.Type AS 'type', PTG.GameID AS 'TextureGameID', PSG.GroupName AS 'SoundGameID'
+                FROM dbo.PackBlocks PB
+                         JOIN dbo.PackBlockTextures PBT on PB.BlockID = PBT.BlockID
+                         JOIN dbo.PackTextureGroups PTG ON PBT.TextureGroupID = PTG.TextureGroupID
+                         JOIN dbo.PackSoundGroups PSG on PB.SoundGroupID = PSG.SoundGroupID
+                WHERE PB.PackID = @packid`,
         [
             {name: "packid", type: mssql.TYPES.Int, data: pack_id}
         ])).recordset
@@ -5311,19 +6083,27 @@ function uploadNewPack() {
                                 if (e) reject(e)
                                 else resolve(await connection.changeDirectory(path))
                             })
-                        } else {reject(e)}
-                    } else resolve()
+                        }
+                        else {
+                            reject(e)
+                        }
+                    }
+                    else resolve()
                 })
             })
         }
         connection.toParent = () => {
             return new Promise(resolve => {
-                connection.cdup(() => {resolve()})
+                connection.cdup(() => {
+                    resolve()
+                })
             })
         }
         connection.removeDirectory = (path) => {
             return new Promise((resolve, reject) => {
-                connection.rmdir(path, true, (e) => {if (e) reject(e); else resolve()})
+                connection.rmdir(path, true, (e) => {
+                    if (e) reject(e); else resolve()
+                })
             })
         }
 
@@ -5341,12 +6121,12 @@ function uploadNewPack() {
             [
 
                 {
-                    "pack_id" : "674d81cc-5d05-ca69-dc85-59f6504c3df1",
-                    "version" : [ 4, 0, 0 ]
+                    "pack_id": "674d81cc-5d05-ca69-dc85-59f6504c3df1",
+                    "version": [4, 0, 0]
                 },
 
                 {
-                    "pack_id" : "5eb74438-a581-4b21-97bf-c13e4c4522f5",
+                    "pack_id": "5eb74438-a581-4b21-97bf-c13e4c4522f5",
                     version
                 }
             ]
@@ -5386,10 +6166,107 @@ function uploadNewPack() {
         user: "41553",
         password: "2BBfnmXDdKcF5aC"
     })
+    connection.on("error", (e) => {
+        console.error(e)
+    })
 }
 
-setup()
+async function getUserData(member) {
+    let req = await safeQuery(`SELECT *
+                               FROM dbo.Users
+                               WHERE discord_id = @discordid`, [
+        {name: "discordid", type: mssql.TYPES.VarChar(20), data: member.id || member}
+    ])
+    if (req.recordset.length === 0) {
+        let key = await keys.newKey("", member)
+        req = await safeQuery(`SELECT *
+                               FROM dbo.Users
+                               WHERE discord_id = @discordid`, [
+            {name: "discordid", type: mssql.TYPES.VarChar(20), data: member.id || member}
+        ])
+    }
+    return req.recordset[0]
+}
 
+async function new_hot_potato(reason = "burn") {
+    return
+
+    clearTimeout(hot_potato_timer)
+
+    let guild = await client.guilds.fetch("892518158727008297")
+    let potato_holder_role = await guild.roles.fetch("1109290382812004492")
+
+    let old_member
+    let channel = await guild.channels.fetch(HOT_POTATO_CHANNEL_ID)
+
+    potato_holder_role.members.forEach((member, id) => {
+        old_member = member
+        member.roles.remove(potato_holder_role)
+        member.roles.remove("1109290501280104549")
+    })
+
+    let potato_players_role = await guild.roles.fetch("1109290501280104549")
+    let new_potato_holder = potato_players_role.members.random()
+
+    if (potato_players_role.members.size <= 2) {
+        // channel.send(`<@${new_potato_holder.id}> WON THE GAME!`)
+        return
+    }
+    new_potato_holder.roles.add("1109290382812004492")
+
+    try {
+        let meme = await generateThrow(guild.members.me, new_potato_holder)
+        old_member.send(reason === "burn" ? "Oh no! The hot potato burned your hands! GG and thank you for playing!" :
+            reason === "hp" ? "Oh no! You ran out of potato HP! GG and thank you for playing!" :
+                "Oh no! An unknown event occured, and you were removed from the game"
+        )
+            `The potato burned <@${old_member.id}>'s hand!`
+        channel.send({
+            content:
+                reason === "hp" ? `<@${old_member.id}> ran out of HP!` :
+                    `The potato burned <@${old_member.id}>'s hand!`,
+            files: [
+                new Discord.MessageAttachment()
+                    .setFile(fs.readFileSync(meme.file))
+            ]
+        })
+    } catch (e) {
+        channel.send(`The potato has been passed to <@${new_potato_holder.id}>! (could not generate image)`)
+    }
+    hot_potato_holder = new_potato_holder
+    hot_potato_timer = setTimeout(() => {
+        new_hot_potato()
+    }, hot_potato_timer_ms)
+}
+
+async function rot_potato() {
+    return
+    let guild = await client.guilds.fetch("892518158727008297")
+    let channel = await guild.channels.fetch(HOT_POTATO_CHANNEL_ID)
+
+    // const minDuration = 30 * 60 * 1000; // 30 minutes
+    // const maxDuration = 60 * 60 * 1000; // 1 hour
+    // const randomDuration = Math.floor(Math.random() * (maxDuration - minDuration + 1)) + minDuration;
+
+    let loss = Math.floor(Math.random() * 17) + 3
+
+    await safeQuery("UPDATE dbo.Users SET PotatoHP = PotatoHP - " + loss + " WHERE discord_id = @discordid", [
+        {name: "discordid", type: mssql.TYPES.VarChar, data: hot_potato_holder.id}
+    ])
+
+    if (hot_potato_timer_ms > 1.08e+7) {
+        // hot_potato_timer_ms -= Math.floor(Math.random() * (maxDuration - minDuration + 1)) + minDuration;
+        channel.send("💀 The potato is rotting! `" + loss + "` minutes were taken!")
+    }
+}
+
+// setInterval(() => {
+//     safeQuery("UPDATE dbo.Users SET PotatoHP = PotatoHP + 1 WHERE PotatoHP < 720 AND discord_id != @discordid", [
+//         {name: "discordid", type: mssql.TYPES.VarChar, data: hot_potato_holder.id}
+//     ])
+// }, 500000)
+
+setup()
 
 
 // wss.on("connection", socket => {
