@@ -1,16 +1,19 @@
-import * as mssql from "mssql"
+import pkg from 'mssql';
+const { PreparedStatement, connect } = pkg;
+
+import {ISqlType, ISqlTypeFactory} from "mssql";
 
 interface PreparedArgument {
     name: string
-    type: mssql.TYPES.Type,
-    data: string | number | Date
+    type: ISqlType,
+    data: string | number | Date | null
 }
 
-export function SafeQuery(sql, params: PreparedArgument[] = []): Promise<any> {
+export function SafeQuery(sql: string, params: PreparedArgument[] = []): Promise<any> {
     // {name: '', type: mssql.VarChar, data: '')
     return new Promise((resolve, reject) => {
-        const ps = new mssql.PreparedStatement()
-        let _params = {}
+        const ps = new PreparedStatement()
+        let _params: any = {}
         for (let param of params) {
             ps.input(param.name, param.type)
             _params[param.name] = param.data
@@ -40,5 +43,5 @@ export function SafeQuery(sql, params: PreparedArgument[] = []): Promise<any> {
 }
 
 export async function Connect() {
-    await mssql.connect("Server=192.168.2.140,1433;Database=CrashBot;User Id=node_js;Password=rDmX#8rAXAFa&ppD;trustServerCertificate=true")
+    await connect("Server=192.168.2.140,1433;Database=CrashBot;User Id=node_js;Password=rDmX#8rAXAFa&ppD;trustServerCertificate=true")
 }
