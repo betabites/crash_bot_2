@@ -1,5 +1,5 @@
 import Discord, {Client, GuildMember, Message, TextChannel, Webhook} from "discord.js";
-import {SafeQuery} from "./SQL.js";
+import SafeQuery from "./SQL.js";
 import mssql from "mssql";
 import Jimp from "jimp";
 import {makeid} from "./Common.js";

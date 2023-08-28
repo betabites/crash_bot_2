@@ -13,7 +13,7 @@ import {opus} from "prism-media";
 import * as Discord from "discord.js";
 import ytdl from "ytdl-core";
 import ytpl from "ytpl";
-import {SafeQuery} from "./SQL.js";
+import SafeQuery from "./SQL.js";
 import {makeid, QueueManager, ShuffleArray} from "./Common.js";
 import mssql from "mssql"
 import yts from "yt-search";
@@ -36,6 +36,7 @@ export class VoiceConnectionManager extends EventEmitter {
         recording: boolean
     }[] = []
     session_id: string
+    private connected_members = new Map<string, GuildMember>()
     private pos: number;
     private queue: QueueItem[] = []
     private ended: boolean;
@@ -95,13 +96,17 @@ export class VoiceConnectionManager extends EventEmitter {
             {name: "discordid", type: mssql.TYPES.VarChar(100), data: oldState.member?.id || "null"}
         ])).recordset[0]?.auto_record_voice
 
-        for (let connection of this.connections.values()) {
-            if (connection.channel.id === oldState.channelId) {
-                connection.onMemberDisconnect(oldState.member)
+        let guild_connection = this.connections.get(oldState.guild.id)
+        if (guild_connection && (newState.channel?.id !== oldState.channel?.id)) {
+            if (guild_connection.channel.id === newState.channelId) {
+                guild_connection.onMemberConnect(oldState.member, auto_record)
             }
-            if (connection.channel.id === newState.channelId) {
-                connection.onMemberConnect(oldState.member, auto_record)
+
+            if (guild_connection.channel.id === oldState.channelId) {
+                guild_connection.onMemberDisconnect(oldState.member)
             }
+        } else if (auto_record && newState.channel) {
+            VoiceConnectionManager.join(newState.guild, newState.channel)
         }
     }
 
@@ -133,10 +138,25 @@ export class VoiceConnectionManager extends EventEmitter {
         this.vc_connection.receiver.speaking.on("start", (userId) => {
             this.onMemberSpeak(userId)
         })
+        this.updateConnectedUsers()
 
         // this.receiver = vc_connection.receiver.subscribe("404507305510699019", {end: {behavior: discord_voice.EndBehaviorType.AfterSilence, duration: 10000}})
         // const decoder = new opus.Decoder({ frameSize: 960, channels: 2, rate: 48000})
         // const stream = receiver.pipe(decoder).pipe(fs.createWriteStream(path.resolve("./") + "/test.pcm"))
+    }
+
+    private async updateConnectedUsers() {
+        this.connected_members.clear()
+        this.recording_users = []
+
+        let channel = await this.channel.fetch()
+        for (let user of channel.members) {
+            let auto_record = (await SafeQuery("SELECT auto_record_voice FROM dbo.Users WHERE discord_id = @discordid", [
+                {name: "discordid", type: mssql.TYPES.VarChar(100), data: user[0] || "null"}
+            ])).recordset[0]?.auto_record_voice
+
+            this.onMemberConnect(user[1], auto_record)
+        }
     }
 
     onMemberSpeak(userId: string) {
@@ -180,6 +200,11 @@ export class VoiceConnectionManager extends EventEmitter {
 
     private onMemberConnect(member: Discord.GuildMember | null, autoRecord = false) {
         console.log("Member connected: ", autoRecord)
+        if (member && !member.user.bot) {
+            if (this.connected_members.has(member.id)) return // User connection has already been processed
+            this.connected_members.set(member.id, member)
+            console.log(this.connected_members.size)
+        }
         if (member && autoRecord) {
             console.log("Setting up auto recording for: " + member.id)
             this.recording_users.push({
@@ -189,7 +214,14 @@ export class VoiceConnectionManager extends EventEmitter {
         }
     }
     private onMemberDisconnect(member: GuildMember | null) {
+        if (!member) return
+        console.log("A member disconnected. Total number of connected users: ", this.connected_members)
 
+        this.connected_members.delete(member.id)
+        if (this.connected_members.size === 0) {
+            console.log("The voice call was abandoned. " + this.connected_members.size)
+            this.stop()
+        }
     }
 
     // onMemberDisconnect(user) {

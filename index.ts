@@ -8,14 +8,20 @@ import fs from "fs"
 import {EventEmitter} from "node:events";
 import * as path from "path";
 import {spawn, exec} from "child_process"
-import {client, downloadDiscordAttachment, downloadDiscordAttachmentWithInfo, sendImpersonateMessage} from "./src/Discord.js";
+import {
+    client,
+    downloadDiscordAttachment,
+    downloadDiscordAttachmentWithInfo,
+    sendImpersonateMessage
+} from "./src/Discord.js";
 import ChatGPT from "./src/ChatGPT.js";
 import RemoteStatusServer, {Connection as ServerConnection} from "./src/RemoteStatusServer.js";
-import {Connect, SafeQuery} from "./src/SQL.js";
+import SafeQuery from "./src/SQL.js";
 import {searchIndex, FindOwnership, dirTree, Bank, BankResource, buildPack} from "./src/ResourcePackManager.js";
 import {CrashBotUser} from "./src/UserManager.js";
 import archiver from "archiver";
 import Jimp from "jimp";
+import {ItemType} from "./src/DestinyDefinitions/DestinyDefinitions.js";
 import Discord, {
     TextChannel,
     Guild,
@@ -23,7 +29,7 @@ import Discord, {
     Message,
     Interaction,
     MessageComponentInteraction,
-    TextBasedChannel, BufferResolvable, User
+    TextBasedChannel, BufferResolvable, User, CacheType
 } from "discord.js";
 import {generateThrow, fetchThrowTemplates} from "./src/ThrowMaker.js";
 import ytdl from "ytdl-core";
@@ -35,11 +41,20 @@ import {VoiceConnectionManager} from "./src/VoiceManager.js";
 import http from "http";
 import https from "https";
 import inspirobot from "inspirobot.js";
-// import schedule from "node-schedule";
+import dotenv from "dotenv"
 import mssql from "mssql";
 import randomWords from "random-words";
 import bad_baby_words from "./badwords.json" assert {type: "json"}
-import {getManifest} from "./src/Bungie.NET.js";
+import {
+    itemNameSearch,
+    buildItemMessage,
+    vendorNameSearch,
+    buildActivityMessage,
+    activityNameSearch, updateMSVendors, buildVendorMessage, setupBungieAPI, SetupNotifications
+} from "./src/Bungie.NET.js";
+import {getItem} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
+
+dotenv.config()
 
 const HOT_POTATO_CHANNEL_ID = "1108718443525586944"
 // const spotify = require("spottydl")
@@ -1447,7 +1462,7 @@ app.post("/packs/:packid/sounds/", express.json(), async (req, res) => {
         return
     }
 
-    let data = await SafeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, weight, enabled, PackID) VALUES (@sounddef, @is3D, @volume, @pitch, @weight, @enabled, @packid); SELECT @@IDENTITY AS NewID;", [
+    let data: mssql.IResult<{ NewID: string }> = await SafeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, weight, enabled, PackID) VALUES (@sounddef, @is3D, @volume, @pitch, @weight, @enabled, @packid); SELECT @@IDENTITY AS NewID;", [
         {name: "sounddef", type: mssql.TYPES.Int(), data: req.body.SoundDefID},
         {name: "is3D", type: mssql.TYPES.Bit(), data: req.body.is3D},
         {name: "volume", type: mssql.TYPES.Int(), data: req.body.volume},
@@ -1679,6 +1694,10 @@ let wss = new WSS(httpServer, httpsServer)
 // })
 
 client.on("ready", async () => {
+    client.user?.setActivity("Experiencing MSSQL issues. Please expect bugs.", {
+        name: "Experiencing MSSQL issues. Please expect bugs.",
+        type: 4
+    })
     // client.channels.fetch("892518365766242375")
     //     .then(channel => {
     //         // let embed = new Discord.MessageEmbed()
@@ -1699,6 +1718,80 @@ client.on("ready", async () => {
 
     client.channels.fetch("968298113427206195").then(channel => {
         chat_channel = channel
+    })
+
+    client.application?.commands.create({
+        name: "fetch_d2_item",
+        description: "Fetch info about any item, quest, mod, etc in D2",
+        options: [{
+            type: 3,
+            name: "name",
+            description: "The name of the item you are looking for",
+            required: true
+        }]
+    })
+
+    client.application?.commands.create({
+        name: "ask-gpt",
+        description: "Ask ChatGPT a question",
+        options: [{
+            type: 3,
+            name: "message",
+            description: "What would you like to ask ChatGPT?",
+            required: true
+        }]
+    })
+
+    client.application?.commands.create({
+        name: "tldr",
+        description: "Too long, didn't read",
+        options: [{
+            type: 4,
+            required: false,
+            name: "hours",
+            description: "Number of hours you'd like to look back and summarise (default; 24 hrs)",
+        }]
+    })
+
+    client.application?.commands.create({
+        name: "fetch_d2_activity",
+        description: "Fetch info about any activity in D2",
+        options: [{
+            type: 3,
+            name: "name",
+            description: "The name of the activity you are looking for",
+            required: true
+        }]
+    })
+
+    client.application?.commands.create({
+        name: "fetch_d2_vendor",
+        description: "Fetch info about any activity in D2",
+        options: [{
+            type: 3,
+            name: "name",
+            description: "The name of the activity you are looking for",
+            required: true
+        }]
+    })
+
+    client.application?.commands.create({
+        name: "catchphrase",
+        description: "Let us take a guess at what your catchphrase is",
+        options: [
+            {
+                type: 6,
+                name: "user",
+                description: "The user who's catchphrase you want to get",
+                required: false
+            },
+            {
+                type: 10,
+                name: "sample_size",
+                description: "The sample size you want to use. Default is 50",
+                required: false
+            }
+        ]
     })
 
     client.application?.commands.create({
@@ -1775,11 +1868,13 @@ client.on("ready", async () => {
                     required: false
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "vanish",
             description: "Magically vanish for a few minutes, then return!"
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "cheese",
             description: "Become the cheese",
@@ -1791,7 +1886,8 @@ client.on("ready", async () => {
                     required: true
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "bread",
             description: "Become wholesome",
@@ -1803,7 +1899,8 @@ client.on("ready", async () => {
                     required: true
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "butter",
             description: "Spread the bread",
@@ -1815,7 +1912,8 @@ client.on("ready", async () => {
                     required: true
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "jam",
             description: "Sweet and delicous",
@@ -1827,11 +1925,13 @@ client.on("ready", async () => {
                     required: true
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "changemyname",
             description: "Change your nickname to something random. Will you get a good one, or one of the bad bad ones?"
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "peanutbutter",
             description: "Excreteing Peanut Butter. Be back shortly.",
@@ -1843,11 +1943,13 @@ client.on("ready", async () => {
                     required: true
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "random_capture",
             description: "Receive the blessing (or curse) of a random screenshot.",
-        }).catch(e => {})
+        }).catch(e => {
+        })
         // guild.commands.create({
         //     name: "economy_stats",
         //     description: "The server's economy system"
@@ -1932,7 +2034,8 @@ client.on("ready", async () => {
                     required: true
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
             .then(command => {
                 if (!command) return
                 guild.commands.permissions.add({
@@ -1942,7 +2045,8 @@ client.on("ready", async () => {
                         permission: true
                     }]
                 })
-            }).catch(e => {})
+            }).catch(e => {
+        })
         // guild.commands.create({
         //     name: "addclaim",
         //     description: "Allow a user to edit an item in the resource pack editor",
@@ -2003,7 +2107,8 @@ client.on("ready", async () => {
             name: "getlink",
             description: "Get your website link",
             defaultPermission: true
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "experiments",
             description: "Manage play queue",
@@ -2051,7 +2156,8 @@ client.on("ready", async () => {
             ]
         }).then(res => {
             console.log("Created /experiments!")
-        }).catch(e => {})
+        }).catch(e => {
+        })
         guild.commands.create({
             name: "playlist",
             description: "Manage your playlists",
@@ -2143,7 +2249,8 @@ client.on("ready", async () => {
                     description: "Add all items that are currently in the queue, into your playlist."
                 }
             ]
-        }).catch(e => {})
+        }).catch(e => {
+        })
         // let secret_santa = ["291063946008592388", "393955339550064641", "404507305510699019", "405302588377006081", "633083986968576031", "741149173595766824"]
         // let secret_santa_2
         // while (true) {
@@ -2299,8 +2406,8 @@ client.on("ready", async () => {
                     {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                 ])
                 SafeQuery(`UPDATE dbo.Users
-                                   SET mc_connected = 1
-                                   WHERE mc_id = @mcid`, [
+                           SET mc_connected = 1
+                           WHERE mc_id = @mcid`, [
                     {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                 ])
 
@@ -2340,8 +2447,8 @@ client.on("ready", async () => {
                     {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                 ])
                 SafeQuery(`UPDATE dbo.Users
-                                   SET mc_connected = 0
-                                   WHERE mc_id = @mcid`, [
+                           SET mc_connected = 0
+                           WHERE mc_id = @mcid`, [
                     {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                 ])
 
@@ -2378,11 +2485,11 @@ client.on("ready", async () => {
 
             ServerConnection.on("playerDataUpdate", async player => {
                 await SafeQuery(`UPDATE dbo.Users
-                                         SET mc_x   = @mcx,
-                                             mc_y   = @mcy,
-                                             mc_z   = @mcz,
-                                             mc_dim = @mcdim
-                                         WHERE mc_id = @mcid`, [
+                                 SET mc_x   = @mcx,
+                                     mc_y   = @mcy,
+                                     mc_z   = @mcz,
+                                     mc_dim = @mcdim
+                                 WHERE mc_id = @mcid`, [
                     {name: "mcx", type: mssql.TYPES.BigInt(), data: player.position[0]},
                     {name: "mcy", type: mssql.TYPES.BigInt(), data: player.position[1]},
                     {name: "mcz", type: mssql.TYPES.BigInt(), data: player.position[2]},
@@ -2393,18 +2500,18 @@ client.on("ready", async () => {
 
                 // Check for territory invasions
                 SafeQuery(`SELECT *
-                                   FROM dbo.MCTerritories
-                                   WHERE ${player.position[0]} >= sx
-                                     AND ${player.position[1]} >= sy
-                                     AND ${player.position[2]} >= sz
-                                     AND ${player.position[0]} <= ex
-                                     AND ${player.position[1]} <= ey
-                                     AND ${player.position[2]} <= ez
-                                     AND dimension = '${player.dimension}'`).then(async res => {
+                           FROM dbo.MCTerritories
+                           WHERE ${player.position[0]} >= sx
+                             AND ${player.position[1]} >= sy
+                             AND ${player.position[2]} >= sz
+                             AND ${player.position[0]} <= ex
+                             AND ${player.position[1]} <= ey
+                             AND ${player.position[2]} <= ez
+                             AND dimension = '${player.dimension}'`).then(async res => {
                     if (res.recordset.length === 0) {
                         await SafeQuery(`UPDATE dbo.MCTerritoriesLog
-                                                 SET active = 0
-                                                 WHERE mc_id = '${player.id}'`)
+                                         SET active = 0
+                                         WHERE mc_id = '${player.id}'`)
                     }
                     else for (let territory of res.recordset) {
                         let res = await SafeQuery("SELECT * FROM dbo.MCTerritoriesLog WHERE territory_id = @tid AND mc_id = @mcid AND active = 1", [
@@ -2415,9 +2522,9 @@ client.on("ready", async () => {
                         if (await res.recordset.length === 0) {
                             // Check if the player is whitelisted/blacklisted
                             let whitelist_entries = await SafeQuery(`SELECT *
-                                                                             FROM dbo.MCTerritoriesWhitelist
-                                                                             WHERE player_id = '${player.id}'
-                                                                               AND territory_id = ${territory.id}`)
+                                                                     FROM dbo.MCTerritoriesWhitelist
+                                                                     WHERE player_id = '${player.id}'
+                                                                       AND territory_id = ${territory.id}`)
                             if (
                                 (whitelist_entries.recordset.length !== 0 && !territory.blacklist_mode) ||
                                 whitelist_entries.recordset.length === 0 && territory.blacklist_mode
@@ -2425,10 +2532,10 @@ client.on("ready", async () => {
 
                             console.log(territory.id, player.id)
                             console.log("SQL: " + `INSERT INTO dbo.MCTerritoriesLog (territory_id, mc_id)
-                                                           VALUES (${territory.id}, '${player.id}');`)
+                                                   VALUES (${territory.id}, '${player.id}');`)
                             await SafeQuery(`INSERT INTO dbo.MCTerritoriesLog (territory_id, mc_id, x, y, z)
-                                                     VALUES (${territory.id}, '${player.id}', ${player.position[0]},
-                                                             ${player.position[1]}, ${player.position[2]});`)
+                                             VALUES (${territory.id}, '${player.id}', ${player.position[0]},
+                                                     ${player.position[1]}, ${player.position[2]});`)
                             let owner = await client.users.fetch(territory.owner_id)
                             owner.send(`${player.username} has entered your territory: ${territory.name} (${player.position[0], player.position[1], player.position[2]})`)
                             if (!territory.kill) {
@@ -2455,8 +2562,8 @@ client.on("ready", async () => {
                     {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                 ])
                 SafeQuery(`UPDATE dbo.Users
-                                   SET mc_connected = 0
-                                   WHERE mc_id = @mcid`, [
+                           SET mc_connected = 0
+                           WHERE mc_id = @mcid`, [
                     {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                 ])
 
@@ -2740,7 +2847,8 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                         })
                         .replaceAll("@", "")
 
-                    webhook.send(message)
+                    // @ts-ignore
+                    webhook.send(removeAllMentions(message, interaction.channel))
                     interaction.reply({
                         content: "Mmm. Cheese.",
                         fetchReply: true
@@ -2759,7 +2867,11 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                 let minutes = interaction.options.getInteger("minutes") || 5
 
                 let recordings = await SafeQuery("SELECT filename, start FROM dbo.VoiceRecordings WHERE user_id = @userid AND start >= DATEADD(MINUTE, @minutes, GETDATE())", [
-                    {name: "userid", type: mssql.TYPES.VarChar(100), data: (interaction.member as GuildMember)?.id || ""},
+                    {
+                        name: "userid",
+                        type: mssql.TYPES.VarChar(100),
+                        data: (interaction.member as GuildMember)?.id || ""
+                    },
                     {name: "minutes", type: mssql.TYPES.Int(), data: 0 - minutes}
                 ])
 
@@ -2767,7 +2879,10 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                     interaction.reply({content: "No recordings from within the specified timeframe", ephemeral: true})
                     return
                 }
-                interaction.reply({content: "We're processing the audio. You'll receive a DM once processing is complete.", ephemeral: true})
+                interaction.reply({
+                    content: "We're processing the audio. You'll receive a DM once processing is complete.",
+                    ephemeral: true
+                })
 
                 const command = ffmpeg()
                 const write_stream = new PassThrough()
@@ -2788,7 +2903,8 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                             inputs: i.toString(),
                             outputs: `[a${i}]`
                         })
-                    } else {
+                    }
+                    else {
                         filters.push({
                             filter: "adelay",
                             options: "0|0",
@@ -2937,7 +3053,183 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
         else if (interaction.commandName === "vanish") {
             (interaction.member as GuildMember).timeout(5 * 60 * 1000, "They vanished!")
                 .then(() => interaction.reply("You have vanished for 5 minutes!"))
-                .catch(e => {interaction.reply("Oh no! My magic doesn't work on you!")})
+                .catch(e => {
+                    interaction.reply("Oh no! My magic doesn't work on you!")
+                })
+        }
+        else if (interaction.commandName === "fetch_d2_item") {
+            let name = interaction.options.getString("name") || ""
+            if (name.length < 3) {
+                interaction.reply({
+                    content: "That search is a bit short. Please try something longer"
+                })
+                return
+            }
+            itemNameSearch(name)
+                .then(items => {
+                    return buildItemMessage(name, items[0], items)
+                })
+                .then(message => {
+                    interaction.reply(message)
+                })
+                .catch(e => {
+                    console.error(e)
+                    interaction.reply({
+                        content: "oops! We couldn't find an item with that name."
+                    })
+                })
+        }
+        else if (interaction.commandName === "fetch_d2_activity") {
+            let name = interaction.options.getString("name") || ""
+            if (name.length < 3) {
+                interaction.reply({
+                    content: "That search is a bit short. Please try something longer"
+                })
+                return
+            }
+            activityNameSearch(name)
+                .then(items => {
+                    return buildActivityMessage(name, items[0], items)
+                })
+                .then(message => {
+                    interaction.reply(message)
+                })
+                .catch(e => {
+                    console.error(e)
+                    interaction.reply({
+                        content: "oops! We couldn't find an item with that name."
+                    })
+                })
+        }
+        else if (interaction.commandName === "fetch_d2_vendor") {
+            let name = interaction.options.getString("name") || ""
+            if (name.length < 3) {
+                interaction.reply({
+                    content: "That search is a bit short. Please try something longer"
+                })
+                return
+            }
+            interaction.deferReply()
+                .then(() => {
+                    return vendorNameSearch(name)
+                })
+                .then(items => {
+                    return buildVendorMessage(name, items[0], items)
+                })
+                .then(message => {
+                    interaction.editReply(message)
+                })
+                .catch(e => {
+                    console.error(e)
+                    interaction.editReply({
+                        content: "oops! We couldn't find an item with that name."
+                    })
+                })
+        }
+        else if (interaction.commandName === "catchphrase") {
+            getUserData(interaction.member as GuildMember)
+                .then(res => {
+                    if (res.experimentWords === false) {
+                        interaction.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
+                        return
+                    }
+
+                    let member = interaction.options.getMember("user") || interaction.user
+                    let sample_size = interaction.options.getNumber("sample_size") || 50
+
+                    if (sample_size < 20 || sample_size > 1000) sample_size = 50
+                        interaction.deferReply()
+                        .then(() => {
+                            return SafeQuery("SELECT TOP " + (sample_size * 1.5) + " word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                                // @ts-ignore
+                                {name: "discordid", type: mssql.TYPES.VarChar(100), data: (member.id || "")}
+                            ])
+                        })
+                        .then(async res => {
+                            if (res.recordset.length < 20) {
+                                interaction.editReply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
+                            }
+                            else {
+                                let top: {
+                                    word: string,
+                                    count: number
+                                }[] = ShuffleArray(res.recordset).slice(0, sample_size).map((i: any) => {
+                                    return {
+                                        word: toTitleCase(i.word),
+                                        count: i.sum
+                                    }
+                                })
+                                ChatGPT.sendMessage(
+                                    "Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
+                                    top.map(i => `${i.word} (${i.count})`).join(", ")
+                                )
+                                    .then(AIres => {
+                                        let embed = new Discord.MessageEmbed()
+                                        // console.log("Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
+                                        //     top.map(i => `${i.word} (${i.count})`).join(", "))
+
+                                        embed.setTitle("Is this your catchphrase?")
+                                        embed.setDescription("<@" + member + "> - " + AIres.text)
+                                        embed.setFooter({text: "Crashbot words experiment"})
+                                        interaction.editReply({content: " ", embeds: [embed, new Discord.MessageEmbed()
+                                                .setDescription("Sampled words: " + top.map(i => i.word).join(", "))
+                                            ]})
+                                    })
+                                    .catch(e => {
+                                        console.log(e)
+                                        let embed = new Discord.MessageEmbed()
+                                        embed.setTitle("Service unavailable")
+                                        embed.setDescription("This service is currently unavailable. Please try again later")
+                                        embed.setColor("RED")
+                                        embed.setFooter({text: "Crash Bot words experiment"})
+                                        interaction.editReply({content: " ", embeds: [embed]})
+                                    })
+                            }
+                        })
+                })
+        }
+        else if (interaction.commandName === "ask-gpt") {
+            if (!interaction.channel) {
+                interaction.reply("Oops! Plase try again in a different channel")
+                return
+            }
+            askGPTQuestion(interaction.user.username + " said: " + (interaction.options.getString("message") || ""), interaction.channel, interaction)
+        }
+        else if (interaction.commandName === "tldr") {
+            await interaction.deferReply({fetchReply: true, ephemeral: true})
+            let lookback_hours = interaction.options.getInteger("hours") || 24
+            if (lookback_hours < 1) {
+                interaction.editReply(`Oops. We couldn't fufill that request.`)
+                return
+            }
+
+            let lookback_until = Date.now() - (lookback_hours * 60 * 60 * 1000)
+
+            let messages: Discord.Collection<string, Discord.Message<boolean>> = new Discord.Collection([])
+            let last_message: Discord.Message<boolean> | undefined
+            while (messages.size < 150 || (messages.last()?.createdTimestamp || 0) >= lookback_until) {
+                let new_messages = await interaction.channel?.messages.fetch({
+                    limit: 100,
+                    before: last_message?.id
+                })
+                if (!new_messages) break
+                last_message = new_messages.last()
+                messages = messages.concat(new_messages.filter(i => i.content !== "" && i.createdTimestamp >= lookback_until))
+                if (new_messages.find(i => i.createdTimestamp >= lookback_until)) break
+                console.log(messages.size)
+                console.log(messages.last()?.createdTimestamp, lookback_until)
+                if (new_messages.size < 100) break
+            }
+            if (!messages) throw "Error while generating tldr"
+
+            let tldr: string[] = []
+            for (let message of messages) {
+                tldr.push(message[1].content)
+            }
+            tldr = tldr.reverse().slice(0,180)
+            let gpt_response = await ChatGPT.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
+            // @ts-ignore
+            interaction.editReply(removeAllMentions(gpt_response.text, interaction.channel))
         }
         else {
             console.log("Unknown command interaction picked up")
@@ -2948,7 +3240,7 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
 
     }
     else if (interaction.isButton()) {
-        console.log("HERE!")
+        console.log("HERE!", interaction.customId)
         if (interaction.customId === "getlink") {
             // Get the code
 
@@ -3059,11 +3351,92 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
         }
         else if (interaction.customId === "offensive_inspiro_quote") {
             (interaction.message as Message).delete()
-            interaction.reply({content: "That's ok. Inspirobot isn't perfect, and can sometimes create some offensive quotes.", ephemeral: true})
+            interaction.reply({
+                content: "That's ok. Inspirobot isn't perfect, and can sometimes create some offensive quotes.",
+                ephemeral: true
+            })
         }
         else if (interaction.customId === "another_inspiro_quote") {
             if (!interaction.channel) throw "Unknown channel"
             quoteReply(interaction.channel, interaction)
+        }
+
+    }
+    else if (interaction.isSelectMenu()) {
+        if (interaction.customId === "d2_item_search_adjust") {
+            let value = JSON.parse(interaction.values[0])
+
+            itemNameSearch(value[0])
+                .then(items => {
+                    let selected_item = items.find(i => i.hash === value[1])
+                    if (!selected_item) throw "Selected an invalid item"
+                    return buildItemMessage(value[0], selected_item, items)
+                })
+                .then(message => {
+                    // @ts-ignore
+                    interaction.update(message)
+                })
+                .catch(e => {
+                    console.error(e)
+                    interaction.reply({
+                        content: "oops! We couldn't find an item with that name."
+                    })
+                })
+        }
+        else if (interaction.customId === "d2_activity_search_adjust") {
+            let value = JSON.parse(interaction.values[0])
+            activityNameSearch(value[0])
+                .then(items => {
+                    console.log(value[1])
+                    let selected_item = items.find(i => i.hash === value[1])
+                    if (!selected_item) throw "Selected an invalid item"
+                    return buildActivityMessage(value[0], selected_item, items)
+                })
+                .then(message => {
+                    // @ts-ignore
+                    interaction.update(message)
+                })
+                .catch(e => {
+                    console.error(e)
+                    interaction.reply({
+                        content: "oops! We couldn't find an item with that name."
+                    })
+                })
+        }
+        else if (interaction.customId === "d2_vendor_search_adjust") {
+            let value = JSON.parse(interaction.values[0])
+            interaction.deferUpdate()
+                .then(() => {
+                    return vendorNameSearch(value[0])
+                })
+                .then(items => {
+                    console.log(value[1])
+                    let selected_item = items.find(i => i.hash === value[1])
+                    if (!selected_item) throw "Selected an invalid item"
+                    return buildVendorMessage(value[0], selected_item, items)
+                })
+                .then(message => {
+                    // @ts-ignore
+                    interaction.editReply(message)
+                })
+                .catch(e => {
+                    console.error(e)
+                    interaction.editReply({
+                        content: "oops! We couldn't find an item with that name."
+                    })
+                })
+        }
+        else if (interaction.customId === "d2_item_notification") {
+            let value = JSON.parse(interaction.values[0])
+            interaction.deferReply({ephemeral: true})
+                .then(() => {
+                    return SetupNotifications.itemAvailableAtVendor(interaction.user, value[1])
+                })
+                .then(() => {
+                    interaction.editReply({
+                        content: "Awesome! We'll send you a DM when this item is next available!",
+                    })
+                })
         }
     }
 })
@@ -3264,7 +3637,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
                     return
                 }
 
-                SafeQuery("SELECT word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                SafeQuery("SELECT word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
                     {name: "discordid", type: mssql.TYPES.VarChar(100), data: msg.member?.id || ""}
                 ])
                     .then(res => {
@@ -3299,7 +3672,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
                 for (let word of words) {
                     if (word === "") continue
 
-                    let res = await SafeQuery("SELECT word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid AND word = @word GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                    let res = await SafeQuery("SELECT word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid AND word = @word GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
                         {name: "discordid", type: mssql.TYPES.VarChar(100), data: msg.member?.id || ""},
                         {name: "word", type: mssql.TYPES.VarChar(100), data: word}
                     ])
@@ -3329,72 +3702,51 @@ client.on("messageCreate", async (msg): Promise<void> => {
                 let words_results = []
                 let embed = new Discord.MessageEmbed()
 
+                let likelihood = -1
+
                 for (let word of words) {
                     if (word === "") continue
 
-                    let res = await SafeQuery("SELECT word, SUM(count) as 'sum' FROM WordsExperiment WHERE word = @word AND guild_id = @guildid GROUP BY word ORDER BY sum DESC", [
+                    let res = await SafeQuery("SELECT word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE word = @word AND guild_id = @guildid GROUP BY word ORDER BY sum DESC", [
                         {name: "word", type: mssql.TYPES.VarChar(100), data: word},
                         {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || ""},
                     ])
                     if (res.recordset.length === 0) {
                         words_results.push("We haven't said `" + toTitleCase(word) + "` yet.")
+                        likelihood = 0
                     }
                     else {
                         words_results.push("We've said `" + toTitleCase(word) + "` " + res.recordset[0].sum + " times")
+                        if (likelihood === -1) likelihood = res.recordset[0].sum
+                        else if (likelihood === 0) {}
+                        else likelihood = likelihood / res.recordset[0].sum
                     }
                 }
 
                 embed.setTitle("Of all the people on this server who have the experiment enabled...")
                 embed.setDescription(words_results.join("\n"))
-                embed.setFooter({text: "Crash Bot words experiment"})
+                embed.setFooter({text: `The overall phrase (statistically) has been said ${Math.floor(likelihood)} times. Crash Bot words experiment`})
                 msg.reply({content: " ", embeds: [embed]})
             })
     }
-    else if (msg.content.toLowerCase() === "what is my catchphrase?") {
-        getUserData(msg.member as GuildMember)
-            .then(res => {
-                if (res.experimentWords === false) {
-                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
-                    return
-                }
-
-                SafeQuery("SELECT TOP 30 word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
-                    {name: "discordid", type: mssql.TYPES.VarChar(100), data: msg.member?.id || ""}
-                ])
-                    .then(async res => {
-                        if (res.recordset.length < 20) {
-                            msg.reply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
-                        }
-                        else {
-                            let top = ShuffleArray(res.recordset).slice(0, 20).map((i: any) => {
-                                return toTitleCase(i.word)
-                            })
-                            ChatGPT.sendMessage(
-                                "Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
-                                top.join(", ")
-                            )
-                                .then(AIres => {
-                                    let embed = new Discord.MessageEmbed()
-                                    console.log("Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
-                                        top.join(", "))
-
-                                    embed.setTitle("Is this your catchphrase?")
-                                    embed.setDescription(AIres.text)
-                                    embed.setFooter({text: "Crash Bot words experiment"})
-                                    msg.reply({content: " ", embeds: [embed]})
-                                })
-                                .catch(e => {
-                                    console.log(e)
-                                    let embed = new Discord.MessageEmbed()
-                                    embed.setTitle("Service unavailable")
-                                    embed.setDescription("This service is currently unavailable. Please try again later")
-                                    embed.setColor("RED")
-                                    embed.setFooter({text: "Crash Bot words experiment"})
-                                    msg.reply({content: " ", embeds: [embed]})
-                                })
-                        }
-                    })
-            })
+    else if (msg.content.toLowerCase().includes("what are some barely spoken words")) {
+        if (msg.channel.type === "DM") {
+            msg.reply("Oops. You can't use this phrase in this channel")
+            return
+        }
+        let results = await SafeQuery("SELECT TOP 10 word, SUM(count + pseudo_addition) as 'count', discord_id FROM CrashBot.dbo.WordsExperiment WHERE guild_id=@guildid AND \"count\" = 1 GROUP BY word, discord_id ORDER BY \"count\", NEWID()", [
+            {name: "guildid", type: mssql.TYPES.VarChar(), data: msg.channel.guild.id}
+        ])
+        msg.reply({
+            content: " ",
+            embeds: [
+                new Discord.MessageEmbed()
+                    .setDescription("These words have only ever been spoken once in this server:\n" +
+                        results.recordset.map(i => {return `- \`${i.word}\` by <@${i.discord_id}>`}).join("\n")
+                    )
+                    .setFooter({text: "Crash Bot only counts words as of 2023-08-01, and only from users who have the words experiment enabled."})
+            ]
+        })
     }
     else if (msg.content.toLowerCase().replaceAll(" ", "").startsWith("whatis<@") && msg.content.toLowerCase().replaceAll(" ", "").endsWith("'scatchphrase?") && (msg.mentions.members?.size || 0) > 0) {
         getUserData(msg.member as GuildMember)
@@ -3404,7 +3756,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
                     return
                 }
 
-                SafeQuery("SELECT TOP 30 word, SUM(count) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                SafeQuery("SELECT TOP 30 word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
                     {name: "discordid", type: mssql.TYPES.VarChar(100), data: msg.mentions.members?.firstKey() || ""}
                 ])
                     .then(async res => {
@@ -3450,7 +3802,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
                     return
                 }
 
-                SafeQuery("SELECT TOP 40 word, SUM(count) as 'sum' FROM WordsExperiment WHERE guild_id = @guildid GROUP BY word ORDER BY sum DESC",
+                SafeQuery("SELECT TOP 40 word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE guild_id = @guildid GROUP BY word ORDER BY sum DESC",
                     [{name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || ""},
                     ]
                 )
@@ -3513,10 +3865,16 @@ client.on("messageCreate", async (msg): Promise<void> => {
                 manager?.addToQueue(url)
                 msg.delete()
             })
-            .catch(e => {console.log(e)})
+            .catch(e => {
+                console.log(e)
+            })
+    }
+    else if (msg.channel.type === "DM") {
+        askGPTQuestion(msg.author.username + " said: " + msg.content, msg.channel)
     }
     else {
         // Do word count
+        if (!msg.member) return
         getUserData(msg.member as GuildMember)
             .then(async res => {
                 if (res.experimentBabyWords && msg.mentions.members?.size === 0 && msg.mentions.roles.size === 0) {
@@ -3555,7 +3913,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
                                 return hook.name === (msg.member?.nickname || msg.member?.user.username || "Unknown member")
                             })
                             if (webhook) {
-                                return new Promise((resolve)=> {
+                                return new Promise((resolve) => {
                                     // @ts-ignore
                                     resolve(webhook)
                                 })
@@ -3590,40 +3948,55 @@ client.on("messageCreate", async (msg): Promise<void> => {
                         if (word.length > 100) continue
                         if (word === "") continue
                         let data = await SafeQuery("SELECT * FROM dbo.WordsExperiment WHERE discord_id = @discordid AND word = @word AND guild_id = @guildid", [
-                            {name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.member?.id || "Unknown member"},
+                            {
+                                name: "discordid",
+                                type: mssql.TYPES.VarChar(20),
+                                data: msg.member?.id || "Unknown member"
+                            },
                             {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || "Unknown guild"},
                             {name: "word", type: mssql.TYPES.VarChar(100), data: word}
                         ])
                         if (data.recordset.length === 0) {
                             await SafeQuery("INSERT INTO dbo.WordsExperiment (word, discord_id, guild_id) VALUES (@word, @discordid, @guildid);", [
-                                {name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.member?.id || "Unknown member"},
-                                {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || "Unknown guild"},
+                                {
+                                    name: "discordid",
+                                    type: mssql.TYPES.VarChar(20),
+                                    data: msg.member?.id || "Unknown member"
+                                },
+                                {
+                                    name: "guildid",
+                                    type: mssql.TYPES.VarChar(20),
+                                    data: msg.guild?.id || "Unknown guild"
+                                },
                                 {name: "word", type: mssql.TYPES.VarChar(100), data: word}
                             ])
                         }
                         else {
-                            await SafeQuery("UPDATE dbo.WordsExperiment SET count=count + 1 WHERE id = @id", [
+                            await SafeQuery("UPDATE dbo.WordsExperiment SET count=count + 1, last_appeared=SYSDATETIME() WHERE id = @id", [
                                 {name: "id", type: mssql.TYPES.BigInt(), data: data.recordset[0].id}
                             ])
-                            let res = await SafeQuery("SELECT SUM(count) AS 'sum' FROM dbo.WordsExperiment WHERE word = @word AND guild_id = @guildid", [
+                            let res = await SafeQuery("SELECT SUM(count + pseudo_addition) AS 'sum' FROM dbo.WordsExperiment WHERE word = @word AND guild_id = @guildid", [
                                 {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || ""},
                                 {name: "word", type: mssql.TYPES.VarChar(100), data: word}
                             ])
                             if (!res.recordset[0].sum) return
-                            if ((res.recordset[0].sum % 1000) === 0) {
+                            if ((res.recordset[0].sum % 100) === 0) {
                                 client.channels.fetch("950939869776052255")
                                     .then((channel) => {
-                                        let embed = new Discord.MessageEmbed()
-                                        embed.setTitle("<@" + msg.author.id + "> just said `" + word + "` for the " + res.recordset[0].sum + "th time!")
-                                        // @ts-ignore
-                                        embed.setDescription(`Of all users with this experiment enabled, <@${msg.author.id}> just said \`${word}\`for the ${res.recordset[0].sum}th time!`)
-                                        (channel as TextBasedChannel).send({content: ' ', embeds: [embed]})
+                                        let title: string = `<@${msg.author.username}> just said ${word} for the ${res.recordset[0].sum}th time!`
+                                        let message = `Of all users with this experiment enabled, <@${msg.author.id}> just said \`${word}\`for the ${res.recordset[0].sum}th time!`;
+
+                                        (channel as TextBasedChannel).send({content: ' ', embeds: [
+                                            new Discord.MessageEmbed()
+                                                .setTitle(title)
+                                                .setDescription(message)
+                                                ]})
                                         msg.reply(`Of everyone with the words experiment enabled, you just said \`${word}\` for the ${res.recordset[0].sum}th time!`)
                                     })
-
                             }
                         }
                     }
+                    if (spam) msg.react("😟")
                 }
             })
         if (imageCaptureChannels.indexOf(msg.channel.id) !== -1 && !msg.author.bot) {
@@ -3707,6 +4080,69 @@ function quoteReply(channel: TextBasedChannel, interaction: MessageComponentInte
         })
 }
 
+async function askGPTQuestion(message: string, channel: TextBasedChannel, interaction?: Discord.BaseCommandInteraction) {
+    let gpt_channel_search = await SafeQuery("SELECT * FROM dbo.GPTCHannels WHERE channelid = @channelid", [
+        {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
+    ])
+    if (interaction) await interaction.deferReply()
+    else await channel.sendTyping();
+    message = removeAllMentions(message, channel)
+
+    let result_message
+    if (message.toLowerCase().endsWith("reset conversation") && gpt_channel_search.recordset.length === 0) {
+        result_message = "There is no conversation to reset"
+    } else if (gpt_channel_search.recordset.length === 0) {
+        let gpt_message = await ChatGPT.sendMessage(message)
+        console.log(gpt_message)
+        await SafeQuery("INSERT INTO CrashBot.dbo.GPTChannels (channelid, conversationid, lastmessageid) VALUES (@channelid, @conversationid, @messageid);", [
+            {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
+            {name: "conversationid", type: mssql.TYPES.VarChar(100), data: gpt_message.conversationId || ""},
+            {name: "messageid", type: mssql.TYPES.VarChar(100), data: gpt_message.parentMessageId || ""}
+        ])
+        result_message = gpt_message.text
+    } else if (message.toLowerCase().endsWith("reset conversation")) {
+        await SafeQuery("DELETE FROM dbo.GPTChannels WHERE channelid = @channelid", [
+            {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
+        ])
+        result_message = "This conversation has been reset"
+    }
+    else {
+        let gpt_message = await ChatGPT.sendMessage(message, {
+            parentMessageId: gpt_channel_search.recordset[0].lastmessageid
+        })
+        await SafeQuery("UPDATE dbo.GPTChannels SET lastmessageid=@messageid WHERE channelid = @channelid", [
+            {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
+            {name: "messageid", type: mssql.TYPES.VarChar(100), data: gpt_message.parentMessageId || ""}
+        ])
+
+        result_message = gpt_message.text
+    }
+
+    let interaction_replied = false
+    for (let text of splitMessage(result_message)) {
+        if (interaction && !interaction_replied) {
+            await interaction.editReply({
+                content: " ",
+                embeds: [new Discord.MessageEmbed()
+                    .setDescription(message)
+                ]
+            })
+            interaction_replied = true
+        }
+        channel.send(text)
+    }
+}
+
+function splitMessage(message: string): string[] {
+    let messages: string[] = []
+    while (message.length > 0) {
+        messages.push(message.slice(0,2000))
+        message = message.slice(2000, message.length)
+    }
+    console.log(messages)
+    return messages
+}
+
 function toTitleCase(str: string) {
     return str.replace(
         /\w\S*/g,
@@ -3729,6 +4165,50 @@ client.on("messageDelete", msg => {
     }
 })
 
+
+function removeAllMentions(str: string, channel_or_guild: Discord.Guild | TextBasedChannel): string {
+    let channel: Discord.TextBasedChannel | undefined
+    let guild: Discord.Guild | undefined
+    if (channel_or_guild instanceof Discord.TextChannel) {
+        channel = channel_or_guild
+        guild = channel.guild
+    } else if (channel_or_guild instanceof Discord.Guild) {
+        guild = channel_or_guild
+    } else {
+        channel = channel_or_guild
+    }
+    return str.replace(/<@!(\d+)>/, (match: string, userId: string): string => {
+        const user = client.users.cache.get(userId)
+        if (user) {
+            return user.username
+        }
+        else {
+            return match
+        }
+    })
+        .replace(/<@(\d+)>/, (match, userId) => {
+            const user = client.users.cache.get(userId)
+            if (user) {
+                return user.username
+            }
+            else {
+                return match
+            }
+        })
+        .replace(/<@&(\d+)>/, (match, roleId) => {
+            if (!guild) return `<@&${roleId}>`
+            const role = guild.roles.cache.get(roleId)
+            if (role) {
+                return role.name
+            }
+            else {
+                return match
+            }
+        })
+        .replaceAll("@", "")
+        .replaceAll("\"", "\\\"")
+}
+
 // Setup
 async function setup() {
     let array_entities;
@@ -3744,515 +4224,537 @@ async function setup() {
         //     return `(1, 1, '${track.id}')`
         // }).join(", ")
         // await SafeQuery(sql)
-        // await Connect()
+        console.log("Performing setup!")
 
-        console.log(await getManifest())
+        await setupBungieAPI()
+        // await updateMSVendors()
 
-        // if (false) {
-        //     // Process pack blocks
-        //     // let blocks = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/blocks.json").toString())
-        //     let sound_defs = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/sounds/sound_definitions.json").toString()).sound_definitions
-        //     let queries = []
-        //
-        //     for (let item of Object.keys(sound_defs)) {
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundDefinitions (Name, category) VALUES (@name, @category);", [
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: item},
-        //             {name: "category", type: mssql.TYPES.VarChar(100), data: sound_defs[item].category}
-        //         ])
-        //         sound_defs[item].id = (await SafeQuery("SELECT SoundDefID FROM CrashBot.dbo.PackSoundDefinitions WHERE Name = @name;", [
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: item}
-        //         ])).recordset[0].SoundDefID
-        //
-        //         for (let sound of sound_defs[item].sounds) {
-        //             if (typeof sound === "string") {
-        //                 queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, DefaultFile)
-        //                               VALUES (${sound_defs[item].id}, '${sound}')`)
-        //             }
-        //             else {
-        //                 // SafeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch) VALUES (@defid, @is3D, @vol, @pitch);", [
-        //                 //     {name: "defid", type: mssql.TYPES.Int(), data: sound_defs[item].id},
-        //                 //     {name: "is3D", type: mssql.TYPES.Bit(), data: sound.is3D || false},
-        //                 //     {name: "vol", type: mssql.TYPES.Decimal, data: sound.volume || 1},
-        //                 //     {name: "pitch", type: mssql.TYPES.Decimal, data: sound.pitch || 1},
-        //                 //     {name: "weight", type: mssql.TYPES.Int(), data: sound.weight || 1}
-        //                 // ])
-        //                 queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, DefaultFile)
-        //                               VALUES (${sound_defs[item].id},
-        //                                       ${sound.is3D || typeof sound.is3D === "undefined" ? 1 : 0},
-        //                                       ${sound.volume || 1},
-        //                                       ${sound.pitch || 1}, '${sound.name}')`)
-        //             }
-        //         }
-        //         // console.log(sound_defs[item].id)
-        //     }
-        //     await SafeQuery(queries.join(";") + ";")
-        //
-        //     let sounds = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/sounds.json").toString())
-        //     let _sounds
-        //     _sounds = sounds.block_sounds
-        //     for (let sound of Object.keys(_sounds)) {
-        //         let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //         let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //         let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //         let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
-        //             {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
-        //             {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
-        //             {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
-        //             {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
-        //             {name: "type", type: mssql.TYPES.VarChar(100), data: "block_sounds"},
-        //         ])
-        //
-        //         _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
-        //             name: "name",
-        //             type: mssql.TYPES.VarChar(100),
-        //             data: sound
-        //         }])).recordset[0].SoundGroupID
-        //
-        //         for (let event of Object.keys(_sounds[sound].events)) {
-        //             if (!_sounds[sound].events[event].sound) continue
-        //             if (!sound_defs[_sounds[sound].events[event].sound]) continue
-        //             console.log(_sounds[sound].events[event].sound)
-        //             SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
-        //                 {
-        //                     name: "pitchlow",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //                 },
-        //                 {
-        //                     name: "pitchhigh",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //                 },
-        //                 {
-        //                     name: "vollow",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //                 },
-        //                 {
-        //                     name: "volhigh",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //                 },
-        //                 {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
-        //                 {name: "type", type: mssql.TYPES.VarChar(100), data: event},
-        //                 {name: "defid", type: mssql.TYPES.Int(), data: sound_defs[_sounds[sound].events[event].sound].id},
-        //             ])
-        //
-        //         }
-        //     }
-        //
-        //     _sounds = sounds.entity_sounds.entities
-        //     for (let sound of Object.keys(_sounds)) {
-        //         let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //         let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //         let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //         let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
-        //             {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
-        //             {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
-        //             {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
-        //             {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
-        //             {name: "type", type: mssql.TYPES.VarChar(100), data: "block_sounds"},
-        //         ])
-        //
-        //         _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
-        //             name: "name",
-        //             type: mssql.TYPES.VarChar(100),
-        //             data: sound
-        //         }])).recordset[0].SoundGroupID
-        //
-        //         sounds.entity_sounds.entities[sound].id = _sounds[sound].id
-        //
-        //         for (let event of Object.keys(_sounds[sound].events)) {
-        //             if (!_sounds[sound].events[event].sound) continue
-        //             if (!sound_defs[_sounds[sound].events[event].sound]) continue
-        //             console.log(_sounds[sound].events[event].sound)
-        //             SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
-        //                 {
-        //                     name: "pitchlow",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //                 },
-        //                 {
-        //                     name: "pitchhigh",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //                 },
-        //                 {
-        //                     name: "vollow",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //                 },
-        //                 {
-        //                     name: "volhigh",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //                 },
-        //                 {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
-        //                 {name: "type", type: mssql.TYPES.VarChar(100), data: event},
-        //                 {name: "defid", type: mssql.TYPES.Int(), data: sound_defs[_sounds[sound].events[event].sound].id},
-        //             ])
-        //
-        //         }
-        //     }
-        //
-        //     _sounds = sounds.individual_event_sounds.events
-        //     await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (1, 1, 1, 1, 'indiv', 'individual_event_sounds');")
-        //
-        //     let individual_id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = 'indiv'")).recordset[0].SoundGroupID
-        //     for (let event of Object.keys(_sounds)) {
-        //         if (!_sounds[event].sound) continue
-        //         if (!sound_defs[_sounds[event].sound]) continue
-        //         console.log(_sounds[event].sound)
-        //         SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
-        //             {
-        //                 name: "pitchlow",
-        //                 type: mssql.TYPES.Float(),
-        //                 data: Array.isArray(_sounds[event].pitch) ? _sounds[event].pitch[0] : (_sounds[event].pitch || 1)
-        //             },
-        //             {
-        //                 name: "pitchhigh",
-        //                 type: mssql.TYPES.Float(),
-        //                 data: Array.isArray(_sounds[event].pitch) ? _sounds[event].pitch[1] : (_sounds[event].pitch || 1)
-        //             },
-        //             {
-        //                 name: "vollow",
-        //                 type: mssql.TYPES.Float(),
-        //                 data: Array.isArray(_sounds[event].pitch) ? _sounds[event].volume[0] : (_sounds[event].volume || 1)
-        //             },
-        //             {
-        //                 name: "volhigh",
-        //                 type: mssql.TYPES.Float(),
-        //                 data: Array.isArray(_sounds[event].pitch) ? _sounds[event].volume[1] : (_sounds[event].volume || 1)
-        //             },
-        //             {name: "id", type: mssql.TYPES.Int(), data: individual_id},
-        //             {name: "type", type: mssql.TYPES.VarChar(100), data: event},
-        //             {name: "defid", type: mssql.TYPES.Int(), data: sound_defs[_sounds[event].sound].id},
-        //         ])
-        //
-        //     }
-        //
-        //     _sounds = sounds.interactive_sounds.block_sounds
-        //     for (let sound of Object.keys(_sounds)) {
-        //         let _sounds = sounds.block_sounds
-        //         let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //         let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //         let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //         let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
-        //             {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
-        //             {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
-        //             {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
-        //             {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
-        //             {name: "type", type: mssql.TYPES.VarChar(100), data: "interactive_sounds.block_sounds"},
-        //         ])
-        //
-        //         _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
-        //             name: "name",
-        //             type: mssql.TYPES.VarChar(100),
-        //             data: sound
-        //         }])).recordset[0].SoundGroupID
-        //
-        //         for (let event of Object.keys(_sounds[sound].events)) {
-        //             if (!_sounds[sound].events[event].sound) continue
-        //             if (!sound_defs[_sounds[sound].events[event].sound]) continue
-        //             console.log(_sounds[sound].events[event].sound)
-        //             SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
-        //                 {
-        //                     name: "pitchlow",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //                 },
-        //                 {
-        //                     name: "pitchhigh",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //                 },
-        //                 {
-        //                     name: "vollow",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //                 },
-        //                 {
-        //                     name: "volhigh",
-        //                     type: mssql.TYPES.Float(),
-        //                     data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //                 },
-        //                 {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
-        //                 {name: "type", type: mssql.TYPES.VarChar(100), data: event},
-        //                 {name: "defid", type: mssql.TYPES.Int(), data: sound_defs[_sounds[sound].events[event].sound].id},
-        //             ])
-        //
-        //         }
-        //     }
-        //
-        //     _sounds = sounds.interactive_sounds.entity_sounds.entities
-        //     for (let sound of Object.keys(_sounds)) {
-        //         for (let sound of Object.keys(_sounds)) {
-        //             console.log(_sounds[sound])
-        //             let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //             let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //             let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //             let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //             await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
-        //                 {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
-        //                 {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
-        //                 {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
-        //                 {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
-        //                 {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
-        //                 {name: "type", type: mssql.TYPES.VarChar(100), data: "interactive_sounds.entity_sounds"},
-        //             ])
-        //
-        //             _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
-        //                 name: "name",
-        //                 type: mssql.TYPES.VarChar(100),
-        //                 data: sound
-        //             }])).recordset[0].SoundGroupID
-        //
-        //             sounds.interactive_sounds.entity_sounds.entities[sound].id = _sounds[sound].id
-        //
-        //             if (!_sounds[sound].events) continue
-        //             for (let event of Object.keys(_sounds[sound].events)) {
-        //                 if (!_sounds[sound].events[event].sound) continue
-        //                 if (!sound_defs[_sounds[sound].events[event].sound]) continue
-        //                 console.log(_sounds[sound].events[event].sound)
-        //                 SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
-        //                     {
-        //                         name: "pitchlow",
-        //                         type: mssql.TYPES.Float(),
-        //                         data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
-        //                     },
-        //                     {
-        //                         name: "pitchhigh",
-        //                         type: mssql.TYPES.Float(),
-        //                         data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
-        //                     },
-        //                     {
-        //                         name: "vollow",
-        //                         type: mssql.TYPES.Float(),
-        //                         data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
-        //                     },
-        //                     {
-        //                         name: "volhigh",
-        //                         type: mssql.TYPES.Float(),
-        //                         data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
-        //                     },
-        //                     {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
-        //                     {name: "type", type: mssql.TYPES.VarChar(100), data: event},
-        //                     {
-        //                         name: "defid",
-        //                         type: mssql.TYPES.Int(),
-        //                         data: sound_defs[_sounds[sound].events[event].sound].id
-        //                     },
-        //                 ])
-        //
-        //             }
-        //         }
-        //     }
-        //     // IMPORT TEXTURES
-        //     let terrain_textures = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/textures/terrain_texture.json").toString()).texture_data
-        //     for (let item of Object.keys(terrain_textures)) {
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackTextureGroups (GameID, type) VALUES (@item, 'terrain_texture');", [
-        //             {name: "item", type: mssql.TYPES.VarChar(100), data: item}
-        //         ])
-        //         terrain_textures[item].id = (await SafeQuery("SELECT TextureGroupID FROM dbo.PackTextureGroups WHERE GameID = @item AND type = 'terrain_texture'", [
-        //             {name: "item", type: mssql.TYPES.VarChar(100), data: item}
-        //         ])).recordset[0].TextureGroupID
-        //         if (!terrain_textures[item].textures) continue
-        //         let sub_textures = Array.isArray(terrain_textures[item].textures) ? terrain_textures[item].textures : [terrain_textures[item].textures]
-        //         for (let i = 0; i < sub_textures.length; i++) {
-        //             if (typeof sub_textures[i] === "string") {
-        //                 SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile) VALUES (@id, @pos, @deffile)", [
-        //                     {name: "id", type: mssql.TYPES.Int(), data: terrain_textures[item].id},
-        //                     {name: "pos", type: mssql.TYPES.Int(), data: i},
-        //                     {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i]}
-        //                 ])
-        //             }
-        //             else {
-        //                 SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile, OverlayColor) VALUES (@id, @pos, @deffile, @color)", [
-        //                     {name: "id", type: mssql.TYPES.Int(), data: terrain_textures[item].id},
-        //                     {name: "pos", type: mssql.TYPES.Int(), data: i},
-        //                     {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i].path},
-        //                     {
-        //                         name: "color",
-        //                         type: mssql.TYPES.VarChar(100),
-        //                         data: sub_textures[i].overlay_color ? sub_textures[i].overlay_color.replace("#", "") : null
-        //                     }
-        //                 ])
-        //             }
-        //         }
-        //     }
-        //
-        //     let item_textures = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/textures/item_texture.json").toString()).texture_data
-        //     for (let item of Object.keys(item_textures)) {
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackTextureGroups (GameID, type) VALUES (@item, 'item_texture');", [
-        //             {name: "item", type: mssql.TYPES.VarChar(100), data: item}
-        //         ])
-        //         item_textures[item].id = (await SafeQuery("SELECT TextureGroupID FROM dbo.PackTextureGroups WHERE GameID = @item AND type = 'item_texture'", [
-        //             {name: "item", type: mssql.TYPES.VarChar(100), data: item}
-        //         ])).recordset[0].TextureGroupID
-        //
-        //         SafeQuery("INSERT INTO CrashBot.dbo.PackItems (PackID, TextureGroupID, GameID) VALUES (1, @id, @gameid);", [
-        //             {name: "id", type: mssql.TYPES.Int(), data: item_textures[item].id},
-        //             {name: "gameid", type: mssql.TYPES.VarChar(100), data: item}
-        //         ])
-        //
-        //         if (!item_textures[item].textures) continue
-        //         let sub_textures = Array.isArray(item_textures[item].textures) ? item_textures[item].textures : [item_textures[item].textures]
-        //         for (let i = 0; i < sub_textures.length; i++) {
-        //             if (typeof sub_textures[i] === "string") {
-        //                 SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile) VALUES (@id, @pos, @deffile)", [
-        //                     {name: "id", type: mssql.TYPES.Int(), data: item_textures[item].id},
-        //                     {name: "pos", type: mssql.TYPES.Int(), data: i},
-        //                     {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i]}
-        //                 ])
-        //             }
-        //             else {
-        //                 SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile, OverlayColor) VALUES (@id, @pos, @deffile, @color)", [
-        //                     {name: "id", type: mssql.TYPES.Int(), data: item_textures[item].id},
-        //                     {name: "pos", type: mssql.TYPES.Int(), data: i},
-        //                     {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i].path},
-        //                     {
-        //                         name: "color",
-        //                         type: mssql.TYPES.VarChar(100),
-        //                         data: sub_textures[i].overlay_color ? sub_textures[i].overlay_color.replace("#", "") : null
-        //                     }
-        //                 ])
-        //             }
-        //         }
-        //     }
-        //
-        //     // IMPORT BLOCKS
-        //     let blocks = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/blocks.json").toString())
-        //     for (let item of Object.keys(blocks)) {
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackBlocks (PackID, GameID, SoundGroupID) VALUES (1, @name, @sound);", [
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: item},
-        //             {
-        //                 name: "sound",
-        //                 type: mssql.TYPES.Int(),
-        //                 data: blocks[item].sound ? sounds.block_sounds[blocks[item].sound].id : null
-        //             }
-        //         ])
-        //         blocks[item].id = (await SafeQuery("SELECT BlockID FROM dbo.PackBlocks WHERE GameID = @name", [
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: item}
-        //         ])).recordset[0].BlockID
-        //
-        //         if (!blocks[item].textures) continue
-        //         let block_textures = typeof blocks[item].textures === "string" ? {default: blocks[item].textures} : blocks[item].textures
-        //         for (let texture of Object.keys(block_textures)) {
-        //             SafeQuery('INSERT INTO CrashBot.dbo.PackBlockTextures (BlockID, TextureGroupID, Type) VALUES (@id, @textureid, @type);', [
-        //                 {name: "id", type: mssql.TYPES.Int(), data: blocks[item].id},
-        //                 {name: "textureid", type: mssql.TYPES.Int(), data: terrain_textures[block_textures[texture]].id},
-        //                 {name: "type", type: mssql.TYPES.VarChar(100), data: texture}
-        //             ])
-        //         }
-        //     }
-        //
-        //     // IMPORT ENTITIES
-        //     let array_entities = fs.readdirSync(path.resolve("./") + "/assets/pack/entity").map(file => {
-        //         console.log(file);
-        //         return JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/entity/" + file).toString())
-        //     })
-        //     let entities: any = {}
-        //     // De-duplicate entities
-        //     for (let entity of array_entities) entities[entity["minecraft:client_entity"]["description"]["identifier"]] = entity
-        //     array_entities = Object.values(entities)
-        //     entities = {}
-        //
-        //     for (let entity of array_entities) {
-        //         let identifier = entity["minecraft:client_entity"]["description"]["identifier"]
-        //         entities[identifier] = entity
-        //         let sound_group = sounds.entity_sounds.entities[identifier.split(":")[1]] || null
-        //         let interactive_sound_group = sounds.interactive_sounds.entity_sounds.entities[identifier.split(":")[1]] || null
-        //         await SafeQuery("INSERT INTO CrashBot.dbo.PackEntities (PackID, identifier, SoundGroupID, InteractiveSoundGroupID) VALUES (1, @name, @sgroup, @isgroup);", [
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: identifier},
-        //             {name: "sgroup", type: mssql.TYPES.Int(), data: sound_group ? sound_group.id : null},
-        //             {
-        //                 name: "isgroup",
-        //                 type: mssql.TYPES.Int(),
-        //                 data: interactive_sound_group ? interactive_sound_group.id : null
-        //             }
-        //         ])
-        //         entities[identifier].id = (await SafeQuery("SELECT EntityID FROM dbo.PackEntities WHERE identifier = @name", [
-        //             {name: "name", type: mssql.TYPES.VarChar(100), data: identifier}
-        //         ])).recordset[0].EntityID
-        //
-        //         if (!entity["minecraft:client_entity"]["description"].textures) continue
-        //         let entity_textures = typeof entity["minecraft:client_entity"]["description"].textures === "string" ? {default: entity["minecraft:client_entity"]["description"].textures} : entity["minecraft:client_entity"]["description"].textures
-        //         for (let texture of Object.keys(entity_textures)) {
-        //             await SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (Position, DefaultFile) VALUES (0, @deffile)", [
-        //                 {name: "deffile", type: mssql.TYPES.VarChar(100), data: entity_textures[texture]}
-        //             ])
-        //
-        //             let id = (await SafeQuery("SELECT TextureID FROM dbo.PackTextures WHERE DefaultFile = @deffile", [
-        //                 {name: "deffile", type: mssql.TYPES.VarChar(100), data: entity_textures[texture]}
-        //             ])).recordset[0].TextureID
-        //
-        //             SafeQuery('INSERT INTO CrashBot.dbo.PackEntityTextures (EntityID, TextureID, Type) VALUES (@entity, @texture, @type);', [
-        //                 {name: "entity", type: mssql.TYPES.Int(), data: entities[identifier].id},
-        //                 {name: "texture", type: mssql.TYPES.Int(), data: id},
-        //                 {name: "type", type: mssql.TYPES.VarChar(100), data: texture}
-        //             ])
-        //         }
-        //     }
-        //
-        //     // for (let item of fs.readdirSync(path.resolve("./") + "/assets/pack/assets/minecraft")) {
-        //     //     console.log(item)
-        //     //     await processItem(path.resolve("./") + "/assets/pack/assets/", path.resolve("./") + "/assets/pack/assets/minecraft", item)
-        //     // }
-        //     //
-        //     // for (let item of fs.readdirSync(path.resolve("./") + "/assets/pack/assets/realms")) {
-        //     //     console.log(item)
-        //     //     await processItem(path.resolve("./") + "/assets/pack/assets/", path.resolve("./") + "/assets/pack/assets/realms", item)
-        //     // }
-        //
-        //     // IMPORT LANGUAGES
-        //     // console.log("Importing languages")
-        //     // let percent = 0
-        //     //
-        //     // let languages = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/texts/language_names.json").toString())
-        //     // queries = []
-        //     // for (let i = 0; i < languages.length; i++) {
-        //     //     let language = languages[i]
-        //     //     queries.push(`INSERT INTO CrashBot.dbo.PackLanguages (LanguageID, LanguageName, PackID)
-        //     //                   VALUES ('${language[0]}', '${language[1]}', 1);`)
-        //     //
-        //     //     // Parse language items
-        //     //     let language_items = fs.readFileSync(path.resolve("./") + "/assets/pack/texts/" + language[0] + ".lang").toString().split("\n")
-        //     //     for (let r = 0; r < language_items.length; r++) {
-        //     //         let item = language_items[r]
-        //     //         if (item.startsWith("#")) continue // This is a comment line
-        //     //         if (!(item.includes("=") && item.includes("#"))) continue // Invalid line
-        //     //
-        //     //         let item_split = item.split("=")
-        //     //         let game_item = item_split[0]
-        //     //
-        //     //         let item_split_2 = item_split[1].split("#")
-        //     //         let name = item_split_2[0]
-        //     //         await SafeQuery("INSERT INTO CrashBot.dbo.PackLanguageItems (LanguageID, Text, GameItem) VALUES (@language, @text, @item)", [
-        //     //             {name: "language", type: mssql.TYPES.Char(5), data: language[0]},
-        //     //             {name: "text", type: mssql.TYPES.VarChar(100), data: name},
-        //     //             {name: "item", type: mssql.TYPES.VarChar(100), data: game_item}
-        //     //         ])
-        //     //         if (Math.floor(((r + (i * language_items.length)) / (language_items.length * languages.length)) * 100) > percent) {
-        //     //             percent = Math.floor(((r + (i * language_items.length)) / (language_items.length * languages.length)) * 100)
-        //     //             console.log(percent + "%")
-        //     //         }
-        //     //     }
-        //     // }
-        //     // await SafeQuery(queries.join(";") + ";")
-        //     queries = []
-        //
-        //     console.log("DONE!")
-        // }
-        // else {
-        //     console.log("Logging into Discord...")
-        //     client.login(fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString())
-        // }
+        // let manifest = await getManifest()
+        // console.log(manifest.)
+        // console.log(manifest)
+
+
+        if (false) {
+            // Process pack blocks
+            // let blocks = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/blocks.json").toString())
+            let sound_defs = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/sounds/sound_definitions.json").toString()).sound_definitions
+            let queries = []
+
+            for (let item of Object.keys(sound_defs)) {
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundDefinitions (Name, category) VALUES (@name, @category);", [
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: item},
+                    {name: "category", type: mssql.TYPES.VarChar(100), data: sound_defs[item].category}
+                ])
+                sound_defs[item].id = (await SafeQuery("SELECT SoundDefID FROM CrashBot.dbo.PackSoundDefinitions WHERE Name = @name;", [
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: item}
+                ])).recordset[0].SoundDefID
+
+                for (let sound of sound_defs[item].sounds) {
+                    if (typeof sound === "string") {
+                        queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, DefaultFile)
+                                      VALUES (${sound_defs[item].id}, '${sound}')`)
+                    }
+                    else {
+                        // SafeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch) VALUES (@defid, @is3D, @vol, @pitch);", [
+                        //     {name: "defid", type: mssql.TYPES.Int(), data: sound_defs[item].id},
+                        //     {name: "is3D", type: mssql.TYPES.Bit(), data: sound.is3D || false},
+                        //     {name: "vol", type: mssql.TYPES.Decimal, data: sound.volume || 1},
+                        //     {name: "pitch", type: mssql.TYPES.Decimal, data: sound.pitch || 1},
+                        //     {name: "weight", type: mssql.TYPES.Int(), data: sound.weight || 1}
+                        // ])
+                        queries.push(`INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, DefaultFile)
+                                      VALUES (${sound_defs[item].id},
+                                              ${sound.is3D || typeof sound.is3D === "undefined" ? 1 : 0},
+                                              ${sound.volume || 1},
+                                              ${sound.pitch || 1}, '${sound.name}')`)
+                    }
+                }
+                // console.log(sound_defs[item].id)
+            }
+            await SafeQuery(queries.join(";") + ";")
+
+            let sounds = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/sounds.json").toString())
+            let _sounds
+            _sounds = sounds.block_sounds
+            for (let sound of Object.keys(_sounds)) {
+                let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
+                    {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
+                    {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
+                    {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
+                    {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
+                    {name: "type", type: mssql.TYPES.VarChar(100), data: "block_sounds"},
+                ])
+
+                _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
+                    name: "name",
+                    type: mssql.TYPES.VarChar(100),
+                    data: sound
+                }])).recordset[0].SoundGroupID
+
+                for (let event of Object.keys(_sounds[sound].events)) {
+                    if (!_sounds[sound].events[event].sound) continue
+                    if (!sound_defs[_sounds[sound].events[event].sound]) continue
+                    console.log(_sounds[sound].events[event].sound)
+                    SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
+                        {
+                            name: "pitchlow",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                        },
+                        {
+                            name: "pitchhigh",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                        },
+                        {
+                            name: "vollow",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                        },
+                        {
+                            name: "volhigh",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                        },
+                        {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
+                        {name: "type", type: mssql.TYPES.VarChar(100), data: event},
+                        {
+                            name: "defid",
+                            type: mssql.TYPES.Int(),
+                            data: sound_defs[_sounds[sound].events[event].sound].id
+                        },
+                    ])
+
+                }
+            }
+
+            _sounds = sounds.entity_sounds.entities
+            for (let sound of Object.keys(_sounds)) {
+                let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
+                    {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
+                    {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
+                    {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
+                    {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
+                    {name: "type", type: mssql.TYPES.VarChar(100), data: "block_sounds"},
+                ])
+
+                _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
+                    name: "name",
+                    type: mssql.TYPES.VarChar(100),
+                    data: sound
+                }])).recordset[0].SoundGroupID
+
+                sounds.entity_sounds.entities[sound].id = _sounds[sound].id
+
+                for (let event of Object.keys(_sounds[sound].events)) {
+                    if (!_sounds[sound].events[event].sound) continue
+                    if (!sound_defs[_sounds[sound].events[event].sound]) continue
+                    console.log(_sounds[sound].events[event].sound)
+                    SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
+                        {
+                            name: "pitchlow",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                        },
+                        {
+                            name: "pitchhigh",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                        },
+                        {
+                            name: "vollow",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                        },
+                        {
+                            name: "volhigh",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                        },
+                        {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
+                        {name: "type", type: mssql.TYPES.VarChar(100), data: event},
+                        {
+                            name: "defid",
+                            type: mssql.TYPES.Int(),
+                            data: sound_defs[_sounds[sound].events[event].sound].id
+                        },
+                    ])
+
+                }
+            }
+
+            _sounds = sounds.individual_event_sounds.events
+            await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (1, 1, 1, 1, 'indiv', 'individual_event_sounds');")
+
+            let individual_id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = 'indiv'")).recordset[0].SoundGroupID
+            for (let event of Object.keys(_sounds)) {
+                if (!_sounds[event].sound) continue
+                if (!sound_defs[_sounds[event].sound]) continue
+                console.log(_sounds[event].sound)
+                SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
+                    {
+                        name: "pitchlow",
+                        type: mssql.TYPES.Float(),
+                        data: Array.isArray(_sounds[event].pitch) ? _sounds[event].pitch[0] : (_sounds[event].pitch || 1)
+                    },
+                    {
+                        name: "pitchhigh",
+                        type: mssql.TYPES.Float(),
+                        data: Array.isArray(_sounds[event].pitch) ? _sounds[event].pitch[1] : (_sounds[event].pitch || 1)
+                    },
+                    {
+                        name: "vollow",
+                        type: mssql.TYPES.Float(),
+                        data: Array.isArray(_sounds[event].pitch) ? _sounds[event].volume[0] : (_sounds[event].volume || 1)
+                    },
+                    {
+                        name: "volhigh",
+                        type: mssql.TYPES.Float(),
+                        data: Array.isArray(_sounds[event].pitch) ? _sounds[event].volume[1] : (_sounds[event].volume || 1)
+                    },
+                    {name: "id", type: mssql.TYPES.Int(), data: individual_id},
+                    {name: "type", type: mssql.TYPES.VarChar(100), data: event},
+                    {name: "defid", type: mssql.TYPES.Int(), data: sound_defs[_sounds[event].sound].id},
+                ])
+
+            }
+
+            _sounds = sounds.interactive_sounds.block_sounds
+            for (let sound of Object.keys(_sounds)) {
+                let _sounds = sounds.block_sounds
+                let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
+                    {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
+                    {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
+                    {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
+                    {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
+                    {name: "type", type: mssql.TYPES.VarChar(100), data: "interactive_sounds.block_sounds"},
+                ])
+
+                _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
+                    name: "name",
+                    type: mssql.TYPES.VarChar(100),
+                    data: sound
+                }])).recordset[0].SoundGroupID
+
+                for (let event of Object.keys(_sounds[sound].events)) {
+                    if (!_sounds[sound].events[event].sound) continue
+                    if (!sound_defs[_sounds[sound].events[event].sound]) continue
+                    console.log(_sounds[sound].events[event].sound)
+                    SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
+                        {
+                            name: "pitchlow",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                        },
+                        {
+                            name: "pitchhigh",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                        },
+                        {
+                            name: "vollow",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                        },
+                        {
+                            name: "volhigh",
+                            type: mssql.TYPES.Float(),
+                            data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                        },
+                        {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
+                        {name: "type", type: mssql.TYPES.VarChar(100), data: event},
+                        {
+                            name: "defid",
+                            type: mssql.TYPES.Int(),
+                            data: sound_defs[_sounds[sound].events[event].sound].id
+                        },
+                    ])
+
+                }
+            }
+
+            _sounds = sounds.interactive_sounds.entity_sounds.entities
+            for (let sound of Object.keys(_sounds)) {
+                for (let sound of Object.keys(_sounds)) {
+                    console.log(_sounds[sound])
+                    let pitch_low = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                    let pitch_high = Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                    let vol_low = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                    let vol_high = Array.isArray(_sounds[sound].volume) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                    await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (@pitchlow, @pitchhigh, @vollow, @volhigh, @name, @type);", [
+                        {name: "pitchlow", type: mssql.TYPES.Float(), data: pitch_low},
+                        {name: "pitchhigh", type: mssql.TYPES.Float(), data: pitch_high},
+                        {name: "vollow", type: mssql.TYPES.Float(), data: vol_low},
+                        {name: "volhigh", type: mssql.TYPES.Float(), data: vol_high},
+                        {name: "name", type: mssql.TYPES.VarChar(100), data: sound},
+                        {name: "type", type: mssql.TYPES.VarChar(100), data: "interactive_sounds.entity_sounds"},
+                    ])
+
+                    _sounds[sound].id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = @name", [{
+                        name: "name",
+                        type: mssql.TYPES.VarChar(100),
+                        data: sound
+                    }])).recordset[0].SoundGroupID
+
+                    sounds.interactive_sounds.entity_sounds.entities[sound].id = _sounds[sound].id
+
+                    if (!_sounds[sound].events) continue
+                    for (let event of Object.keys(_sounds[sound].events)) {
+                        if (!_sounds[sound].events[event].sound) continue
+                        if (!sound_defs[_sounds[sound].events[event].sound]) continue
+                        console.log(_sounds[sound].events[event].sound)
+                        SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroupEvents (SoundGroupID, EventType, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID) VALUES (@id, @type, @pitchhigh, @pitchlow, @volhigh, @vollow, @defid);", [
+                            {
+                                name: "pitchlow",
+                                type: mssql.TYPES.Float(),
+                                data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[0] : (_sounds[sound].pitch || 1)
+                            },
+                            {
+                                name: "pitchhigh",
+                                type: mssql.TYPES.Float(),
+                                data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].pitch[1] : (_sounds[sound].pitch || 1)
+                            },
+                            {
+                                name: "vollow",
+                                type: mssql.TYPES.Float(),
+                                data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[0] : (_sounds[sound].volume || 1)
+                            },
+                            {
+                                name: "volhigh",
+                                type: mssql.TYPES.Float(),
+                                data: Array.isArray(_sounds[sound].pitch) ? _sounds[sound].volume[1] : (_sounds[sound].volume || 1)
+                            },
+                            {name: "id", type: mssql.TYPES.Int(), data: _sounds[sound].id},
+                            {name: "type", type: mssql.TYPES.VarChar(100), data: event},
+                            {
+                                name: "defid",
+                                type: mssql.TYPES.Int(),
+                                data: sound_defs[_sounds[sound].events[event].sound].id
+                            },
+                        ])
+
+                    }
+                }
+            }
+            // IMPORT TEXTURES
+            let terrain_textures = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/textures/terrain_texture.json").toString()).texture_data
+            for (let item of Object.keys(terrain_textures)) {
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackTextureGroups (GameID, type) VALUES (@item, 'terrain_texture');", [
+                    {name: "item", type: mssql.TYPES.VarChar(100), data: item}
+                ])
+                terrain_textures[item].id = (await SafeQuery("SELECT TextureGroupID FROM dbo.PackTextureGroups WHERE GameID = @item AND type = 'terrain_texture'", [
+                    {name: "item", type: mssql.TYPES.VarChar(100), data: item}
+                ])).recordset[0].TextureGroupID
+                if (!terrain_textures[item].textures) continue
+                let sub_textures = Array.isArray(terrain_textures[item].textures) ? terrain_textures[item].textures : [terrain_textures[item].textures]
+                for (let i = 0; i < sub_textures.length; i++) {
+                    if (typeof sub_textures[i] === "string") {
+                        SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile) VALUES (@id, @pos, @deffile)", [
+                            {name: "id", type: mssql.TYPES.Int(), data: terrain_textures[item].id},
+                            {name: "pos", type: mssql.TYPES.Int(), data: i},
+                            {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i]}
+                        ])
+                    }
+                    else {
+                        SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile, OverlayColor) VALUES (@id, @pos, @deffile, @color)", [
+                            {name: "id", type: mssql.TYPES.Int(), data: terrain_textures[item].id},
+                            {name: "pos", type: mssql.TYPES.Int(), data: i},
+                            {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i].path},
+                            {
+                                name: "color",
+                                type: mssql.TYPES.VarChar(100),
+                                data: sub_textures[i].overlay_color ? sub_textures[i].overlay_color.replace("#", "") : null
+                            }
+                        ])
+                    }
+                }
+            }
+
+            let item_textures = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/textures/item_texture.json").toString()).texture_data
+            for (let item of Object.keys(item_textures)) {
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackTextureGroups (GameID, type) VALUES (@item, 'item_texture');", [
+                    {name: "item", type: mssql.TYPES.VarChar(100), data: item}
+                ])
+                item_textures[item].id = (await SafeQuery("SELECT TextureGroupID FROM dbo.PackTextureGroups WHERE GameID = @item AND type = 'item_texture'", [
+                    {name: "item", type: mssql.TYPES.VarChar(100), data: item}
+                ])).recordset[0].TextureGroupID
+
+                SafeQuery("INSERT INTO CrashBot.dbo.PackItems (PackID, TextureGroupID, GameID) VALUES (1, @id, @gameid);", [
+                    {name: "id", type: mssql.TYPES.Int(), data: item_textures[item].id},
+                    {name: "gameid", type: mssql.TYPES.VarChar(100), data: item}
+                ])
+
+                if (!item_textures[item].textures) continue
+                let sub_textures = Array.isArray(item_textures[item].textures) ? item_textures[item].textures : [item_textures[item].textures]
+                for (let i = 0; i < sub_textures.length; i++) {
+                    if (typeof sub_textures[i] === "string") {
+                        SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile) VALUES (@id, @pos, @deffile)", [
+                            {name: "id", type: mssql.TYPES.Int(), data: item_textures[item].id},
+                            {name: "pos", type: mssql.TYPES.Int(), data: i},
+                            {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i]}
+                        ])
+                    }
+                    else {
+                        SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (TextureGroupID, Position, DefaultFile, OverlayColor) VALUES (@id, @pos, @deffile, @color)", [
+                            {name: "id", type: mssql.TYPES.Int(), data: item_textures[item].id},
+                            {name: "pos", type: mssql.TYPES.Int(), data: i},
+                            {name: "deffile", type: mssql.TYPES.VarChar(100), data: sub_textures[i].path},
+                            {
+                                name: "color",
+                                type: mssql.TYPES.VarChar(100),
+                                data: sub_textures[i].overlay_color ? sub_textures[i].overlay_color.replace("#", "") : null
+                            }
+                        ])
+                    }
+                }
+            }
+
+            // IMPORT BLOCKS
+            let blocks = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/blocks.json").toString())
+            for (let item of Object.keys(blocks)) {
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackBlocks (PackID, GameID, SoundGroupID) VALUES (1, @name, @sound);", [
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: item},
+                    {
+                        name: "sound",
+                        type: mssql.TYPES.Int(),
+                        data: blocks[item].sound ? sounds.block_sounds[blocks[item].sound].id : null
+                    }
+                ])
+                blocks[item].id = (await SafeQuery("SELECT BlockID FROM dbo.PackBlocks WHERE GameID = @name", [
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: item}
+                ])).recordset[0].BlockID
+
+                if (!blocks[item].textures) continue
+                let block_textures = typeof blocks[item].textures === "string" ? {default: blocks[item].textures} : blocks[item].textures
+                for (let texture of Object.keys(block_textures)) {
+                    SafeQuery('INSERT INTO CrashBot.dbo.PackBlockTextures (BlockID, TextureGroupID, Type) VALUES (@id, @textureid, @type);', [
+                        {name: "id", type: mssql.TYPES.Int(), data: blocks[item].id},
+                        {
+                            name: "textureid",
+                            type: mssql.TYPES.Int(),
+                            data: terrain_textures[block_textures[texture]].id
+                        },
+                        {name: "type", type: mssql.TYPES.VarChar(100), data: texture}
+                    ])
+                }
+            }
+
+            // IMPORT ENTITIES
+            let array_entities = fs.readdirSync(path.resolve("./") + "/assets/pack/entity").map(file => {
+                console.log(file);
+                return JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/entity/" + file).toString())
+            })
+            let entities: any = {}
+            // De-duplicate entities
+            for (let entity of array_entities) entities[entity["minecraft:client_entity"]["description"]["identifier"]] = entity
+            array_entities = Object.values(entities)
+            entities = {}
+
+            for (let entity of array_entities) {
+                let identifier = entity["minecraft:client_entity"]["description"]["identifier"]
+                entities[identifier] = entity
+                let sound_group = sounds.entity_sounds.entities[identifier.split(":")[1]] || null
+                let interactive_sound_group = sounds.interactive_sounds.entity_sounds.entities[identifier.split(":")[1]] || null
+                await SafeQuery("INSERT INTO CrashBot.dbo.PackEntities (PackID, identifier, SoundGroupID, InteractiveSoundGroupID) VALUES (1, @name, @sgroup, @isgroup);", [
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: identifier},
+                    {name: "sgroup", type: mssql.TYPES.Int(), data: sound_group ? sound_group.id : null},
+                    {
+                        name: "isgroup",
+                        type: mssql.TYPES.Int(),
+                        data: interactive_sound_group ? interactive_sound_group.id : null
+                    }
+                ])
+                entities[identifier].id = (await SafeQuery("SELECT EntityID FROM dbo.PackEntities WHERE identifier = @name", [
+                    {name: "name", type: mssql.TYPES.VarChar(100), data: identifier}
+                ])).recordset[0].EntityID
+
+                if (!entity["minecraft:client_entity"]["description"].textures) continue
+                let entity_textures = typeof entity["minecraft:client_entity"]["description"].textures === "string" ? {default: entity["minecraft:client_entity"]["description"].textures} : entity["minecraft:client_entity"]["description"].textures
+                for (let texture of Object.keys(entity_textures)) {
+                    await SafeQuery("INSERT INTO CrashBot.dbo.PackTextures (Position, DefaultFile) VALUES (0, @deffile)", [
+                        {name: "deffile", type: mssql.TYPES.VarChar(100), data: entity_textures[texture]}
+                    ])
+
+                    let id = (await SafeQuery("SELECT TextureID FROM dbo.PackTextures WHERE DefaultFile = @deffile", [
+                        {name: "deffile", type: mssql.TYPES.VarChar(100), data: entity_textures[texture]}
+                    ])).recordset[0].TextureID
+
+                    SafeQuery('INSERT INTO CrashBot.dbo.PackEntityTextures (EntityID, TextureID, Type) VALUES (@entity, @texture, @type);', [
+                        {name: "entity", type: mssql.TYPES.Int(), data: entities[identifier].id},
+                        {name: "texture", type: mssql.TYPES.Int(), data: id},
+                        {name: "type", type: mssql.TYPES.VarChar(100), data: texture}
+                    ])
+                }
+            }
+
+            // for (let item of fs.readdirSync(path.resolve("./") + "/assets/pack/assets/minecraft")) {
+            //     console.log(item)
+            //     await processItem(path.resolve("./") + "/assets/pack/assets/", path.resolve("./") + "/assets/pack/assets/minecraft", item)
+            // }
+            //
+            // for (let item of fs.readdirSync(path.resolve("./") + "/assets/pack/assets/realms")) {
+            //     console.log(item)
+            //     await processItem(path.resolve("./") + "/assets/pack/assets/", path.resolve("./") + "/assets/pack/assets/realms", item)
+            // }
+
+            // IMPORT LANGUAGES
+            // console.log("Importing languages")
+            // let percent = 0
+            //
+            // let languages = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/texts/language_names.json").toString())
+            // queries = []
+            // for (let i = 0; i < languages.length; i++) {
+            //     let language = languages[i]
+            //     queries.push(`INSERT INTO CrashBot.dbo.PackLanguages (LanguageID, LanguageName, PackID)
+            //                   VALUES ('${language[0]}', '${language[1]}', 1);`)
+            //
+            //     // Parse language items
+            //     let language_items = fs.readFileSync(path.resolve("./") + "/assets/pack/texts/" + language[0] + ".lang").toString().split("\n")
+            //     for (let r = 0; r < language_items.length; r++) {
+            //         let item = language_items[r]
+            //         if (item.startsWith("#")) continue // This is a comment line
+            //         if (!(item.includes("=") && item.includes("#"))) continue // Invalid line
+            //
+            //         let item_split = item.split("=")
+            //         let game_item = item_split[0]
+            //
+            //         let item_split_2 = item_split[1].split("#")
+            //         let name = item_split_2[0]
+            //         await SafeQuery("INSERT INTO CrashBot.dbo.PackLanguageItems (LanguageID, Text, GameItem) VALUES (@language, @text, @item)", [
+            //             {name: "language", type: mssql.TYPES.Char(5), data: language[0]},
+            //             {name: "text", type: mssql.TYPES.VarChar(100), data: name},
+            //             {name: "item", type: mssql.TYPES.VarChar(100), data: game_item}
+            //         ])
+            //         if (Math.floor(((r + (i * language_items.length)) / (language_items.length * languages.length)) * 100) > percent) {
+            //             percent = Math.floor(((r + (i * language_items.length)) / (language_items.length * languages.length)) * 100)
+            //             console.log(percent + "%")
+            //         }
+            //     }
+            // }
+            // await SafeQuery(queries.join(";") + ";")
+            queries = []
+
+            console.log("DONE!")
+        }
+        else {
+            console.log("Logging into Discord...")
+            client.login(fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString())
+        }
     } catch (e) {
         console.log("Unable to connect to SQL server")
         console.error(e)
@@ -4297,6 +4799,7 @@ function download_ytdl(url: string, archive: archiver.Archiver): Promise<void> {
         }
     })
 }
+
 //
 // setTimeout(() => {
 //     rot_potato()

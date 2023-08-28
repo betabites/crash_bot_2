@@ -1,6 +1,19 @@
-import pkg from 'mssql';
-const { PreparedStatement, connect } = pkg;
-
+import pkg, {config} from 'mssql';
+const { PreparedStatement, ConnectionPool, connect } = pkg;
+const sql_config: config = {
+    user: "node_js",
+    password: "rDmX#8rAXAFa&ppD",
+    server: "192.168.2.140",
+    database: "CrashBot",
+    options: {
+        trustServerCertificate: true
+    },
+    pool: {
+        max: 10, // Maximum number of connections in the pool
+        min: 0,  // Minimum number of connections in the pool
+        idleTimeoutMillis: 30000, // How long a connection can be idle before being removed from the pool
+    }
+}
 import {ISqlType, ISqlTypeFactory} from "mssql";
 
 interface PreparedArgument {
@@ -9,39 +22,11 @@ interface PreparedArgument {
     data: string | number | Date | null
 }
 
-export function SafeQuery(sql: string, params: PreparedArgument[] = []): Promise<any> {
+export default async function SafeQuery(sql: string, params: PreparedArgument[] = []): Promise<pkg.IResult<any>> {
     // {name: '', type: mssql.VarChar, data: '')
-    return new Promise((resolve, reject) => {
-        const ps = new PreparedStatement()
-        let _params: any = {}
-        for (let param of params) {
-            ps.input(param.name, param.type)
-            _params[param.name] = param.data
-        }
+    let pool = await connect(sql_config)
 
-        ps.prepare(sql, err => {
-            if (err) {
-                reject(err);
-                return
-            }
-
-            ps.execute(_params, (err, result) => {
-                if (err) {
-                    reject(err);
-                    return
-                }
-                ps.unprepare(err => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    resolve(result)
-                })
-            })
-        })
-    })
-}
-
-export async function Connect() {
-    await connect("Server=192.168.2.140,1433;Database=CrashBot;User Id=node_js;Password=rDmX#8rAXAFa&ppD;trustServerCertificate=true")
+    let request = pool.request()
+    for (let param of params) request.input(param.name, param.type, param.data)
+    return await request.query(sql)
 }
