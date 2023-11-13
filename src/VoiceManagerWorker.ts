@@ -26,7 +26,6 @@ import * as path from "path";
 import * as stream from "stream";
 import {ActivityTypes} from "discord.js/typings/enums.js";
 import * as util from "util";
-import {Worker} from "worker_threads"
 
 export class VoiceConnectionManager extends EventEmitter {
     static connections = new Map<string, VoiceConnectionManager>()

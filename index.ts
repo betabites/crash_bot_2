@@ -3,11 +3,9 @@
 
 import express from "express"
 import fileUpload, {UploadedFile} from "express-fileupload"
-import ws from "ws"
 import fs from "fs"
-import {EventEmitter} from "node:events";
 import * as path from "path";
-import {spawn, exec} from "child_process"
+import {exec, spawn} from "child_process"
 import {
     client,
     downloadDiscordAttachment,
@@ -17,21 +15,19 @@ import {
 import ChatGPT from "./src/ChatGPT.js";
 import RemoteStatusServer, {Connection as ServerConnection} from "./src/RemoteStatusServer.js";
 import SafeQuery from "./src/SQL.js";
-import {searchIndex, FindOwnership, dirTree, Bank, BankResource, buildPack} from "./src/ResourcePackManager.js";
+import {Bank, BankResource, buildPack, dirTree, FindOwnership, searchIndex} from "./src/ResourcePackManager.js";
 import {CrashBotUser} from "./src/UserManager.js";
 import archiver from "archiver";
-import Jimp from "jimp";
-import {ItemType} from "./src/DestinyDefinitions/DestinyDefinitions.js";
 import Discord, {
-    TextChannel,
     Guild,
     GuildMember,
     Message,
-    Interaction,
     MessageComponentInteraction,
-    TextBasedChannel, BufferResolvable, User, CacheType
+    TextBasedChannel,
+    TextChannel,
+    User
 } from "discord.js";
-import {generateThrow, fetchThrowTemplates} from "./src/ThrowMaker.js";
+import {fetchThrowTemplates, generateThrow} from "./src/ThrowMaker.js";
 import ytdl from "ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
 import {PassThrough} from "stream";
@@ -42,17 +38,21 @@ import http from "http";
 import https from "https";
 import inspirobot from "inspirobot.js";
 import dotenv from "dotenv"
-import mssql from "mssql";
+import mssql, {IRecordSet, IResult} from "mssql";
 import randomWords from "random-words";
 import bad_baby_words from "./badwords.json" assert {type: "json"}
 import {
-    itemNameSearch,
-    buildItemMessage,
-    vendorNameSearch,
+    activityNameSearch,
     buildActivityMessage,
-    activityNameSearch, updateMSVendors, buildVendorMessage, setupBungieAPI, SetupNotifications
+    buildItemMessage,
+    buildVendorMessage,
+    itemNameSearch,
+    setupBungieAPI,
+    SetupNotifications,
+    vendorNameSearch
 } from "./src/Bungie.NET.js";
-import {getItem} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
+import {ApplicationCommandOptionTypes} from "discord.js/typings/enums.js";
+import {sendTwaggerPost, TWAGGER_POST_CHANNEL} from "./sendTwaggerPost.js";
 
 dotenv.config()
 
@@ -1462,7 +1462,9 @@ app.post("/packs/:packid/sounds/", express.json(), async (req, res) => {
         return
     }
 
-    let data: mssql.IResult<{ NewID: string }> = await SafeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, weight, enabled, PackID) VALUES (@sounddef, @is3D, @volume, @pitch, @weight, @enabled, @packid); SELECT @@IDENTITY AS NewID;", [
+    let data: mssql.IResult<{
+        NewID: string
+    }> = await SafeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, weight, enabled, PackID) VALUES (@sounddef, @is3D, @volume, @pitch, @weight, @enabled, @packid); SELECT @@IDENTITY AS NewID;", [
         {name: "sounddef", type: mssql.TYPES.Int(), data: req.body.SoundDefID},
         {name: "is3D", type: mssql.TYPES.Bit(), data: req.body.is3D},
         {name: "volume", type: mssql.TYPES.Int(), data: req.body.volume},
@@ -1694,10 +1696,10 @@ let wss = new WSS(httpServer, httpsServer)
 // })
 
 client.on("ready", async () => {
-    client.user?.setActivity("Experiencing MSSQL issues. Please expect bugs.", {
-        name: "Experiencing MSSQL issues. Please expect bugs.",
-        type: 4
-    })
+    // client.user?.setActivity("Experiencing MSSQL issues. Please expect bugs.", {
+    //     name: "Experiencing MSSQL issues. Please expect bugs.",
+    //     type: "CUSTOM"
+    // })
     // client.channels.fetch("892518365766242375")
     //     .then(channel => {
     //         // let embed = new Discord.MessageEmbed()
@@ -1721,14 +1723,68 @@ client.on("ready", async () => {
     })
 
     client.application?.commands.create({
-        name: "fetch_d2_item",
-        description: "Fetch info about any item, quest, mod, etc in D2",
-        options: [{
-            type: 3,
-            name: "name",
-            description: "The name of the item you are looking for",
-            required: true
-        }]
+        name: "sussybaka",
+        description: "Randomly DM a user from this role",
+        options: [
+            {
+                type: ApplicationCommandOptionTypes.ROLE,
+                name: "role",
+                description: "The role of which a random use will be selected from",
+                required: true
+            },
+            {
+                type: ApplicationCommandOptionTypes.STRING,
+                name: "sussy_baka_message",
+                description: "The message that will be sent to the selected random person",
+                required: true
+            },
+            {
+                type: ApplicationCommandOptionTypes.STRING,
+                name: "regular_message",
+                description: "The message that will be sent to everyone else",
+                required: true
+            },
+        ]
+    })
+
+    client.application?.commands.create({
+        name: "destiny2",
+        description: "Commands relating to Destiny 2",
+        options: [
+            {
+                type: ApplicationCommandOptionTypes.SUB_COMMAND,
+                name: "items",
+                description: "Fetch information about items available in Destiny 2",
+                options: [{
+                    type: 3,
+                    name: "name",
+                    description: "The name of the item you are looking for",
+                    required: true
+                }]
+            },
+            {
+                type: ApplicationCommandOptionTypes.SUB_COMMAND,
+                name: "vendors",
+                description: "Fetch information about activities available in Destiny 2",
+                options: [{
+                    type: 3,
+                    name: "name",
+                    description: "The name of the item you are looking for",
+                    required: true
+                }]
+            },
+            {
+                type: ApplicationCommandOptionTypes.SUB_COMMAND,
+                name: "activities",
+                description: "Fetch information about activities available in Destiny 2",
+                options: [{
+                    type: 3,
+                    name: "name",
+                    description: "The name of the item you are looking for",
+                    required: true
+                }]
+            }
+        ]
     })
 
     client.application?.commands.create({
@@ -1790,6 +1846,12 @@ client.on("ready", async () => {
                 name: "sample_size",
                 description: "The sample size you want to use. Default is 50",
                 required: false
+            },
+            {
+                type: 3,
+                name: "theme",
+                description: "Create a custom theme for your catchphrase",
+                required: false
             }
         ]
     })
@@ -1818,6 +1880,18 @@ client.on("ready", async () => {
     }).catch(e => {
         console.log("Failed to create /play")
         console.error(e)
+    })
+
+    client.application?.commands.fetch("1128904960407515226").then(command => {
+        command.delete()
+    })
+
+    client.application?.commands.fetch("1129974156960727040").then(command => {
+        command.delete()
+    })
+
+    client.application?.commands.fetch("1128539747258736670").then(command => {
+        command.delete()
     })
 
     // Setup slash commands
@@ -3057,134 +3131,204 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                     interaction.reply("Oh no! My magic doesn't work on you!")
                 })
         }
-        else if (interaction.commandName === "fetch_d2_item") {
+        else if (interaction.commandName === "destiny2") {
             let name = interaction.options.getString("name") || ""
-            if (name.length < 3) {
-                interaction.reply({
-                    content: "That search is a bit short. Please try something longer"
-                })
-                return
+            switch (interaction.options.getSubcommand()) {
+                case "items":
+                    if (name.length < 3) {
+                        interaction.reply({
+                            content: "That search is a bit short. Please try something longer"
+                        })
+                        return
+                    }
+                    itemNameSearch(name)
+                        .then(items => {
+                            return buildItemMessage(name, items[0], items)
+                        })
+                        .then(message => {
+                            interaction.reply(message)
+                        })
+                        .catch(e => {
+                            console.error(e)
+                            interaction.reply({
+                                content: "oops! We couldn't find an item with that name."
+                            })
+                        })
+                    return
+                case "vendors":
+                    if (name.length < 3) {
+                        interaction.reply({
+                            content: "That search is a bit short. Please try something longer"
+                        })
+                        return
+                    }
+                    interaction.deferReply()
+                        .then(() => {
+                            return vendorNameSearch(name)
+                        })
+                        .then(items => {
+                            return buildVendorMessage(name, items[0], items)
+                        })
+                        .then(message => {
+                            interaction.editReply(message)
+                        })
+                        .catch(e => {
+                            console.error(e)
+                            interaction.editReply({
+                                content: "oops! We couldn't find an item with that name."
+                            })
+                        })
+                    return
+                case "activities":
+                    if (name.length < 3) {
+                        interaction.reply({
+                            content: "That search is a bit short. Please try something longer"
+                        })
+                        return
+                    }
+                    activityNameSearch(name)
+                        .then(items => {
+                            return buildActivityMessage(name, items[0], items)
+                        })
+                        .then(message => {
+                            interaction.reply(message)
+                        })
+                        .catch(e => {
+                            console.error(e)
+                            interaction.reply({
+                                content: "oops! We couldn't find an item with that name."
+                            })
+                        })
+                    return
             }
-            itemNameSearch(name)
-                .then(items => {
-                    return buildItemMessage(name, items[0], items)
-                })
-                .then(message => {
-                    interaction.reply(message)
-                })
-                .catch(e => {
-                    console.error(e)
-                    interaction.reply({
-                        content: "oops! We couldn't find an item with that name."
-                    })
-                })
-        }
-        else if (interaction.commandName === "fetch_d2_activity") {
-            let name = interaction.options.getString("name") || ""
-            if (name.length < 3) {
-                interaction.reply({
-                    content: "That search is a bit short. Please try something longer"
-                })
-                return
-            }
-            activityNameSearch(name)
-                .then(items => {
-                    return buildActivityMessage(name, items[0], items)
-                })
-                .then(message => {
-                    interaction.reply(message)
-                })
-                .catch(e => {
-                    console.error(e)
-                    interaction.reply({
-                        content: "oops! We couldn't find an item with that name."
-                    })
-                })
-        }
-        else if (interaction.commandName === "fetch_d2_vendor") {
-            let name = interaction.options.getString("name") || ""
-            if (name.length < 3) {
-                interaction.reply({
-                    content: "That search is a bit short. Please try something longer"
-                })
-                return
-            }
-            interaction.deferReply()
-                .then(() => {
-                    return vendorNameSearch(name)
-                })
-                .then(items => {
-                    return buildVendorMessage(name, items[0], items)
-                })
-                .then(message => {
-                    interaction.editReply(message)
-                })
-                .catch(e => {
-                    console.error(e)
-                    interaction.editReply({
-                        content: "oops! We couldn't find an item with that name."
-                    })
-                })
         }
         else if (interaction.commandName === "catchphrase") {
             getUserData(interaction.member as GuildMember)
-                .then(res => {
-                    if (res.experimentWords === false) {
+                .then(async memberData => {
+                    if (memberData.experimentWords === false) {
                         interaction.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
                         return
                     }
 
-                    let member = interaction.options.getMember("user") || interaction.user
-                    let sample_size = interaction.options.getNumber("sample_size") || 50
+                    let member = (interaction.options.getMember("user") || interaction.user) as User
+                    let sample_size = parseInt(interaction.options.getNumber("sample_size") as unknown as string) || 50
+                    console.log(sample_size)
 
-                    if (sample_size < 20 || sample_size > 1000) sample_size = 50
-                        interaction.deferReply()
-                        .then(() => {
-                            return SafeQuery("SELECT TOP " + (sample_size * 1.5) + " word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
-                                // @ts-ignore
-                                {name: "discordid", type: mssql.TYPES.VarChar(100), data: (member.id || "")}
-                            ])
+                    if (sample_size < 1 || sample_size > 1000) sample_size = 50
+                    await interaction.deferReply()
+                    let res = await SafeQuery(`
+                        WITH WordMaxSpeaker AS (SELECT word,
+                                                       discord_id,
+                                                       count,
+                                                       ROW_NUMBER() OVER (PARTITION BY word ORDER BY count DESC) AS RowNum
+                                                FROM CrashBot.dbo.WordsExperiment),
+
+                             WordTotalCount AS (SELECT word,
+                                                       SUM(count) AS TotalCount
+                                                FROM CrashBot.dbo.WordsExperiment
+                                                GROUP BY word)
+
+                        SELECT TOP ${(Math.floor(sample_size * 1.5))} WMS.word                                                     AS 'word',
+                                                          WMS.count                                                    AS 'count',
+                                                          WTC.TotalCount                                               AS 'totalCount',
+                                                          CAST(WMS.count AS DECIMAL(5, 2)) / NULLIF(WTC.TotalCount, 0) AS percentage
+                        FROM WordMaxSpeaker AS WMS
+                                 JOIN WordTotalCount AS WTC ON WMS.word = WTC.word
+                        WHERE RowNum = 1
+                          AND discord_id = @discordid
+                          AND WTC.TotalCount >= @totalcountcap
+                        ORDER BY Percentage DESC`, [
+                        {name: "discordid", type: mssql.TYPES.VarChar(100), data: (member.id || "")},
+                        {name: "totalcountcap", type: mssql.TYPES.Int(), data: 20}
+                    ])
+                    const max = sample_size < 50 ? sample_size : 50
+                    for (let i = 0; i < 4; i++) {
+                        console.log(i, res.recordset.length)
+                        if (res.recordset.length >= max) break
+                        res = await SafeQuery(`
+                        WITH WordMaxSpeaker AS (SELECT word,
+                                                       discord_id,
+                                                       count,
+                                                       ROW_NUMBER() OVER (PARTITION BY word ORDER BY count DESC) AS RowNum
+                                                FROM CrashBot.dbo.WordsExperiment),
+
+                             WordTotalCount AS (SELECT word,
+                                                       SUM(count) AS TotalCount
+                                                FROM CrashBot.dbo.WordsExperiment
+                                                GROUP BY word)
+
+                        SELECT TOP ${(Math.floor(sample_size * 1.5))} WMS.word                                                     AS 'word',
+                                                          WMS.count                                                    AS 'count',
+                                                          WTC.TotalCount                                               AS 'totalCount',
+                                                          CAST(WMS.count AS DECIMAL(5, 2)) / NULLIF(WTC.TotalCount, 0) AS percentage
+                        FROM WordMaxSpeaker AS WMS
+                                 JOIN WordTotalCount AS WTC ON WMS.word = WTC.word
+                        WHERE RowNum = 1
+                          AND discord_id = @discordid
+                          AND WTC.TotalCount >= @totalcountcap
+                        ORDER BY Percentage DESC`, [
+                            {name: "discordid", type: mssql.TYPES.VarChar(100), data: (member.id || "")},
+                            {name: "totalcountcap", type: mssql.TYPES.Int(), data: (3 - i) * 5}
+                        ])
+                    }
+                    console.log(res.recordset.length)
+
+                    //     return SafeQuery("SELECT TOP " + (sample_size * 1.5) + " word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
+                    //         // @ts-ignore
+                    //     ])
+                    // })
+                    // if (res?.recordset.length < 20) {
+                    //     interaction.editReply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
+                    //     return
+                    // }
+                    let top: {
+                        word: string,
+                        count: number,
+                        totalCount: number,
+                        percentage: number
+                    }[] = ShuffleArray(res.recordset).slice(0, sample_size).map((i: any) => {
+                        return {
+                            word: toTitleCase(i.word),
+                            count: i.sum,
+                            totalCount: i.totalCount,
+                            percentage: i.percentage
+                        }
+                    })
+                    let prompt = "Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before and how unique it is compared to all uses from all people."
+                    if (interaction.options.getString("theme")) prompt += "\nThe catchphrase must be based around this theme:" + interaction.options.getString("theme")
+                    ChatGPT.sendMessage(
+                        prompt + "\n\n" +
+                        top.map(i => `${i.word} (${i.count}, uniqueness: ${i.percentage * 100})`).join(", ")
+                    )
+                        .then(AIres => {
+                            let embed = new Discord.MessageEmbed()
+                            // console.log("Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
+
+                            //     top.map(i => `${i.word} (${i.count})`).join(", "))
+
+                            embed.setTitle("Is this your catchphrase?")
+                            embed.setDescription("<@" + member + "> - " + AIres.text)
+                            embed.setFooter({text: "Crashbot words experiment"})
+                            if (interaction.options.getString("theme")) embed.addFields([{
+                                name: "Theme",
+                                value: interaction.options.getString("theme") || "no theme provided"
+                            }])
+                            interaction.editReply({
+                                content: " ", embeds: [embed, new Discord.MessageEmbed()
+                                    .setDescription("Sampled words: " + top.sort((a, b) => {
+                                        return a.percentage < b.percentage ? 1 : -1
+                                    }).map(i => `${i.word} \`${Math.round(i.percentage * 100)}%\``).join(", "))
+                                ]
+                            })
                         })
-                        .then(async res => {
-                            if (res.recordset.length < 20) {
-                                interaction.editReply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
-                            }
-                            else {
-                                let top: {
-                                    word: string,
-                                    count: number
-                                }[] = ShuffleArray(res.recordset).slice(0, sample_size).map((i: any) => {
-                                    return {
-                                        word: toTitleCase(i.word),
-                                        count: i.sum
-                                    }
-                                })
-                                ChatGPT.sendMessage(
-                                    "Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
-                                    top.map(i => `${i.word} (${i.count})`).join(", ")
-                                )
-                                    .then(AIres => {
-                                        let embed = new Discord.MessageEmbed()
-                                        // console.log("Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
-                                        //     top.map(i => `${i.word} (${i.count})`).join(", "))
-
-                                        embed.setTitle("Is this your catchphrase?")
-                                        embed.setDescription("<@" + member + "> - " + AIres.text)
-                                        embed.setFooter({text: "Crashbot words experiment"})
-                                        interaction.editReply({content: " ", embeds: [embed, new Discord.MessageEmbed()
-                                                .setDescription("Sampled words: " + top.map(i => i.word).join(", "))
-                                            ]})
-                                    })
-                                    .catch(e => {
-                                        console.log(e)
-                                        let embed = new Discord.MessageEmbed()
-                                        embed.setTitle("Service unavailable")
-                                        embed.setDescription("This service is currently unavailable. Please try again later")
-                                        embed.setColor("RED")
-                                        embed.setFooter({text: "Crash Bot words experiment"})
-                                        interaction.editReply({content: " ", embeds: [embed]})
-                                    })
-                            }
+                        .catch(e => {
+                            console.log(e)
+                            let embed = new Discord.MessageEmbed()
+                            embed.setTitle("Service unavailable")
+                            embed.setDescription("This service is currently unavailable. Please try again later")
+                            embed.setColor("RED")
+                            embed.setFooter({text: "Crash Bot words experiment"})
+                            interaction.editReply({content: " ", embeds: [embed]})
                         })
                 })
         }
@@ -3226,10 +3370,38 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
             for (let message of messages) {
                 tldr.push(message[1].content)
             }
-            tldr = tldr.reverse().slice(0,180)
+            tldr = tldr.reverse().slice(0, 180)
             let gpt_response = await ChatGPT.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
             // @ts-ignore
             interaction.editReply(removeAllMentions(gpt_response.text, interaction.channel))
+        }
+        else if (interaction.commandName === "sussybaka") {
+            console.log("Finding a sussy baka...")
+            let role = interaction.options.getRole("role")
+            let sussy_baka_msg = interaction.options.getString("sussy_baka_message")
+            let regular_msg = interaction.options.getString("regular_message")
+
+            if (!interaction.guild || !role || !sussy_baka_msg || !regular_msg) {
+                interaction.reply("Could not find a sussy baka, as a required piece of information (such as message conent, and/or discord server) was missing.")
+                return
+            }
+
+            let full_role = await interaction.guild.roles.fetch(role.id)
+            if (!full_role) {
+                interaction.reply("Could not access the role you provided")
+                return
+            }
+            let selected_member = full_role.members.random()
+            if (!selected_member) {
+                interaction.reply("Could not select a sussy baka. Make sure that the role you entered has users assigned to it.")
+                return
+            }
+            let other_members = full_role.members.filter(i => i !== selected_member)
+
+            selected_member.send(sussy_baka_msg)
+            for (let member of other_members) member[1].send(regular_msg)
+
+            interaction.reply("A sussy baka has been deployed!")
         }
         else {
             console.log("Unknown command interaction picked up")
@@ -3442,6 +3614,7 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
 })
 
 client.on("messageCreate", async (msg): Promise<void> => {
+    console.log(msg.channel.type)
     if (msg.author.bot) return
     if (msg.content.toLowerCase() === "who's not touching grass?") {
         msg.reply("This command is currently unavailable")
@@ -3718,7 +3891,8 @@ client.on("messageCreate", async (msg): Promise<void> => {
                     else {
                         words_results.push("We've said `" + toTitleCase(word) + "` " + res.recordset[0].sum + " times")
                         if (likelihood === -1) likelihood = res.recordset[0].sum
-                        else if (likelihood === 0) {}
+                        else if (likelihood === 0) {
+                        }
                         else likelihood = likelihood / res.recordset[0].sum
                     }
                 }
@@ -3742,7 +3916,9 @@ client.on("messageCreate", async (msg): Promise<void> => {
             embeds: [
                 new Discord.MessageEmbed()
                     .setDescription("These words have only ever been spoken once in this server:\n" +
-                        results.recordset.map(i => {return `- \`${i.word}\` by <@${i.discord_id}>`}).join("\n")
+                        results.recordset.map(i => {
+                            return `- \`${i.word}\` by <@${i.discord_id}>`
+                        }).join("\n")
                     )
                     .setFooter({text: "Crash Bot only counts words as of 2023-08-01, and only from users who have the words experiment enabled."})
             ]
@@ -3862,7 +4038,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
         }
         VoiceConnectionManager.join((msg.channel as TextChannel).guild, msg.member.voice.channel)
             .then(manager => {
-                manager?.addToQueue(url)
+                manager?.generateQueueItem(url)
                 msg.delete()
             })
             .catch(e => {
@@ -3871,6 +4047,12 @@ client.on("messageCreate", async (msg): Promise<void> => {
     }
     else if (msg.channel.type === "DM") {
         askGPTQuestion(msg.author.username + " said: " + msg.content, msg.channel)
+    }
+    else if (msg.channel.type === "GUILD_PUBLIC_THREAD" && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
+        askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
+    }
+    else if (msg.content === "test" && msg.author.id == "404507305510699019") {
+        sendTwaggerPost()
     }
     else {
         // Do word count
@@ -3980,18 +4162,20 @@ client.on("messageCreate", async (msg): Promise<void> => {
                                 {name: "word", type: mssql.TYPES.VarChar(100), data: word}
                             ])
                             if (!res.recordset[0].sum) return
-                            if ((res.recordset[0].sum % 100) === 0) {
+                            if ((res.recordset[0].sum % 500) === 0) {
                                 client.channels.fetch("950939869776052255")
                                     .then((channel) => {
                                         let title: string = `<@${msg.author.username}> just said ${word} for the ${res.recordset[0].sum}th time!`
                                         let message = `Of all users with this experiment enabled, <@${msg.author.id}> just said \`${word}\`for the ${res.recordset[0].sum}th time!`;
 
-                                        (channel as TextBasedChannel).send({content: ' ', embeds: [
-                                            new Discord.MessageEmbed()
-                                                .setTitle(title)
-                                                .setDescription(message)
-                                                ]})
-                                        msg.reply(`Of everyone with the words experiment enabled, you just said \`${word}\` for the ${res.recordset[0].sum}th time!`)
+                                        (channel as TextBasedChannel).send({
+                                            content: ' ', embeds: [
+                                                new Discord.MessageEmbed()
+                                                    .setTitle(title)
+                                                    .setDescription(message)
+                                            ]
+                                        })
+                                        // msg.reply(`Of everyone with the words experiment enabled, you just said \`${word}\` for the ${res.recordset[0].sum}th time!`)
                                     })
                             }
                         }
@@ -4091,7 +4275,8 @@ async function askGPTQuestion(message: string, channel: TextBasedChannel, intera
     let result_message
     if (message.toLowerCase().endsWith("reset conversation") && gpt_channel_search.recordset.length === 0) {
         result_message = "There is no conversation to reset"
-    } else if (gpt_channel_search.recordset.length === 0) {
+    }
+    else if (gpt_channel_search.recordset.length === 0) {
         let gpt_message = await ChatGPT.sendMessage(message)
         console.log(gpt_message)
         await SafeQuery("INSERT INTO CrashBot.dbo.GPTChannels (channelid, conversationid, lastmessageid) VALUES (@channelid, @conversationid, @messageid);", [
@@ -4100,7 +4285,8 @@ async function askGPTQuestion(message: string, channel: TextBasedChannel, intera
             {name: "messageid", type: mssql.TYPES.VarChar(100), data: gpt_message.parentMessageId || ""}
         ])
         result_message = gpt_message.text
-    } else if (message.toLowerCase().endsWith("reset conversation")) {
+    }
+    else if (message.toLowerCase().endsWith("reset conversation")) {
         await SafeQuery("DELETE FROM dbo.GPTChannels WHERE channelid = @channelid", [
             {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
         ])
@@ -4136,7 +4322,7 @@ async function askGPTQuestion(message: string, channel: TextBasedChannel, intera
 function splitMessage(message: string): string[] {
     let messages: string[] = []
     while (message.length > 0) {
-        messages.push(message.slice(0,2000))
+        messages.push(message.slice(0, 2000))
         message = message.slice(2000, message.length)
     }
     console.log(messages)
@@ -4172,9 +4358,11 @@ function removeAllMentions(str: string, channel_or_guild: Discord.Guild | TextBa
     if (channel_or_guild instanceof Discord.TextChannel) {
         channel = channel_or_guild
         guild = channel.guild
-    } else if (channel_or_guild instanceof Discord.Guild) {
+    }
+    else if (channel_or_guild instanceof Discord.Guild) {
         guild = channel_or_guild
-    } else {
+    }
+    else {
         channel = channel_or_guild
     }
     return str.replace(/<@!(\d+)>/, (match: string, userId: string): string => {
@@ -5177,3 +5365,5 @@ async function getUserData(member: GuildMember | string) {
 }
 
 setup()
+
+

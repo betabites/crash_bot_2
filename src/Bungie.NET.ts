@@ -335,6 +335,25 @@ export function getItemTypeName(itemType: ItemType) {
     }
 }
 
+export function getTierTypeEmoji(tier: number) {
+    switch (tier) {
+        case 1:
+            return "💵"
+        case 2:
+            return "⚪"
+        case 3:
+            return "⚪"
+        case 4:
+            return "🟢"
+        case 5:
+            return "🟣"
+        case 6:
+            return "🟡"
+        default:
+            return "⚪"
+    }
+}
+
 export async function buildItemMessage(searchQuery: string, item: Item, similarItems: Item[]): Promise<Discord.InteractionReplyOptions & {
     fetchReply: true
 }>
@@ -375,7 +394,7 @@ export async function buildItemMessage(searchQuery: string, item: Item, similarI
                 .addOptions(
                     similarItems.slice(0, 25).map((i, index) => {
                         return {
-                            label: i.displayProperties.name,
+                            label: i.displayProperties.name.substring(0,100),
                             description: i.itemTypeAndTierDisplayName || getItemTypeName(i.itemType),
                             value: JSON.stringify([searchQuery, i.hash]),
                             default: i.hash === item.hash
@@ -390,7 +409,7 @@ export async function buildItemMessage(searchQuery: string, item: Item, similarI
                 .setCustomId("d2_item_notification")
                 .setPlaceholder("Configure Notifications...")
                 .addOptions([
-                    {label: `When this is available at a vendor (${vendors.map(i => i.displayProperties.name).join(", ")})`, value: JSON.stringify([0, item.hash])},
+                    {label: `When this is available at a vendor`, value: JSON.stringify([0, item.hash])},
                 ])
         )
 
@@ -459,6 +478,10 @@ export class SetupNotifications {
 export async function buildVendorMessage(searchQuery: string, item: VendorDefinition, similarItems: VendorDefinition[]): Promise<Discord.InteractionReplyOptions & {
     fetchReply: true
 }> {
+    const getCategoryIndex = (a: Item) => {
+        return item.itemList.find(i => i.itemHash === a.hash)?.categoryIndex || -1
+    }
+
     // Detect the item type
     let embeds: Discord.MessageEmbed[] = []
 
@@ -479,50 +502,25 @@ export async function buildVendorMessage(searchQuery: string, item: VendorDefini
 
         console.log(itemHashes, item.hash)
 
-        let categories: {
-            [key: string]: string[]
-        } = {}
         let items = await getItemsByHash(itemHashes)
-        items.sort((a, b) => {
-            if (a.itemTypeAndTierDisplayName > b.itemTypeAndTierDisplayName) {
-                return -1
-            }
-            else if (a.itemTypeAndTierDisplayName > b.itemTypeAndTierDisplayName) {
-                return 1
-            }
-            else if (a.displayProperties.name > b.displayProperties.name) {
-                return -1
-            }
-            else {
-                return 1
-            }
-        })
+        let categories: {[key: string]: Item[]} = {}
+
         for (let _item of items) {
-            try {
-                switch (_item.itemType) {
-                    case ItemType.None:
-                        continue
-                    case ItemType.Message:
-                        continue
-                    case ItemType.MissionReward:
-                        continue
-                    case ItemType.Dummy:
-                        continue
-                    default:
-                        if (!categories[_item.itemType]) categories[_item.itemType] = [
-                            `[${_item.displayProperties.name}](https://www.light.gg/db/items/${_item.hash}/) [${_item.itemTypeAndTierDisplayName}]`
-                        ]
-                        else categories[_item.itemType].push(`[${_item.displayProperties.name}](https://www.light.gg/db/items/${_item.hash}/) [${_item.itemTypeAndTierDisplayName}]`)
-                }
-            } catch (e) {
-                console.log(e)
-            }
+            let category_index = getCategoryIndex(_item)
+            if (!categories[category_index]) categories[category_index] = [_item]
+            else categories[category_index].push(_item)
         }
 
         embed.addFields(
             Object.keys(categories)
-                .map(category => {
-                    return {name: getItemTypeName(parseInt(category)), value: categories[category].join("\n") || ""}
+                .map((category: string) => {
+                    console.log(category)
+                    // @ts-ignore
+                    return {name: item.displayCategories[category]?.displayProperties.name || "Unknown Category", value: categories[category]
+                            .map(i => {
+                                return `${getTierTypeEmoji(i.inventory.tierType)} [${i.displayProperties.name}](https://www.light.gg/db/items/${i.hash}) ${getItemTypeName(i.itemType)}`
+                            })
+                            .join("\n") || ""}
                 })
         )
         embed.setFooter({text: item.hash.toString()})
@@ -582,13 +580,13 @@ export async function buildItemEmbed(item: Item, footer: string = "", include_st
         let vendors = await getItemVendors(item.hash)
 
 
-        text.push(`[View on light.gg](https://www.light.gg/db/items/${item.hash})\n*This item is in the inventory rotation for ${vendors.length} vendors*`)
+        text.push(`[View on light.gg](https://www.light.gg/db/items/${item.hash})`)
     }
 
     let embed = new Discord.MessageEmbed()
         .setTitle(item.displayProperties.name + " - " + type)
         .setThumbnail("https://bungie.net" + item.displayProperties.icon)
-        .setDescription(text.join("\n\n"))
+        .setDescription(text.join("\n\n").substring(0, 500))
         .setFooter({
             text: footer
         })
