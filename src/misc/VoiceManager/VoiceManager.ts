@@ -1,48 +1,106 @@
 import {EventEmitter} from "events";
 import {
-    VoiceConnection,
-    joinVoiceChannel,
-    createAudioPlayer,
-    NoSubscriberBehavior,
     AudioPlayerStatus,
-    PlayerSubscription,
+    createAudioPlayer,
+    createAudioResource,
     EndBehaviorType,
-    createAudioResource
+    NoSubscriberBehavior,
+    PlayerSubscription
 } from "@discordjs/voice";
 import {opus} from "prism-media";
 import * as Discord from "discord.js";
+import {GuildMember} from "discord.js";
 import ytdl from "ytdl-core";
 import ytpl from "ytpl";
-import SafeQuery from "./SQL.js";
-import {makeid, QueueManager, ShuffleArray} from "./Common.js";
+import SafeQuery from "../SQL.js";
+import {makeid, QueueManager, ShuffleArray} from "../Common.js";
 import mssql from "mssql"
 import yts from "yt-search";
 import ffmpeg from "fluent-ffmpeg"
-import {client} from "./Discord.js";
-import fs from "fs";
-import Spotify from "./Spotify.js";
-import {GuildMember, VoiceState} from "discord.js";
+import {client, getToken} from "../Discord.js";
+import Spotify from "../Spotify.js";
 import * as path from "path";
 import * as stream from "stream";
-import {ActivityTypes} from "discord.js/typings/enums.js";
-import * as util from "util";
-import {Worker} from "worker_threads"
+import {parentPort, Worker} from "worker_threads"
+import {
+    AUDIO_MANAGER_MESSAGE_TYPES,
+    messageToAudioManager,
+    VOICE_MANAGER_MESSAGE_TYPES,
+    messageToVoiceManager, AcknowledgementMessage
+} from "./types.js";
+import * as crypto from "crypto";
+
+let worker = new Worker("./src/misc/VoiceManager/VoiceManagerWorker.js", {
+    workerData: {
+        discordClientToken: getToken()
+    }
+})
+const awaitingWorkerMessages = new Map<string, [NodeJS.Timer, (value: unknown) => void, (error?: unknown) => void]>()
+
+worker.on("message", (message: messageToVoiceManager<VOICE_MANAGER_MESSAGE_TYPES>) => {
+    if (message.type === VOICE_MANAGER_MESSAGE_TYPES.ACKNOWLEDGEMENT) {
+        message.data = message.data as AcknowledgementMessage
+
+        let item = awaitingWorkerMessages.get(message.id)
+        if (!item) return
+        clearTimeout(item[0])
+        if (!message.data.error) item[1](message)
+        else item[2](message.data.error)
+        return
+    }
+
+    try {
+        if (message.type === VOICE_MANAGER_MESSAGE_TYPES.PLAYER_IDLING) {
+            if (typeof message.data !== "string") throw "Invalid data"
+            let connection = VoiceConnectionManager.connections.get(message.data)
+            if (!connection) throw "No audio connection"
+            connection.nextTrack()
+        }
+        let acknowledgment: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES.ACKNOWLEDGEMENT> = {
+            id: message.id,
+            type: AUDIO_MANAGER_MESSAGE_TYPES.ACKNOWLEDGEMENT,
+            data: {}
+        }
+        worker.postMessage(acknowledgment)
+    } catch(e) {
+        console.error(e)
+        let acknowledgment: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES.ACKNOWLEDGEMENT> = {
+            id: message.id,
+            type: AUDIO_MANAGER_MESSAGE_TYPES.ACKNOWLEDGEMENT,
+            data: {
+                error: e
+            }
+        }
+        worker.postMessage(acknowledgment)
+    }
+})
+
+function sendWorkerMessageSync(message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES>) {
+    return new Promise((resolve, reject) => {
+        let id = crypto.randomUUID()
+        message.id = id
+        worker.postMessage(message)
+        awaitingWorkerMessages.set(id, [
+            setTimeout(() => {
+                console.log("Acknowledgement was not received for this message (message to worker thread):", message)
+                reject()
+            }, 10000),
+            resolve, reject]
+        )
+    })
+}
 
 export class VoiceConnectionManager extends EventEmitter {
     static connections = new Map<string, VoiceConnectionManager>()
-    vc_connection: VoiceConnection
     channel: Discord.VoiceBasedChannel
     recording_users: {
         id: string,
         recording: boolean
     }[] = []
-    session_id: string
     private connected_members = new Map<string, GuildMember>()
     private pos: number;
     private queue: QueueItem[] = []
-    private ended: boolean;
     private paused: boolean;
-    private player: any;
     private challenge_mode: boolean;
     private subscription: PlayerSubscription | undefined;
     private interval2: NodeJS.Timer;
@@ -50,35 +108,18 @@ export class VoiceConnectionManager extends EventEmitter {
     private msg: Discord.Message | undefined;
     private last_track_start = Date.now();
     fetch_queue = new QueueManager()
+    private ended: boolean = false;
 
     static async join(guild: Discord.Guild, channel: Discord.VoiceBasedChannel) {
-        console.log("Loading new voice conenction")
+        console.log("Loading new voice connection")
+
         if (this.connections.has(guild.id)) {
             if (this.connections.get(guild.id)?.channel.id === channel.id) return this.connections.get(guild.id)
             throw "Already in another voice chat for this server"
         }
 
-        let connection = joinVoiceChannel({
-            channelId: channel.id,
-            guildId: guild.id,
-            // @ts-ignore
-            adapterCreator: guild.voiceAdapterCreator,
-            selfDeaf: false
-        })
-        let id
-        while (true) {
-            try {
-                id = makeid(20)
-                await SafeQuery("INSERT INTO dbo.VoiceSessions (session_id, channel_id) VALUES (@sessionid, @channelid);", [
-                    {name: "sessionid", type: mssql.TYPES.Char(20), data: id},
-                    {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
-                ])
-                break
-            } catch (e) {
-                console.log(e)
-            }
-        }
-        let item = new VoiceConnectionManager(connection, channel, id)
+        await VoiceConnectionManager.connectAudio(channel)
+        let item = new VoiceConnectionManager(channel)
         this.connections.set(guild.id, item)
 
         for (let member of channel.members) {
@@ -90,6 +131,19 @@ export class VoiceConnectionManager extends EventEmitter {
 
         console.log("Loaded new voice connection")
         return item
+    }
+
+    static async connectAudio(channel: Discord.VoiceBasedChannel) {
+        // Send message to audio manager, to connect to this channel
+        let message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES.CONNECT_CHANNEL> = {
+            id: crypto.randomUUID(),
+            type: AUDIO_MANAGER_MESSAGE_TYPES.CONNECT_CHANNEL,
+            data: {
+                guildId: channel.guildId,
+                channelId: channel.id
+            }
+        }
+        await sendWorkerMessageSync(message)
     }
 
     static async onVoiceStateUpdate(oldState: Discord.VoiceState, newState: Discord.VoiceState) {
@@ -106,9 +160,11 @@ export class VoiceConnectionManager extends EventEmitter {
             if (guild_connection.channel.id === oldState.channelId) {
                 guild_connection.onMemberDisconnect(oldState.member)
             }
-        } else if (auto_record && newState.channel) {
+        }
+        else if (auto_record && newState.channel) {
             VoiceConnectionManager.join(newState.guild, newState.channel)
-        } else if (newState.channelId === "1173416327352963092") {
+        }
+        else if (newState.channelId === "1173416327352963092") {
             if (!newState.channel) return
             let connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
             if (!connection) return
@@ -118,34 +174,17 @@ export class VoiceConnectionManager extends EventEmitter {
         }
     }
 
-    constructor(vc_connection: VoiceConnection, channel: Discord.VoiceBasedChannel, session_id: string) {
+    constructor(channel: Discord.VoiceBasedChannel) {
         super();
-        this.vc_connection = vc_connection
         this.pos = 0
         this.queue = []
-        this.ended = true
         this.paused = false
-        this.player = createAudioPlayer({
-            behaviors: {
-                noSubscriber: NoSubscriberBehavior.Pause
-            }
-        })
         this.challenge_mode = false
         this.channel = channel
-        this.player.on(AudioPlayerStatus.Idle, () => {
-            console.log("Player idle")
-            this.nextTrack()
-        })
-        this.subscription = this.vc_connection.subscribe(this.player)
-        this.session_id = session_id
 
         this.interval2 = setInterval(() => {
             this.updateQueueMsg()
         }, 10000)
-
-        this.vc_connection.receiver.speaking.on("start", (userId) => {
-            this.onMemberSpeak(userId)
-        })
         this.updateConnectedUsers()
 
         // this.receiver = vc_connection.receiver.subscribe("404507305510699019", {end: {behavior: discord_voice.EndBehaviorType.AfterSilence, duration: 10000}})
@@ -167,45 +206,6 @@ export class VoiceConnectionManager extends EventEmitter {
         }
     }
 
-    onMemberSpeak(userId: string) {
-        let recording_item = this.recording_users.find(i => i.id === userId)
-        if (!recording_item || recording_item.recording) return
-        recording_item.recording = true
-        console.log("Recording " + userId)
-
-        let filename = makeid(20)
-        const receiver = this.vc_connection.receiver.subscribe(userId, {
-            end: {
-                behavior: EndBehaviorType.AfterSilence,
-                duration: 10000
-            }
-        })
-        const decoder = new opus.Decoder({frameSize: 960, channels: 2, rate: 48000})
-        const in_stream = receiver.pipe(decoder)
-        in_stream.on("finish", () => {
-            // @ts-ignore
-            recording_item.recording = false
-            console.log("User stopped talking")
-        })
-
-        ffmpeg()
-            .input(in_stream)
-            .inputFormat('s16le')
-            .audioChannels(2)
-            .inputOptions([
-                '-ar 48000',
-                '-channel_layout stereo'
-            ])
-            .output(path.resolve("./") + "/voice_recordings/" + filename + ".mp3")
-            .noVideo()
-            .run()
-        SafeQuery("INSERT INTO dbo.VoiceRecordings (session_id, filename, user_id) VALUES (@sessionid, @filename, @userid);", [
-            {name: "sessionid", type: mssql.TYPES.Char(20), data: this.session_id},
-            {name: "filename", type: mssql.TYPES.Char(24), data: filename + ".mp3"},
-            {name: "userid", type: mssql.TYPES.VarChar(100), data: userId}
-        ])
-    }
-
     private onMemberConnect(member: Discord.GuildMember | null, autoRecord = false) {
         console.log("Member connected: ", autoRecord)
         if (member && !member.user.bot) {
@@ -221,6 +221,7 @@ export class VoiceConnectionManager extends EventEmitter {
             })
         }
     }
+
     private onMemberDisconnect(member: GuildMember | null) {
         if (!member) return
         console.log("A member disconnected. Total number of connected users: ", this.connected_members)
@@ -238,9 +239,9 @@ export class VoiceConnectionManager extends EventEmitter {
 
     async updateQueueMsg() {
         if (this.interval1) {
-                clearTimeout(this.interval1)
-            }
-        this.interval1 = setTimeout(async() => {
+            clearTimeout(this.interval1)
+        }
+        this.interval1 = setTimeout(async () => {
             try {
                 if (!this.msg) await this.fetchQueueMessage()
 
@@ -369,7 +370,9 @@ export class VoiceConnectionManager extends EventEmitter {
                         ]
                     })
                 }
-            } catch(e) {console.log(e)}
+            } catch (e) {
+                console.log(e)
+            }
         }, 1000)
     }
 
@@ -486,26 +489,31 @@ export class VoiceConnectionManager extends EventEmitter {
         this.last_track_start = Date.now()
         console.log("Starting track.... Position: " + this.pos)
         this.ended = false
-        this.updateQueueMsg()
+
         if (this.pos > this.queue.length - 1) {
             return
         }
 
-        let stream = await this.queue[this.pos].stream()
+        let url = await this.queue[this.pos].fetchYoutubeURL()
         for (let item of this.queue.slice(this.pos, this.pos + 13).filter(i => i.downloaded === DownloadStage.NOT_DOWNLOADED)) {
             item.fetchInfo()
         }
-        this.updateQueueMsg()
-        if (typeof stream === "undefined") {
+
+        if (typeof url === "undefined") {
             console.error("Failed to stream a track. Skipping...")
         }
         else {
-            this.player.play(createAudioResource(stream))
-            // client.user?.setActivity(this.queue[this.pos].title, {
-            //     type: ActivityTypes.PLAYING,
-            //     url: this.queue[this.pos].url
-            // })
+            let message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES.START_STREAM> = {
+                id: "",
+                type: AUDIO_MANAGER_MESSAGE_TYPES.START_STREAM,
+                data: {
+                    guildId: this.channel.guildId,
+                    youtubeUrl: url
+                }
+            }
+            await sendWorkerMessageSync(message)
         }
+        await this.updateQueueMsg()
     }
 
     shuffle() {
@@ -515,13 +523,18 @@ export class VoiceConnectionManager extends EventEmitter {
     }
 
     async stop() {
-        this.player.stop()
+        let message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES.STOP_STREAM> = {
+            id: "",
+            type: AUDIO_MANAGER_MESSAGE_TYPES.STOP_STREAM,
+            data: this.channel.guildId
+        }
+        await sendWorkerMessageSync(message)
+
         this.queue = []
         await this.updateQueueMsg()
         this.challenge_mode = false
 
         this.subscription?.unsubscribe()
-        this.vc_connection.disconnect()
         clearInterval(this.interval1)
         clearInterval(this.interval2)
         try {
@@ -531,9 +544,8 @@ export class VoiceConnectionManager extends EventEmitter {
         }
     }
 
-    skip() {
-        this.player.pause()
-        this.nextTrack(true)
+    async skip() {
+        await this.nextTrack(true)
     }
 
     rewind() {
@@ -541,15 +553,13 @@ export class VoiceConnectionManager extends EventEmitter {
         this.startTrack()
     }
 
-    pause() {
-        if (this.paused) {
-            this.player.unpause()
-            this.paused = false
+    async pause() {
+        let message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES.PAUSE_PLAY_STREAM> = {
+            id: "",
+            type: AUDIO_MANAGER_MESSAGE_TYPES.PAUSE_PLAY_STREAM,
+            data: this.channel.guildId
         }
-        else {
-            this.player.pause();
-            this.paused = true
-        }
+        await sendWorkerMessageSync(message)
     }
 
     async challenge() {
@@ -589,7 +599,7 @@ interface QueueItem extends EventEmitter {
     url: string,
     readonly type: PlayerType.YOUTUBE | PlayerType.SPOTIFY,
     readonly vc_manager: VoiceConnectionManager,
-    stream: () => Promise<stream.Readable> | stream.Readable,
+    fetchYoutubeURL: () => Promise<string> | string,
     repeat: boolean,
     fetchInfo: () => void
 }
@@ -603,6 +613,7 @@ class YoutubeQueueItem extends EventEmitter implements QueueItem {
     repeat = false;
     readonly type: PlayerType.YOUTUBE | PlayerType.SPOTIFY = PlayerType.YOUTUBE
     readonly vc_manager: VoiceConnectionManager
+
     constructor(url: string, vc_manager: VoiceConnectionManager) {
         super();
         this.id = ytdl.getURLVideoID(url)
@@ -618,32 +629,24 @@ class YoutubeQueueItem extends EventEmitter implements QueueItem {
         if (this.downloaded !== DownloadStage.NOT_DOWNLOADED) return
         try {
             this.downloaded = DownloadStage.DOWNLOADING
-            let data = await ytdl.getInfo("https://www.youtube.com/watch?v=" + this.id)
-            this.title = data.videoDetails.title
-            this.thumbnail = data.videoDetails.thumbnails[data.videoDetails.thumbnails.length - 1].url
+            try {
+                let data = await ytdl.getInfo("https://www.youtube.com/watch?v=" + this.id)
+                this.title = data.videoDetails.title
+                this.thumbnail = data.videoDetails.thumbnails[data.videoDetails.thumbnails.length - 1].url
+            } catch(e) {
+                this.title = "Failed to fetch"
+            }
             this.downloaded = DownloadStage.DOWNLOADED
         } catch (e) {
             this.title = "Track data fetch failed"
         }
     }
 
-    async stream() {
+    async fetchYoutubeURL() {
         console.log("Streaming track...")
 
         console.log("Streaming YTDL..", "https://www.youtube.com/watch?v=" + this.id)
-        let info = await ytdl.getInfo(this.id)
-        return ytdl("https://www.youtube.com/watch?v=" + this.id, {
-            format: ytdl.chooseFormat(info.formats, {
-                quality: "highestaudio"
-            }),
-            // @ts-ignore
-            fmt: "mp3",
-            highWaterMark: 1 << 62,
-            liveBuffer: 1 << 62,
-            dlChunkSize: 0, //disabling chunking is recommended in discord bot
-            // bitrate: 128,
-            quality: "lowestaudio"
-        })
+        return "https://www.youtube.com/watch?v=" + this.id
     }
 }
 
@@ -662,6 +665,7 @@ class SpotifyQueueItem extends EventEmitter implements QueueItem {
     readonly track_details: TrackDetails
     readonly url: string
     repeat = false;
+
     constructor(details: TrackDetails, url: string, vc_manager: VoiceConnectionManager) {
         super();
         this.track_details = details
@@ -682,26 +686,15 @@ class SpotifyQueueItem extends EventEmitter implements QueueItem {
         return this.track_details.cover_url
     }
 
-    stream(): Promise<stream.Readable> {
+    fetchYoutubeURL(): Promise<string> {
         return new Promise(async (resolve, reject) => {
-            console.log("Streaming track...")
             yts(this.track_details.name + " " + this.track_details.artists.join(" ")).then(async search_res => {
-                let info = await ytdl.getInfo(ytdl.getURLVideoID(search_res.videos[0].url))
-                resolve(ytdl(search_res.videos[0].url, {
-                    format: ytdl.chooseFormat(info.formats, {
-                        quality: "highestaudio"
-                    }),
-                    // fmt: "mp3",
-                    highWaterMark: 1 << 62,
-                    liveBuffer: 1 << 62,
-                    dlChunkSize: 0, //disabling chunking is recommended in discord bot
-                    // bitrate: 128,
-                    quality: "lowestaudio"
-                }))
+                resolve(search_res.videos[0].url)
             })
                 .catch(e => reject(e))
         })
     }
 
-    fetchInfo(): void {}
+    fetchInfo(): void {
+    }
 }

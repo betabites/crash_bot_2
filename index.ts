@@ -9,14 +9,14 @@ import {exec, spawn} from "child_process"
 import {
     client,
     downloadDiscordAttachment,
-    downloadDiscordAttachmentWithInfo,
+    downloadDiscordAttachmentWithInfo, getToken,
     sendImpersonateMessage
-} from "./src/Discord.js";
-import ChatGPT from "./src/ChatGPT.js";
-import RemoteStatusServer, {Connection as ServerConnection} from "./src/RemoteStatusServer.js";
-import SafeQuery from "./src/SQL.js";
-import {Bank, BankResource, buildPack, dirTree, FindOwnership, searchIndex} from "./src/ResourcePackManager.js";
-import {CrashBotUser} from "./src/UserManager.js";
+} from "./src/misc/Discord.js";
+import ChatGPT from "./src/misc/ChatGPT.js";
+import RemoteStatusServer, {Connection as ServerConnection} from "./src/misc/RemoteStatusServer.js";
+import SafeQuery from "./src/misc/SQL.js";
+import {Bank, BankResource, buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
+import {CrashBotUser} from "./src/misc/UserManager.js";
 import archiver from "archiver";
 import Discord, {
     Guild,
@@ -27,13 +27,13 @@ import Discord, {
     TextChannel,
     User
 } from "discord.js";
-import {fetchThrowTemplates, generateThrow} from "./src/ThrowMaker.js";
+import {fetchThrowTemplates, generateThrow} from "./src/misc/ThrowMaker.js";
 import ytdl from "ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
 import {PassThrough} from "stream";
-import {makeid, QueueManager, ShuffleArray} from "./src/Common.js";
-import WSS from "./src/WSS.js";
-import {VoiceConnectionManager} from "./src/VoiceManager.js";
+import {makeid, QueueManager, ShuffleArray} from "./src/misc/Common.js";
+import WSS from "./src/misc/WSS.js";
+import {VoiceConnectionManager} from "./src/misc/VoiceManager/VoiceManager.js";
 import http from "http";
 import https from "https";
 import inspirobot from "inspirobot.js";
@@ -50,9 +50,11 @@ import {
     setupBungieAPI,
     SetupNotifications,
     vendorNameSearch
-} from "./src/Bungie.NET.js";
+} from "./src/misc/Bungie.NET.js";
 import {ApplicationCommandOptionTypes} from "discord.js/typings/enums.js";
 import {sendTwaggerPost, TWAGGER_POST_CHANNEL} from "./sendTwaggerPost.js";
+import {BaseModule} from "./src/modules/BaseModule.js";
+import {D2Module} from "./src/modules/D2.js";
 
 dotenv.config()
 
@@ -65,6 +67,8 @@ let console_channel, chat_channel
 let pack_updated = true
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
+const modules: (typeof BaseModule)[] = [D2Module]
+let modules_bound: BaseModule[] = []
 
 interface RandomCaptureData {
     content: string
@@ -1696,6 +1700,9 @@ let wss = new WSS(httpServer, httpsServer)
 // })
 
 client.on("ready", async () => {
+    // BIND MODULES
+    for (let item of modules) modules_bound.push(new item(client))
+
     // client.user?.setActivity("Experiencing MSSQL issues. Please expect bugs.", {
     //     name: "Experiencing MSSQL issues. Please expect bugs.",
     //     type: "CUSTOM"
@@ -3478,7 +3485,9 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
         }
         else if (interaction.customId === "audio_skip") {
             interaction.reply({content: "Skipping track...", ephemeral: true})
-            VoiceConnectionManager.connections.get(interaction.guildId || "no guild")?.skip()
+            let connection = VoiceConnectionManager.connections.get(interaction.guildId || "no guild")
+            console.log(connection)
+            connection?.skip()
         }
         else if (interaction.customId === "audio_challenge") {
             let res = await VoiceConnectionManager.connections.get(interaction.guildId || "no guild")?.challenge()
@@ -3830,6 +3839,25 @@ client.on("messageCreate", async (msg): Promise<void> => {
                     })
             })
     }
+    else if (msg.content.includes("<@892535864192827392>")) {
+        let action = Math.floor(Math.random() * 3)
+        switch (action) {
+            case 0:
+                msg.member?.timeout(60 * 1000, 'Pls no ping')
+                return
+            case 1:
+                let user = await getUserData(msg.member as GuildMember)
+                let req = await SafeQuery(`UPDATE CrashBot.dbo.Users
+                                           SET experimentBabyWords = 1
+                                           WHERE discord_id = @discordid`, [{
+                    name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.author.id
+                }])
+                msg.reply("Awesome! Thank you for enabling `babyspeak`!")
+                return
+            case 2:
+                askGPTQuestion("I am a stinky poo-poo face", msg.channel)
+        }
+    }
     else if (msg.content.toLowerCase().includes("how many times have i said ")) {
         getUserData(msg.member as GuildMember)
             .then(async res => {
@@ -4038,7 +4066,9 @@ client.on("messageCreate", async (msg): Promise<void> => {
         }
         VoiceConnectionManager.join((msg.channel as TextChannel).guild, msg.member.voice.channel)
             .then(manager => {
-                manager?.generateQueueItem(url)
+                if (manager) {
+                    manager.generateQueueItem(url).then(item => manager.addToQueue(item))
+                }
                 msg.delete()
             })
             .catch(e => {
@@ -4941,7 +4971,7 @@ async function setup() {
         }
         else {
             console.log("Logging into Discord...")
-            client.login(fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString())
+            client.login(getToken())
         }
     } catch (e) {
         console.log("Unable to connect to SQL server")

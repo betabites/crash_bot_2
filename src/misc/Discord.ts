@@ -152,3 +152,7 @@ export function downloadDiscordAttachment(url: string, fileextension: string, ar
         })
     })
 }
+
+export function getToken() {
+    return fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString()
+}
