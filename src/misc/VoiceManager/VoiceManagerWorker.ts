@@ -45,6 +45,7 @@ parentPort?.on("message", async (message: messageToAudioManager<AUDIO_MANAGER_ME
 
         let item = awaitingWorkerMessages.get(message.id)
         if (!item) return
+        // @ts-ignore
         clearTimeout(item[0])
         if (!message.data.error) item[1](message)
         else item[2](message.data.error)

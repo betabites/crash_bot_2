@@ -1,8 +1,8 @@
 import * as http from "http";
 import {Server, Socket} from "socket.io";
-import {EventEmitter} from 'events';
+import {EventEmitter} from 'node:events';
 import * as crypto from "crypto";
-// import {Client} from "socket.io/dist/client";
+import {Client} from "socket.io/dist/client";
 
 interface MinecraftPlayerData {
     username: string,
@@ -10,7 +10,8 @@ interface MinecraftPlayerData {
     experience: {
         level: number,
         xp: number
-    }
+    },
+    position: [number, number, number],
     dimension: string,
     dead: boolean
 }
@@ -21,12 +22,12 @@ interface IncomingMessage {
 }
 
 interface IncomingLoginMessage extends IncomingMessage {
-    type: "login",
+    type: "playerConnect",
     data: MinecraftPlayerData
 }
 
 interface IncomingLogoutMessage extends IncomingMessage {
-    type: "logout",
+    type: "playerDisconnect",
     data: MinecraftPlayerData
 }
 
@@ -57,6 +58,20 @@ interface OutgoingCommand {
     data: string
 }
 
+interface IncomingAdvancementMessage extends IncomingMessage {
+    type: "playerAdvancementEarn",
+    data: {
+        player: MinecraftPlayerData,
+        advancement: {
+            id: string,
+            display: {
+                title: string,
+
+            }
+        }
+    }
+}
+
 export default class RemoteStatusServer extends EventEmitter {
     readonly server
     readonly io
@@ -75,7 +90,7 @@ export default class RemoteStatusServer extends EventEmitter {
 
         for (let key of verification_keys) {
             this.server_connections[key] = {}
-            const func = (res: any) => {
+            const func = (res) => {
                 this.server_connections[key].attachClient = res
             }
 
@@ -135,32 +150,41 @@ export default class RemoteStatusServer extends EventEmitter {
         this.io.emit("sendCommand", _message)
     }
 
-    requestPlayerList() {
-        this.io.emit("requestPlayerList")
-    }
-
-    get connections(): {
-        [key: string]: ServerConnection
-    } {
-        let object: any = {}
+    get connections(): {[key: string]: ServerConnection} {
+        let object = {}
         for (let item of Object.keys(this.server_connections)) object[item] = this.server_connections[item].server
         return object
     }
 }
 
-export class ServerConnection extends EventEmitter {
+interface IServerConnectionEvents  {
+    message: [string, Player],
+    "typing_start": [Player],
+    playerDisconnect: [Player],
+    playerChangedDimension: [Player],
+    playerXpPickup: [Player],
+    playerXpChanged: [Player],
+    playerLevelChanged: [Player],
+    playerDeath: [Player],
+    playerRespawn: [Player],
+    playerConnect: [Player],
+    playerAdvancementEarn: [{id: string, display: {title: string}}, Player],
+    playerDataUpdate: [Player],
+}
+
+class ServerConnection extends EventEmitter {
     private readonly parent: RemoteStatusServer;
     private io_clients: Socket[] = []
     private _players: any = {}
 
-    private readonly encrypt: (string: string) => string
-    private readonly decrypt: (string: string) => string
+    private readonly encrypt: (string) => string
+    private readonly decrypt: (string) => string
 
     constructor(
         parent: RemoteStatusServer,
         attachClientsFunc: (func: (socket: Socket) => void) => void,
-        encrypt: (string: string) => string,
-        decrypt: (string: string) => string
+        encrypt: (string) => string,
+        decrypt: (string) => string
     ) {
         super()
         this.parent = parent
@@ -176,17 +200,30 @@ export class ServerConnection extends EventEmitter {
         attachClientsFunc(func)
     }
 
+    on<T extends keyof IServerConnectionEvents>(eventName: T, listener: (...args: IServerConnectionEvents[T]) => void): this {
+        return super.on(eventName, listener)
+    }
+
+    emit<T extends keyof IServerConnectionEvents>(eventName: T, ...args: IServerConnectionEvents[T]): boolean {
+        return super.emit(eventName, ...args)
+    }
+
     get connected() {
         return this.io_clients.length !== 0
     }
 
+    get players(): Player[] {
+        return Object.keys(this._players).map(i => this._players[i].player)
+    }
+
     private attachIOClient(client: Socket) {
         console.log("Attached client")
+        this._requestPlayerList(client)
 
         client.on("message", data => {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingChatMessage
-                let player = this.getPlayer(object.data.player)
+                let player = this.getPlayer(object.data.player, client)
 
                 if (object.data.submitted) {
                     // Broadcast event
@@ -208,8 +245,22 @@ export class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
-                let player = this.getPlayer(object.data)
+                let player = this.getPlayer(object.data, client)
                 console.log(object)
+            } catch (e) {
+                console.log(e)
+            }
+        })
+
+        client.on("playerDisconnect", data => {
+            try {
+                let object = JSON.parse(this.decrypt(data)) as IncomingLogoutMessage
+
+                console.log(object)
+                let player = this._players[object.data.id]
+                this.emit("playerDisconnect", player.player)
+                delete this._players[object.data.id]
+                console.log(this._players)
             } catch (e) {
                 console.log(e)
             }
@@ -219,7 +270,7 @@ export class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
-                let player = this.getPlayer(object.data)
+                let player = this.getPlayer(object.data, client)
                 this.emit("playerChangedDimension", player)
             } catch (e) {
                 console.log(e)
@@ -230,7 +281,7 @@ export class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
-                let player = this.getPlayer(object.data)
+                let player = this.getPlayer(object.data, client)
                 this.emit("playerXpPickup", player)
             } catch (e) {
                 console.log(e)
@@ -241,7 +292,7 @@ export class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
-                let player = this.getPlayer(object.data)
+                let player = this.getPlayer(object.data, client)
                 this.emit("playerXpChanged", player)
             } catch (e) {
                 console.log(e)
@@ -252,7 +303,7 @@ export class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
-                let player = this.getPlayer(object.data)
+                let player = this.getPlayer(object.data, client)
                 this.emit("playerLevelChanged", player)
             } catch (e) {
                 console.log(e)
@@ -263,7 +314,7 @@ export class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
-                let player = this.getPlayer(object.data)
+                let player = this.getPlayer(object.data, client)
                 this.emit("playerDeath", player)
             } catch (e) {
                 console.log(e)
@@ -274,15 +325,11 @@ export class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
-                let player = this.getPlayer(object.data)
+                let player = this.getPlayer(object.data, client)
                 this.emit("playerRespawn", player)
             } catch (e) {
                 console.log(e)
             }
-        })
-
-        client.on("playerDisconnect", data => {
-
         })
 
         client.on("playerList", data => {
@@ -291,39 +338,76 @@ export class ServerConnection extends EventEmitter {
                 console.log(object)
 
                 for (let _player of object.data) {
-                    let player = this.getPlayer(_player)
+                    let player = this.getPlayer(_player, client)
                 }
             } catch (e) {
                 console.log(e)
             }
         })
 
+        client.on("playerAdvancementEarn", data => {
+            try {
+                let object = JSON.parse(this.decrypt(data)) as IncomingAdvancementMessage
+
+                let player = this.getPlayer(object.data.player, client)
+                this.emit("playerAdvancementEarn", object.data.advancement, player)
+            } catch (e) {
+                console.log(e)
+            }
+        })
+
         client.on("disconnect", () => {
+            // Broadcast disconnect event for all players
+            for (let player of Object.keys(this._players)) this.emit("playerDisconnect", this._players[player].player)
+
             // Remove the client from the connection list
-            console.log("Detached client")
             this.io_clients.splice(this.io_clients.indexOf(client), 1)
         })
 
         this.io_clients.push(client)
     }
 
-    getPlayer(playerData: MinecraftPlayerData) {
-        // Ensure not to accidentally duplicate
-        if (!this._players[playerData.id]) {
-            this._players[playerData.id] = {}
-            const updatePlayerInfo = (func:any) => {
-                this._players[playerData.id].updateInfo = func
-            }
-            this._players[playerData.id].player = new Player(playerData, this, updatePlayerInfo)
-
-            this.emit("playerConnect", this._players[playerData.id])
-        } else {
-            this._players[playerData.id].updateInfo(playerData)
-        }
-        return this._players[playerData.id].player as Player
+    private _requestPlayerList(client: Socket) {
+        this.broadcast("requestPlayerList")
     }
 
-    private broadcast(event: string, data: string) {
+    requestPlayerList(): Promise<Player[]> {
+        return new Promise((resolve) => {
+            let count = this.io_clients.length
+            for (let client of this.io_clients) {
+                client.once("playerList", (data) => {
+                    count -= 1
+                    if (count === 0) {resolve(this.players)}
+                })
+                this._requestPlayerList(client);
+            }
+        })
+    }
+
+    private getPlayer(playerData: MinecraftPlayerData | string, client?: Socket) {
+        // Ensure not to accidentally duplicate
+        if (typeof playerData === "string") {
+            if (this._players[playerData]) return this._players[playerData].player as Player;
+            return undefined
+        }
+        else {
+            if (!this._players[playerData.id]) {
+                this._players[playerData.id] = {}
+                const updatePlayerInfo = (func) => {
+                    this._players[playerData.id].updateInfo = func
+                }
+                this._players[playerData.id].player = new Player(playerData, this, updatePlayerInfo)
+
+                this.emit("playerConnect", this._players[playerData.id].player)
+            } else {
+                this._players[playerData.id].updateInfo(playerData)
+            }
+            if (client) this._players[playerData.id].client = client
+            return this._players[playerData.id].player as Player
+        }
+    }
+
+    private broadcast(event: string, data?: string) {
         for (let client of this.io_clients) client.emit(event, data)
     };
 
@@ -361,10 +445,10 @@ class Player {
     readonly id: string
     readonly username: string
     readonly parent: ServerConnection
-    private _typing_message: string | null = null
-    private _typing_timeout: NodeJS.Timer | undefined
+    private _typing_message: string
+    private _typing_timeout: NodeJS.Timeout
 
-    private _data: MinecraftPlayerData | null = null;
+    private _data: MinecraftPlayerData;
 
     constructor(data: MinecraftPlayerData, parent: ServerConnection, onUpdatePlayerInfo: (d: (data: MinecraftPlayerData) => void) => void) {
         this.id = data.id
@@ -379,19 +463,21 @@ class Player {
 
     private updatePlayerInfo(data: MinecraftPlayerData) {
         this._data = data
+        this.parent.emit("playerDataUpdate", this)
     }
 
     get isTyping() {return !!this._typing_message}
     get isTypingMessage() {return this._typing_message}
-    get dimension() {return this._data?.dimension}
-    get experience() {return this._data?.experience}
+    get position() {return this._data.position}
+    get dimension() {return this._data.dimension}
+    get experience() {return this._data.experience}
 
     sendMessage(message: string) {
         return this.parent.broadcastMessage(message, [this])
     }
 
     setTyping(message?: string) {
-        this._typing_message = message || null
+        this._typing_message = message
         if (this._typing_timeout) clearTimeout(this._typing_timeout)
 
         if (message) this._typing_timeout = setTimeout(() => {

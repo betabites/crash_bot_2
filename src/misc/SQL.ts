@@ -22,7 +22,7 @@ interface PreparedArgument {
     data: string | number | Date | null
 }
 
-export default async function SafeQuery(sql: string, params: PreparedArgument[] = []): Promise<pkg.IResult<any>> {
+export default async function SafeQuery<T = any>(sql: string, params: PreparedArgument[] = []): Promise<pkg.IResult<T>> {
     // {name: '', type: mssql.VarChar, data: '')
     let pool = await connect(sql_config)
 

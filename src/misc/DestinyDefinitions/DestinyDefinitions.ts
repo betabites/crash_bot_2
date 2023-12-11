@@ -232,7 +232,7 @@ export interface Item {
     nonTransferrable: boolean;
     itemCategoryHashes: number[];
     specialItemType: number;
-    itemType: number;
+    itemType: ItemType;
     itemSubType: number;
     classType: number;
     breakerType: number;

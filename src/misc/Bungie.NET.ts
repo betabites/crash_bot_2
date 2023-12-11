@@ -9,6 +9,9 @@ import {VendorDefinition} from "./DestinyDefinitions/VendorDefinitions.js";
 import SafeQuery from "./SQL.js";
 import mssql from "mssql";
 import fetch from "node-fetch"
+import {groupItemsWithMatchingNames} from "../utilities/groupItemsWithMatchingNames.js";
+import {normalize} from "normalize-word";
+import {response} from "express";
 
 // Function to calculate the Levenshtein distance
 function levenshteinDistance(s1: string, s2: string) {
@@ -46,7 +49,7 @@ function levenshteinDistance(s1: string, s2: string) {
     return dp[m][n];
 }
 
-const database = new sqlite3.Database("./assets/destiny/manifest.db", (err) => {
+export const destinyManifestDatabase = new sqlite3.Database("./assets/destiny/manifest.db", (err) => {
     if (err) {
         console.error(err)
     }
@@ -68,11 +71,11 @@ interface InventoryItem {
     data?: Item
 }
 
-export function itemNameSearch(name: string): Promise<Item[]> {
+export function itemNameSearch(name: string, limit = 100): Promise<Iterable<Item[]>> {
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
-            'SELECT * FROM "DestinyInventoryItemDefinition" WHERE json_extract(json, "$.displayProperties.name") LIKE "%" || ? || "%"',
-            [name],
+        destinyManifestDatabase.all<InventoryItem>(
+            'SELECT * FROM "DestinyInventoryItemDefinition" WHERE json_extract(json, "$.displayProperties.name") LIKE "%" || ? || "%" LIMIT ?',
+            [name, limit],
             (err, rows) => {
                 if (err) {
                     reject(err)
@@ -104,7 +107,7 @@ export function itemNameSearch(name: string): Promise<Item[]> {
                 })
 
                 // @ts-ignore
-                resolve(rows.map(i => i.data))
+                resolve(groupItemsWithMatchingNames(rows.map(i => i.data), (i) => i?.displayProperties.name))
             }
         )
     })
@@ -112,7 +115,7 @@ export function itemNameSearch(name: string): Promise<Item[]> {
 
 export function activityNameSearch(name: string): Promise<ActivityDefinition[]> {
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
+        destinyManifestDatabase.all<InventoryItem>(
             'SELECT * FROM "DestinyActivityDefinition" WHERE json_extract(json, "$.displayProperties.name") LIKE "%" || ? || "%"',
             [name],
             (err, rows) => {
@@ -152,53 +155,87 @@ export function activityNameSearch(name: string): Promise<ActivityDefinition[]> 
     })
 }
 
-export function vendorNameSearch(name: string): Promise<VendorDefinition[]> {
+export function vendorNameSearch(name: string, limit = 100, vendorMustSellStuff = false): Promise<VendorDefinition[]> {
+    name = normalize(name.toLowerCase())
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
-            'SELECT * FROM "DestinyVendorDefinition" WHERE json_extract(json, "$.displayProperties.name") IS NOT \'\'',
-            // 'SELECT * FROM "DestinyVendorDefinition" WHERE TRUE',
-            // [name],
-            (err, rows) => {
-                if (err) {
-                    reject(err)
-                    return
-                }
-
-                if (rows.length === 0) {
-                    reject(new Error("Could not fid item"))
-                    return;
-                }
-
-                for (let row of rows) {
-                    row.data = JSON.parse(row.json)
-                    // @ts-ignore
-                    row.name = row.data?.displayProperties.name
-                    row.distance = levenshteinDistance(row.name || "", name)
-                }
-
-                rows
-                    .sort((a, b) => {
-                        // @ts-ignore
-                        if (a.distance > b.distance) {
-                            return 1
-                        }
-                        // @ts-ignore
-                        else if (a.distance < b.distance) {
-                            return -1
-                        }
-                        else return 0
-                    })
-
-                // @ts-ignore
-                resolve(rows.map(i => i.data))
+        const response = (err: Error | null, rows: {
+            data: VendorDefinition,
+            distance: number,
+            name: string,
+            json: string
+        }[]) => {
+            if (err) {
+                reject(err)
+                return
             }
-        )
+
+            if (rows.length === 0) {
+                reject(new Error("Could not fid item"))
+                return;
+            }
+
+            for (let row of rows) {
+                row.data = JSON.parse(row.json)
+                // @ts-ignore
+                row.name = normalize(row.data?.displayProperties.name)
+                console.log("Normalised to:", row.name)
+                row.distance = levenshteinDistance(row.name?.toLowerCase() || "", name)
+            }
+
+            rows = rows
+                .filter(row => {
+                    return row.distance < row.name.length &&
+                        row.distance < 15
+                })
+                .sort((a, b) => {
+                    // @ts-ignore
+                    if (a.distance > b.distance) {
+                        return 1
+                    }
+                    // @ts-ignore
+                    else if (a.distance < b.distance) {
+                        return -1
+                    }
+                    else return 0
+                })
+                .slice(0, limit)
+
+            // @ts-ignore
+            resolve(rows.map(i => i.data))
+        }
+        if (vendorMustSellStuff) {
+            SafeQuery<{
+                VendorHash: number
+            }>("SELECT VendorHash FROM CrashBot.dbo.DestinyVendors WHERE ItemHashes != '[]'", [])
+                .then(res => {
+                    destinyManifestDatabase.all<{
+                        data: VendorDefinition,
+                        distance: number,
+                        name: string,
+                        json: string
+                    }>(
+                        `SELECT *
+                         FROM "DestinyVendorDefinition"
+                         WHERE json_extract(json, "$.displayProperties.name") IS NOT \'\'
+                           AND json_extract(json, "$.hash") IN (${res.recordset.map(i => i.VendorHash).join(",")})`,
+                        // 'SELECT * FROM "DestinyVendorDefinition" WHERE TRUE',
+                        response
+                    )
+                })
+        }
+        else {
+            destinyManifestDatabase.all<{ data: VendorDefinition, distance: number, name: string, json: string }>(
+                'SELECT * FROM "DestinyVendorDefinition" WHERE json_extract(json, "$.displayProperties.name") IS NOT \'\'',
+                // 'SELECT * FROM "DestinyVendorDefinition" WHERE TRUE',
+                response
+            )
+        }
     })
 }
 
 export function getItemsByHash(hash: number[]): Promise<Item[]> {
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
+        destinyManifestDatabase.all<InventoryItem>(
             `SELECT *
              FROM "DestinyInventoryItemDefinition"
              WHERE json_extract(json, "$.hash") IN (${hash.map(i => "?").join(",")})`,
@@ -226,7 +263,7 @@ export function getItemsByHash(hash: number[]): Promise<Item[]> {
 
 export function getVendorByHash(hash: number): Promise<VendorDefinition> {
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
+        destinyManifestDatabase.all<InventoryItem>(
             'SELECT * FROM "DestinyVendorDefinition" WHERE json_extract(json, "$.hash") = ?',
             [hash],
             (err, rows) => {
@@ -250,7 +287,7 @@ export function getVendorByHash(hash: number): Promise<VendorDefinition> {
 
 export function getStatDefinitionByHash(id: string): Promise<StatDefinition> {
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
+        destinyManifestDatabase.all<InventoryItem>(
             'SELECT * FROM "DestinyStatDefinition" WHERE json_extract(json, "$.hash") = ? OR id = ?',
             [parseInt(id), id],
             (err, rows) => {
@@ -356,8 +393,7 @@ export function getTierTypeEmoji(tier: number) {
 
 export async function buildItemMessage(searchQuery: string, item: Item, similarItems: Item[]): Promise<Discord.InteractionReplyOptions & {
     fetchReply: true
-}>
-{
+}> {
     // Detect the item typ
     let embeds: Discord.MessageEmbed[] = []
     let vendors = await getItemVendors(item.hash)
@@ -394,7 +430,7 @@ export async function buildItemMessage(searchQuery: string, item: Item, similarI
                 .addOptions(
                     similarItems.slice(0, 25).map((i, index) => {
                         return {
-                            label: i.displayProperties.name.substring(0,100),
+                            label: i.displayProperties.name.substring(0, 100),
                             description: i.itemTypeAndTierDisplayName || getItemTypeName(i.itemType),
                             value: JSON.stringify([searchQuery, i.hash]),
                             default: i.hash === item.hash
@@ -423,7 +459,7 @@ export async function buildItemMessage(searchQuery: string, item: Item, similarI
 
 export function getItemVendors(itemHash: number): Promise<VendorDefinition[]> {
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
+        destinyManifestDatabase.all<InventoryItem>(
             `SELECT *
              FROM "DestinyVendorDefinition"
              WHERE json LIKE '%' || ? || '%'`,
@@ -503,7 +539,7 @@ export async function buildVendorMessage(searchQuery: string, item: VendorDefini
         console.log(itemHashes, item.hash)
 
         let items = await getItemsByHash(itemHashes)
-        let categories: {[key: string]: Item[]} = {}
+        let categories: { [key: string]: Item[] } = {}
 
         for (let _item of items) {
             let category_index = getCategoryIndex(_item)
@@ -513,14 +549,18 @@ export async function buildVendorMessage(searchQuery: string, item: VendorDefini
 
         embed.addFields(
             Object.keys(categories)
-                .map((category: string) => {
+                .map((category) => {
                     console.log(category)
                     // @ts-ignore
-                    return {name: item.displayCategories[category]?.displayProperties.name || "Unknown Category", value: categories[category]
+                    return {
+                        // @ts-ignore
+                        name: item.displayCategories[category]?.displayProperties.name || "Unknown Category",
+                        value: categories[category]
                             .map(i => {
                                 return `${getTierTypeEmoji(i.inventory.tierType)} [${i.displayProperties.name}](https://www.light.gg/db/items/${i.hash}) ${getItemTypeName(i.itemType)}`
                             })
-                            .join("\n") || ""}
+                            .join("\n") || ""
+                    }
                 })
         )
         embed.setFooter({text: item.hash.toString()})
@@ -578,8 +618,6 @@ export async function buildItemEmbed(item: Item, footer: string = "", include_st
 
     if (include_stats) {
         let vendors = await getItemVendors(item.hash)
-
-
         text.push(`[View on light.gg](https://www.light.gg/db/items/${item.hash})`)
     }
 
@@ -610,6 +648,28 @@ export async function buildItemEmbed(item: Item, footer: string = "", include_st
 
     return embed
 }
+
+export function buildTinyItemEmbed(item: Item) {
+    let text: string[] = []
+    let type = item.itemTypeAndTierDisplayName
+
+    if (item.displayProperties.description) {
+        text.push(item.displayProperties.description)
+    }
+    if (item.flavorText) {
+        text.push(item.flavorText)
+    }
+
+    let embed = new Discord.MessageEmbed()
+        .setAuthor({
+            iconURL: "https://bungie.net" + item.displayProperties.icon,
+            name: item.displayProperties.name + " - " + type,
+            url: `https://www.light.gg/db/items/${item.hash}`
+        })
+
+    return embed
+}
+
 
 export function buildVendorEmbed(vendor: VendorDefinition, footer: string = "") {
     let embed = new Discord.MessageEmbed()
@@ -676,7 +736,7 @@ export async function buildActivityMessage(searchQuery: string, activity: Activi
 
 export function updateMSVendors(): Promise<void> {
     return new Promise((resolve, reject) => {
-        database.all<InventoryItem>(
+        destinyManifestDatabase.all<InventoryItem>(
             'SELECT * FROM "DestinyVendorDefinition" WHERE 1',
             async (err, rows) => {
                 let vendors: VendorDefinition[] = rows.map(i => JSON.parse(i.json))

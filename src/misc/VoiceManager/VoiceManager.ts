@@ -43,6 +43,7 @@ worker.on("message", (message: messageToVoiceManager<VOICE_MANAGER_MESSAGE_TYPES
 
         let item = awaitingWorkerMessages.get(message.id)
         if (!item) return
+        // @ts-ignore
         clearTimeout(item[0])
         if (!message.data.error) item[1](message)
         else item[2](message.data.error)
@@ -168,7 +169,7 @@ export class VoiceConnectionManager extends EventEmitter {
             if (!newState.channel) return
             let connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
             if (!connection) return
-            let queue_item = await connection.generateQueueItem("https://www.youtube.com/watch?v=0yBnIUX0QAE")
+            let queue_item = await connection.generateQueueItem("https://www.youtube.com/watch?v=cZwFJClScX0")
             queue_item.repeat = true
             connection.addToQueue(queue_item)
         }
@@ -536,6 +537,7 @@ export class VoiceConnectionManager extends EventEmitter {
 
         this.subscription?.unsubscribe()
         clearInterval(this.interval1)
+        // @ts-ignore
         clearInterval(this.interval2)
         try {
             this.fetch_queue.stop()
