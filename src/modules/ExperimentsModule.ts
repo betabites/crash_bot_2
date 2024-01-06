@@ -6,7 +6,7 @@ import Discord, {
     CommandInteraction,
     EmbedBuilder,
     GuildMember,
-    Message, Typing
+    Message, TextBasedChannel, TextChannel, Typing
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import SafeQuery from "../misc/SQL.js";
@@ -14,6 +14,12 @@ import mssql from "mssql";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {ShuffleArray} from "../misc/Common.js";
 import ChatGPT from "../misc/ChatGPT.js";
+import bad_baby_words from "../../badwords.json";
+import randomWords from "random-words";
+import {client} from "../misc/Discord.js";
+import ytdl from "ytdl-core";
+
+const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 
 export class ExperimentsModule extends BaseModule {
     commands = [
@@ -239,6 +245,180 @@ export class ExperimentsModule extends BaseModule {
                                     })
                             }
                         })
+                })
+        }
+        else {
+            // Do word count
+            if (!msg.member) return
+            getUserData(msg.member as GuildMember)
+                .then(async res => {
+                    if (res.experimentBabyWords && msg.mentions.members?.size === 0 && msg.mentions.roles.size === 0) {
+                        // Talk like a 5-year-old
+                        if (msg.content.startsWith("b - ")) return
+
+                        let _words = msg.content.split(" ")
+
+                        for (let i in _words) {
+                            if (_words[i].startsWith("http") || _words[i].startsWith("<") || _words[i].startsWith(">") || _words[i].startsWith("`")) continue
+                            if (_words[i] in bad_baby_words.words) _words[i] = "dumb"
+                            // @ts-ignore
+                            if (Math.random() < .1) _words[i] = randomWords(1)[0]
+
+                            let letters = _words[i].split("")
+                            for (let r in letters) {
+                                if (Math.random() < .1) letters[r] = baby_alphabet[Math.floor(Math.random() * baby_alphabet.length)]
+                            }
+                            _words[i] = letters.join("")
+                            console.log(_words[i])
+
+                        }
+
+                        if (Math.random() < .1) {
+                            _words = ([] as string[]).concat(_words.map(word => word.toUpperCase()), ["\n", "sorry.", "I", "left", "caps", "lock", "on"])
+                        }
+
+                        if (!(msg.channel instanceof TextChannel)) {
+                            return
+                        }
+                        let channel = msg.channel as TextChannel
+                        channel
+                            .fetchWebhooks()
+                            .then((hooks): Promise<Discord.Webhook> => {
+                                let webhook = hooks.find(hook => {
+                                    return hook.name === (msg.member?.nickname || msg.member?.user.username || "Unknown member")
+                                })
+                                if (webhook) {
+                                    return new Promise((resolve) => {
+                                        // @ts-ignore
+                                        resolve(webhook)
+                                    })
+                                }
+                                else {
+                                    return channel.createWebhook({
+                                        name: msg.member?.nickname || msg.member?.user.username || "Unknown user",
+                                        avatar: msg.member?.avatarURL() || msg.member?.user.avatarURL(),
+                                        reason: "Needed new cheese"
+                                    })
+                                }
+                            })
+                            .then(webhook => {
+                                console.log(webhook)
+                                webhook.send(_words.join(' ')).then(() => {
+                                    msg.delete()
+                                    webhook.delete()
+                                })
+                            }).catch(e => {
+                            console.error(e)
+                        })
+                    }
+                    if (res.experimentWords) {
+                        let words = msg.content.replace(/[^A-Za-z ]/g, "").toLowerCase().split(" ")
+                        let spam = false
+                        for (let word of words) {
+                            let appears = words.filter(i => i === word)
+                            if ((appears.length / words.length) > 0.40 && words.length > 5) {
+                                spam = true
+                                continue
+                            }
+
+                            if (word.length > 100) continue
+                            if (word === "") continue
+                            let data = await SafeQuery("SELECT * FROM dbo.WordsExperiment WHERE discord_id = @discordid AND word = @word AND guild_id = @guildid", [
+                                {
+                                    name: "discordid",
+                                    type: mssql.TYPES.VarChar(20),
+                                    data: msg.member?.id || "Unknown member"
+                                },
+                                {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || "Unknown guild"},
+                                {name: "word", type: mssql.TYPES.VarChar(100), data: word}
+                            ])
+                            if (data.recordset.length === 0) {
+                                await SafeQuery("INSERT INTO dbo.WordsExperiment (word, discord_id, guild_id) VALUES (@word, @discordid, @guildid);", [
+                                    {
+                                        name: "discordid",
+                                        type: mssql.TYPES.VarChar(20),
+                                        data: msg.member?.id || "Unknown member"
+                                    },
+                                    {
+                                        name: "guildid",
+                                        type: mssql.TYPES.VarChar(20),
+                                        data: msg.guild?.id || "Unknown guild"
+                                    },
+                                    {name: "word", type: mssql.TYPES.VarChar(100), data: word}
+                                ])
+                            }
+                            else {
+                                await SafeQuery("UPDATE dbo.WordsExperiment SET count=count + 1, last_appeared=SYSDATETIME() WHERE id = @id", [
+                                    {name: "id", type: mssql.TYPES.BigInt(), data: data.recordset[0].id}
+                                ])
+                                let res = await SafeQuery("SELECT SUM(count + pseudo_addition) AS 'sum' FROM dbo.WordsExperiment WHERE word = @word AND guild_id = @guildid", [
+                                    {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || ""},
+                                    {name: "word", type: mssql.TYPES.VarChar(100), data: word}
+                                ])
+                                if (!res.recordset[0].sum) return
+                                if ((res.recordset[0].sum % 500) === 0) {
+                                    client.channels.fetch("950939869776052255")
+                                        .then((channel) => {
+                                            let title: string = `<@${msg.author.username}> just said ${word} for the ${res.recordset[0].sum}th time!`
+                                            let message = `Of all users with this experiment enabled, <@${msg.author.id}> just said \`${word}\`for the ${res.recordset[0].sum}th time!`;
+
+                                            (channel as TextBasedChannel).send({
+                                                content: ' ', embeds: [
+                                                    new EmbedBuilder()
+                                                        .setTitle(title)
+                                                        .setDescription(message)
+                                                ]
+                                            })
+                                            // msg.reply(`Of everyone with the words experiment enabled, you just said \`${word}\` for the ${res.recordset[0].sum}th time!`)
+                                        })
+                                }
+                            }
+                        }
+                        if (spam) msg.react("😟")
+                    }
+                    if (res.simpleton_experiment) {
+                        if (msg.content.length > 1500) {
+                            msg.reply("This message is too long to simplify")
+                            return
+                        }
+                        let message = await ChatGPT.sendMessage(`Simplify this message so that it uses as few words as possible. Make it as simple and short as possible and avoid long words at all costs. Even if removing detail. Text speech and emojis may be used: ${msg.content}`)
+                        let channel = msg.channel as TextChannel
+                        channel
+                            .fetchWebhooks()
+                            .then((hooks): Promise<Discord.Webhook> => {
+                                let webhook = hooks.find(hook => {
+                                    return hook.name === (msg.member?.nickname || msg.member?.user.username || "Unknown member")
+                                })
+                                if (webhook) {
+                                    return new Promise((resolve) => {
+                                        // @ts-ignore
+                                        resolve(webhook)
+                                    })
+                                }
+                                else {
+                                    return channel.createWebhook({
+                                        name: msg.member?.nickname || msg.member?.user.username || "Unknown user",
+                                        avatar: msg.member?.avatarURL() || msg.member?.user.avatarURL(),
+                                        reason: "Needed new cheese"
+                                    })
+                                }
+                            })
+                            .then(webhook => {
+                                console.log(webhook)
+                                msg.delete()
+                                webhook.send({
+                                    content: message.text,
+                                    allowedMentions: {
+                                        parse: [],
+                                        users: [],
+                                        roles: [],
+                                        repliedUser: false
+                                    }
+                                })
+                            }).catch(e => {
+                            console.error(e)
+                        })
+                    }
                 })
         }
 

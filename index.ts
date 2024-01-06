@@ -5,33 +5,28 @@ import express from "express"
 import fileUpload, {UploadedFile} from "express-fileupload"
 import fs from "fs"
 import * as path from "path";
-import {exec, spawn} from "child_process"
-import {
-    client,
-    downloadDiscordAttachment,
-    downloadDiscordAttachmentWithInfo,
-    getToken,
-    sendImpersonateMessage
-} from "./src/misc/Discord.js";
+import {client, getToken,} from "./src/misc/Discord.js";
 import ChatGPT from "./src/misc/ChatGPT.js";
 import SafeQuery from "./src/misc/SQL.js";
-import {Bank, BankResource, buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
+import {buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
 import {CrashBotUser} from "./src/misc/UserManager.js";
-import archiver from "archiver";
 import Discord, {
+    ActionRowBuilder,
+    AttachmentBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ChannelType,
     EmbedBuilder,
     Guild,
     GuildMember,
-    Message,
+    MessageActionRowComponentBuilder,
     TextBasedChannel,
-    TextChannel,
-    ChannelType,
-    ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageActionRowComponentBuilder, AttachmentBuilder
+    TextChannel
 } from "discord.js";
 import {fetchThrowTemplates, generateThrow} from "./src/misc/ThrowMaker.js";
 import ytdl from "ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
-import {makeid, QueueManager, ShuffleArray} from "./src/misc/Common.js";
+import {makeid} from "./src/misc/Common.js";
 import WSS from "./src/misc/WSS.js";
 import {VoiceConnectionManager} from "./src/misc/VoiceManager/VoiceManager.js";
 import http from "http";
@@ -39,14 +34,10 @@ import https from "https";
 import mssql from "mssql";
 import randomWords from "random-words";
 import bad_baby_words from "./badwords.json" assert {type: "json"}
-import {
-    setupBungieAPI,
-} from "./src/modules/D2/Bungie.NET.js";
-import {TWAGGER_POST_CHANNEL} from "./src/misc/sendTwaggerPost.js";
+import {setupBungieAPI,} from "./src/modules/D2/Bungie.NET.js";
 import {BaseModule} from "./src/modules/BaseModule.js";
 import {D2_ROUTER, D2Module} from "./src/modules/D2.js";
 import {RoleplayModule} from "./src/modules/RoleplayModule.js";
-import {askGPTQuestion} from "./src/utilities/askGPTQuestion.js";
 import {GPTModule} from "./src/modules/GPT.js";
 import {getUserData} from "./src/utilities/getUserData.js";
 import {ResourcePackManagerModule} from "./src/modules/ResourcePackManagerModule.js";
@@ -63,7 +54,6 @@ import {MEMORIES_ROUTER} from "./src/modules/Memories.js";
 import {PACK_ROUTER} from "./src/routes/packs.js";
 
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
-const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 const moduleClasses = [
     D2Module,
     ExperimentsModule,
@@ -79,22 +69,6 @@ const moduleClasses = [
 dotenv.config()
 
 let modules: BaseModule[] = []
-
-// let banner_images = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/html/web_assets/banner_images.json").toString())
-let server_env_options = {
-    shell: "sh",
-    arguments: ["run.sh"],
-    cwd: "/home/ubscontrol/java_server/",
-    chatPrefix: "[Server thread/INFO"
-}
-// let server_env_options = {
-//     shell: "sh",
-//     arguments: ["run.sh"],
-//     cwd: "/home/ubscontrol/doomsday_server/",
-//     chatPrefix: "[Server thread/INFO] [minecraft/DedicatedServer"
-// }
-// let sound_mappings = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/sounds/sound_definitions.json").toString()).sound_definitions
-let active_playlist_modifications = {}
 let pack_updated
 
 // Parse memes and convert any items with the .url attribute
@@ -106,24 +80,6 @@ setInterval(async () => {
     }
     await SafeQuery("DELETE FROM dbo.Webhook WHERE timeout < GETDATE()", [])
 }, 60000)
-
-function spawnServer() {
-    return spawn(server_env_options.shell, server_env_options.arguments, {
-        cwd: server_env_options.cwd
-    })
-}
-
-let bank = new Bank()
-
-let resources = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/json/bank_backup.json").toString())
-for (let resource of resources) {
-    console.log(resource)
-    bank.addTradeResource(new BankResource(resource.name, resource.tag_name, resource.stock, resource.max_inventory, resource.baseline_price))
-}
-
-for (let resource of bank.resources) {
-    console.log(resource.calculateWorth())
-}
 
 let app = express()
 let httpServer = http.createServer(app).listen(8051)
@@ -411,103 +367,6 @@ app.post("/newthrow", async (req, res) => {
     }
 })
 
-// app.post("/addOwnership/:key", (req, res) => {
-//     CrashBotUser.saveOwnership(req.params.key, req.body.fileLocation)
-//     res.send(req.body.fileLocation + " has been given to " + req.params.key)
-// })
-// app.post("/removeClaim", (req, res) => {
-//     // req.body.key
-//     // req.body.fileLocation
-//
-//     // Search for the default
-//     let path_array = req.body.fileLocation.split("/")
-//     let file = path_array[path_array.length]
-//     let folder = req.body.fileLocation.replace
-// })
-
-app.post("/trade/bank", async (req, res) => {
-    res.send("Trading is currently unavailable")
-    // let player = new CrashBotUser(req.body.key)
-    // await player.get()
-    // if (req.body.type === "for_coin") {
-    //     // Get resource
-    //     let out_resource
-    //     for (let resource of bank.resources) {
-    //         if (resource.tag_name === req.body.resource) {
-    //             out_resource = resource
-    //             break
-    //         }
-    //     }
-    //
-    //     if (typeof out_resource === "undefined") {
-    //         res.send("Invalid resource")
-    //     } else {
-    //         let gained_coins = out_resource.calculateWorth()
-    //
-    //         // Remove resource from inventory
-    //         console.log(`clear ${player.player_name} ${out_resource.tag_name} 1`)
-    //         let command
-    //         if (typeof req.body.all !== "undefined") {
-    //             command = `clear ${player.player_name} ${out_resource.tag_name}`
-    //         } else {
-    //             command = `clear ${player.player_name} ${out_resource.tag_name} 0 1`
-    //         }
-    //         let result = await mcServer.sendCommand(command)
-    //         if (!result.startsWith("Cleared the inventory")) {
-    //             res.send("Trade failed")
-    //         } else {
-    //             if (typeof req.body.all !== "undefined") {
-    //                 let count = parseInt(result.replace(`Cleared the inventory of ${player.player_name}, removing `, "").replace(" items", ""))
-    //                 gained_coins *= count
-    //                 player.currency += gained_coins
-    //                 out_resource.addToStock(count)
-    //                 mcServer.sendCommand(`tellraw ${player.player_name} {"rawtext":[{"text":"§a§lThe Bank"},{"text":"§r§l has given you "},{"text":"§a§l${gained_coins} coin(s)"}]}`)
-    //                 wss.updateBank()
-    //                 res.send("Trade successful")
-    //             } else {
-    //                 player.currency += gained_coins
-    //                 out_resource.addToStock(1)
-    //                 mcServer.sendCommand(`tellraw ${player.player_name} {"rawtext":[{"text":"§a§lThe Bank"},{"text":"§r§l has given you "},{"text":"§a§l${gained_coins} coin(s)"}]}`)
-    //                 wss.updateBank()
-    //                 res.send("Trade successful")
-    //             }
-    //         }
-    //     }
-    // } else if (req.body.type === "for_resource") {
-    //     // Get resource
-    //     let out_resource
-    //     for (let resource of bank.resources) {
-    //         if (resource.tag_name === req.body.resource) {
-    //             out_resource = resource
-    //             break
-    //         }
-    //     }
-    //
-    //     if (typeof out_resource === "undefined") {
-    //         res.send("Invalid resource")
-    //     } else {
-    //         let cost = Math.round(out_resource.calculateWorth() * 1.1)
-    //         if (player.currency < cost) {
-    //             res.send("Trade failed; Not enough money")
-    //         } else {
-    //             if ((await mcServer.sendCommand(`give ${player.player_name} ${out_resource.tag_name}`)).startsWith("Gave")) {
-    //                 player.currency -= cost
-    //                 out_resource.removeFromStock(1)
-    //                 mcServer.sendCommand(`tellraw ${player.player_name} {"rawtext":[{"text":"§a§lThe Bank"},{"text":"§r§l has given you "},{"text":"§a§l1x ${out_resource.name}"}]}`)
-    //                 wss.updateBank()
-    //                 res.send("Trade successful")
-    //             } else {
-    //                 res.send("Trade failed. Bank trades require you to be connected to the server.")
-    //             }
-    //         }
-    //     }
-    // }
-})
-
-app.post("/trade/player", async (req, res) => {
-    res.send("Player trading has been removed due to changes in background processing.")
-})
-
 app.get("/list", (req, res) => {
     res.set({
         'Content-Type': 'application/json'
@@ -539,16 +398,6 @@ app.get("/lol.zip", async (req, res) => {
     //     fs.unlinkSync(path.resolve("./") + "/" + name)
     // })
 })
-
-// app.get("/capitalisim.zip", async (req, res) => {
-//     // Setup the code for when the backup is running
-//     let manageBackup = data => {
-//         data.stream.pipe(res)
-//         mcServer.removeListener("onBackupReadStream", manageBackup)
-//     }
-//     mcServer.on("onBackupReadStream", manageBackup)
-//     mcServer.sendCommand("save-all")
-// })
 
 app.get("/assets/*", (req, res) => {
     if (req.url.endsWith(".mp3")) {
@@ -647,69 +496,9 @@ app.get("/favicon.ico", (req, res) => {
     res.sendFile(path.resolve("./") + "/assets/favicon.ico")
 })
 
-// app.get("/createNewKey/:player_name", (req, res) => {
-//     let key = CrashBotUser.NewKey(req.params.player_name)
-//     res.send("player name is " + req.params.player_name + ". Key is: " + key)
-// })
-
 app.post("/vote/:id", (req, res) => {
 
 })
-
-// app.get("/playSound/:sound", (req, res) => {
-//     mcServer.sendCommand("tellraw @a {\"rawtext\":[{\"text\":\"Now queuing; SOUND HERE\"}]}")
-//     mcServer.avoid_discord = true
-//
-//     let map = sound_mappings[req.params.sound]
-//     let audio_path
-//     if (typeof map.sounds[0] === "string") {
-//         audio_path = map.sounds[0]
-//     } else {
-//         audio_path = map.sounds[0].name
-//     }
-//
-//     // Convert to .dat
-//     let convert = spawn("/usr/bin/audiowaveform", ["-i", path.resolve("./") + "/assets/pack/" + audio_path + ".ogg", "-o", "track.dat", "-b", "8", "-z", "256"], {cwd: path.resolve("./")})
-//     convert.on("close", () => {
-//         // Get length of the track
-//         getAudioDurationInSeconds(path.resolve("./") + "/assets/pack/" + audio_path + ".ogg").then(async duration => {
-//             let ticks = Math.round(duration / 0.2)
-//             let wave = WaveformData.create(toArrayBuffer(fs.readFileSync("/home/ubscontrol/resource_pack_creator/track.dat")))
-//             const resampledWaveform = wave.resample({width: ticks});
-//             const channel = resampledWaveform.channel(0);
-//             let min_channel = channel.min_array()
-//             let max_channel = channel.max_array()
-//             let i = 0
-//
-//             await wait(1000 + Math.floor(Math.random() * 5000))
-//             mcServer.sendCommand("execute @a ~ ~ ~ playsound " +  req.params.sound + " @a")
-//             let interval = setInterval(() => {
-//                 let commands = []
-//                 // Calculate black area at top
-//                 commands.push(`fill 1422 84 -551 1409 ${81 + Math.round(3 * (max_channel[i] / 100))} -551 concrete 15`)
-//
-//                 // Calculate bar area
-//                 commands.push(`fill 1422 ${80 + Math.round(3 * (max_channel[i] / 100))} -551 1409 ${80 - Math.round(3 * (min_channel[i] / 100))} -551 concrete 4`)
-//
-//                 // Calculate black area at bottom
-//                 commands.push(`fill 1422 77 -551 1409 ${79 - Math.round(3 * (min_channel[i] / 100))} -551 concrete 15`)
-//
-//                 mcServer.sendCommand(commands.join("\n"))
-//                 i += 1
-//                 if (i === max_channel.length) {
-//                     mcServer.avoid_discord = false
-//                     console.log("track finished")
-//                     clearInterval(interval)
-//                 }
-//             }, 200)
-//         })
-//     })
-// })
-
-// let http_serv = app.listen(port, () => {
-//     console.log(`Listening on port ${port}`)
-// })
-
 
 app.use("/packs", PACK_ROUTER)
 app.use("/destiny", D2_ROUTER)
@@ -717,34 +506,6 @@ app.use("/achievements", ACHIEVEMENTS_ROUTER)
 app.use("/memories", MEMORIES_ROUTER)
 
 let wss = new WSS(httpServer, httpsServer)
-
-// wss.on("connection", ws => {
-//     ws.on("message", async (msg: any) => {
-//         let data = JSON.parse(msg.toString())
-//         if (data.action === "fetch_bank_data") {
-//             let player = new CrashBotUser(data.key)
-//             await player.get()
-//             ws.key = data.key
-//             let data_output = {
-//                 "action": "bank_update",
-//                 "data": {
-//                     "currency": player.currency,
-//                     "players": await CrashBotUser.listplayer_names(),
-//                     "available_resources": bank.resources.map(resource => {
-//                         return {
-//                             name: resource.name,
-//                             tag_name: resource.tag_name,
-//                             stock: resource.stock,
-//                             max_stock: resource.max_inventory,
-//                             worth: resource.calculateWorth()
-//                         }
-//                     })
-//                 }
-//             }
-//             ws.send(JSON.stringify(data_output))
-//         }
-//     })
-// })
 
 client.on("ready", async () => {
     if (!client.application) throw new Error("Client does not have an associated application object. This is required.")
@@ -768,23 +529,6 @@ client.on("ready", async () => {
     // Delete commands that are no-longer defined in the code
     for (let item of COMMANDS_TO_DELETE.values()) item.delete()
 
-    // client.user?.setActivity("Experiencing MSSQL issues. Please expect bugs.", {
-    //     name: "Experiencing MSSQL issues. Please expect bugs.",
-    //     type: "CUSTOM"
-    // })
-    // client.channels.fetch("892518365766242375")
-    //     .then(channel => {
-    //         // let embed = new EmbedBuilder()
-    //         // embed.setTitle("QUEST UNLOCKED!")
-    //         // embed.setDescription("Ruin Post Validator's day by continuously pinging it.")
-    //         // embed.setFooter("WARNING: Foul language")
-    //         // embed.addField("")
-    //
-    //         SafeQuery("UPDATE CrashBot.dbo.Users SET experimentBabyWords = TRUE WHERE 1=1")
-    //         channel.send({
-    //             content: "@here HELP! Post Validator has stole the CrashBotUser to baby speak and enabled it for everyone! Let's ping the f\\*k out of them!"
-    //         })
-    //     })
 
     // Setup slash commands
     const guilds = ["892518158727008297", "830587774620139580"]
@@ -797,87 +541,6 @@ client.on("ready", async () => {
     for (let id of guilds) {
         client.guilds.fetch(id).then(processGuild)
     }
-
-    // client.application.commands.fetch().then(commands => {
-    //     for (let command of commands) {
-    //         command[1].delete()
-    //     }
-    // })
-
-    // client.application.commands.create({
-    //     name: "username",
-    //     description: "Add or change your name on our Minecraft server's whitelist",
-    //     options: [
-    //         {
-    //             type: 3,
-    //             name: "mc_username",
-    //             description: "Your Minecraft username",
-    //             required: true
-    //         }
-    //     ]
-    // })
-
-    // Update player profile pictures
-    // for (let player of CrashBotUser.map) {
-    //     client.users.fetch(player[1].discord_id).then(user => {
-    //         player[1].avatar_url = user.avatarURL()
-    //         console.log(user.username + ": " + player[1].avatar_url)
-    //     }).catch(e => {})
-    // }
-
-    // setInterval(() => {
-    //     let embed = new EmbedBuilder()
-    //     let players_sorted = Array.from(CrashBotUser.map, ([name, value]) => (value)).sort((a,b) => {
-    //         if (a.player_name > b.player_name) {
-    //             return 1
-    //         } else if (a.player_name < b.player_name) {
-    //             return -1
-    //         } else {
-    //             return 1
-    //         }
-    //     })
-    //
-    //     for (let player of players_sorted) {
-    //         let days = 0
-    //         let hours = 0
-    //         let minutes = 0
-    //         let seconds
-    //         if (player.active) {
-    //             seconds = player.active_time + Math.round(((new Date()).getTime() - player.active_start) / 1000)
-    //         } else {
-    //             seconds = player.active_time
-    //         }
-    //
-    //         while (seconds >= 86400) {
-    //             seconds -= 86400
-    //             days += 1
-    //         }
-    //
-    //         while (seconds >= 3600) {
-    //             seconds -= 3600
-    //             hours += 1
-    //         }
-    //
-    //         while (seconds >= 60) {
-    //             seconds -= 60
-    //             minutes += 1
-    //         }
-    //
-    //         if (player.active) {
-    //             embed.addField(player.player_name + " 🟢", `<@${player.discord_id}>\n${days}D ${hours}:${minutes}:${seconds}`, true)
-    //         }
-    //         else {
-    //             embed.addField(player.player_name + " 🔴", `<@${player.discord_id}>\n${days}D ${hours}:${minutes}:${seconds}`, true)
-    //         }
-    //     }
-    //
-    //     active_hours_message.edit({
-    //         embeds: [embed]
-    //     })
-    // }, 30000)
-
-    // Setup Minecraft remote status server
-
 })
 
 client.on("userUpdate", (oldUser, newUser) => {
@@ -1029,176 +692,6 @@ client.on("messageCreate", async (msg): Promise<void> => {
     else {
         // Do word count
         if (!msg.member) return
-        getUserData(msg.member as GuildMember)
-            .then(async res => {
-                if (res.experimentBabyWords && msg.mentions.members?.size === 0 && msg.mentions.roles.size === 0) {
-                    // Talk like a 5-year-old
-                    if (msg.content.startsWith("b - ")) return
-
-                    let _words = msg.content.split(" ")
-
-                    for (let i in _words) {
-                        if (_words[i].startsWith("http") || _words[i].startsWith("<") || _words[i].startsWith(">") || _words[i].startsWith("`")) continue
-                        if (_words[i] in bad_baby_words.words) _words[i] = "dumb"
-                        // @ts-ignore
-                        if (Math.random() < .1) _words[i] = randomWords(1)[0]
-
-                        let letters = _words[i].split("")
-                        for (let r in letters) {
-                            if (Math.random() < .1) letters[r] = baby_alphabet[Math.floor(Math.random() * baby_alphabet.length)]
-                        }
-                        _words[i] = letters.join("")
-                        console.log(_words[i])
-
-                    }
-
-                    if (Math.random() < .1) {
-                        _words = ([] as string[]).concat(_words.map(word => word.toUpperCase()), ["\n", "sorry.", "I", "left", "caps", "lock", "on"])
-                    }
-
-                    if (!(msg.channel instanceof TextChannel)) {
-                        return
-                    }
-                    let channel = msg.channel as TextChannel
-                    channel
-                        .fetchWebhooks()
-                        .then((hooks): Promise<Discord.Webhook> => {
-                            let webhook = hooks.find(hook => {
-                                return hook.name === (msg.member?.nickname || msg.member?.user.username || "Unknown member")
-                            })
-                            if (webhook) {
-                                return new Promise((resolve) => {
-                                    // @ts-ignore
-                                    resolve(webhook)
-                                })
-                            }
-                            else {
-                                return channel.createWebhook({
-                                    name: msg.member?.nickname || msg.member?.user.username || "Unknown user",
-                                    avatar: msg.member?.avatarURL() || msg.member?.user.avatarURL(),
-                                    reason: "Needed new cheese"
-                                })
-                            }
-                        })
-                        .then(webhook => {
-                            console.log(webhook)
-                            webhook.send(_words.join(' ')).then(() => {
-                                msg.delete()
-                                webhook.delete()
-                            })
-                        }).catch(e => {
-                        console.error(e)
-                    })
-                }
-                if (res.experimentWords) {
-                    let words = msg.content.replace(/[^A-Za-z ]/g, "").toLowerCase().split(" ")
-                    let spam = false
-                    for (let word of words) {
-                        let appears = words.filter(i => i === word)
-                        if ((appears.length / words.length) > 0.40 && words.length > 5) {
-                            spam = true
-                            continue
-                        }
-
-                        if (word.length > 100) continue
-                        if (word === "") continue
-                        let data = await SafeQuery("SELECT * FROM dbo.WordsExperiment WHERE discord_id = @discordid AND word = @word AND guild_id = @guildid", [
-                            {
-                                name: "discordid",
-                                type: mssql.TYPES.VarChar(20),
-                                data: msg.member?.id || "Unknown member"
-                            },
-                            {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || "Unknown guild"},
-                            {name: "word", type: mssql.TYPES.VarChar(100), data: word}
-                        ])
-                        if (data.recordset.length === 0) {
-                            await SafeQuery("INSERT INTO dbo.WordsExperiment (word, discord_id, guild_id) VALUES (@word, @discordid, @guildid);", [
-                                {
-                                    name: "discordid",
-                                    type: mssql.TYPES.VarChar(20),
-                                    data: msg.member?.id || "Unknown member"
-                                },
-                                {
-                                    name: "guildid",
-                                    type: mssql.TYPES.VarChar(20),
-                                    data: msg.guild?.id || "Unknown guild"
-                                },
-                                {name: "word", type: mssql.TYPES.VarChar(100), data: word}
-                            ])
-                        }
-                        else {
-                            await SafeQuery("UPDATE dbo.WordsExperiment SET count=count + 1, last_appeared=SYSDATETIME() WHERE id = @id", [
-                                {name: "id", type: mssql.TYPES.BigInt(), data: data.recordset[0].id}
-                            ])
-                            let res = await SafeQuery("SELECT SUM(count + pseudo_addition) AS 'sum' FROM dbo.WordsExperiment WHERE word = @word AND guild_id = @guildid", [
-                                {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || ""},
-                                {name: "word", type: mssql.TYPES.VarChar(100), data: word}
-                            ])
-                            if (!res.recordset[0].sum) return
-                            if ((res.recordset[0].sum % 500) === 0) {
-                                client.channels.fetch("950939869776052255")
-                                    .then((channel) => {
-                                        let title: string = `<@${msg.author.username}> just said ${word} for the ${res.recordset[0].sum}th time!`
-                                        let message = `Of all users with this experiment enabled, <@${msg.author.id}> just said \`${word}\`for the ${res.recordset[0].sum}th time!`;
-
-                                        (channel as TextBasedChannel).send({
-                                            content: ' ', embeds: [
-                                                new EmbedBuilder()
-                                                    .setTitle(title)
-                                                    .setDescription(message)
-                                            ]
-                                        })
-                                        // msg.reply(`Of everyone with the words experiment enabled, you just said \`${word}\` for the ${res.recordset[0].sum}th time!`)
-                                    })
-                            }
-                        }
-                    }
-                    if (spam) msg.react("😟")
-                }
-                if (res.simpleton_experiment) {
-                    if (msg.content.length > 1500) {
-                        msg.reply("This message is too long to simplify")
-                        return
-                    }
-                    let message = await ChatGPT.sendMessage(`Simplify this message so that it uses as few words as possible. Make it as simple and short as possible and avoid long words at all costs. Even if removing detail. Text speech and emojis may be used: ${msg.content}`)
-                    let channel = msg.channel as TextChannel
-                    channel
-                        .fetchWebhooks()
-                        .then((hooks): Promise<Discord.Webhook> => {
-                            let webhook = hooks.find(hook => {
-                                return hook.name === (msg.member?.nickname || msg.member?.user.username || "Unknown member")
-                            })
-                            if (webhook) {
-                                return new Promise((resolve) => {
-                                    // @ts-ignore
-                                    resolve(webhook)
-                                })
-                            }
-                            else {
-                                return channel.createWebhook({
-                                    name: msg.member?.nickname || msg.member?.user.username || "Unknown user",
-                                    avatar: msg.member?.avatarURL() || msg.member?.user.avatarURL(),
-                                    reason: "Needed new cheese"
-                                })
-                            }
-                        })
-                        .then(webhook => {
-                            console.log(webhook)
-                            msg.delete()
-                            webhook.send({
-                                content: message.text,
-                                allowedMentions: {
-                                    parse: [],
-                                    users: [],
-                                    roles: [],
-                                    repliedUser: false
-                                }
-                            })
-                        }).catch(e => {
-                        console.error(e)
-                    })
-                }
-            })
         if (imageCaptureChannels.indexOf(msg.channel.id) !== -1 && !msg.author.bot) {
             let urls = msg.content.match(/\bhttps?:\/\/\S+/gi) || []
             let yt_urls: any[] = []
@@ -1828,260 +1321,6 @@ async function setup() {
 // setTimeout(() => {
 //     rot_potato()
 // }, 30000)
-
-async function generatePack(pack_id: string, increase_version_num = false, onFile = (file: Buffer, location: string) => {
-}, onPackFound = (p: any) => {
-}) {
-    let pack = (await SafeQuery("SELECT * FROM dbo.Packs WHERE pack_id = @packid", [
-        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
-    ])).recordset[0]
-
-    if (increase_version_num) {
-        if (pack.version_num_3 < 255) {
-            pack.version_num_3 += 1
-        }
-        else if (pack.version_num_2 < 255) {
-            pack.version_num_2 += 1
-            pack.version_num_3 = 0
-        }
-        else if (pack.version_num_1 < 255) {
-            pack.version_num_3 = 0
-            pack.version_num_2 = 0
-            pack.version_num_1 += 1
-        }
-        else {
-            console.log("VERSION NUMBERS EXCEEDED")
-        }
-        await SafeQuery("UPDATE CrashBot.dbo.Packs SET version_num_1 = @n1, version_num_2 = @n2, version_num_3 = @n3 WHERE pack_id = @packid;", [
-            {name: "n1", type: mssql.TYPES.TinyInt(), data: pack.version_num_1},
-            {name: "n2", type: mssql.TYPES.TinyInt(), data: pack.version_num_2},
-            {name: "n3", type: mssql.TYPES.TinyInt(), data: pack.version_num_3},
-            {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
-        ])
-    }
-    onPackFound(pack)
-
-    // Load sounds
-    console.log("LOADING SOUNDS")
-    let sounds: any[] = (await SafeQuery("SELECT * FROM dbo.PackSounds WHERE PackID = @packid", [
-        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
-    ])).recordset
-
-    // Check for sounds that are not default
-    let sounds_folder = path.join(path.resolve("./"), "assets", "pack_sounds")
-    for (let sound of sounds) {
-        sound.changed = fs.existsSync(path.join(sounds_folder, sound.SoundID + ".ogg"))
-    }
-
-    // Load sound definitions
-    console.log("LOADING SOUND DEFINITIONS")
-    let sound_definitons: any[] = (await SafeQuery("SELECT * FROM dbo.PackSoundDefinitions WHERE PackID = @packid", [
-        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
-    ])).recordset
-
-    console.log("EXPORTING SOUNDS")
-    let sound_definitions_out: any = {
-        "format_version": "1.14.0",
-        "sound_definitions": {}
-    }
-
-    // Parse sound definitions into sound definitions JSON file
-    for (let definition of sound_definitons) {
-        // Check all linked sounds
-        let linked_sounds = sounds.filter(sound => sound.SoundDefID === definition.SoundDefID)
-        if (linked_sounds.length === 0 || linked_sounds.filter(sound => sound.changed).length === 0) {
-            definition.changed = false
-            continue
-        } // Ignore this definition as it has not changed.
-        definition.changed = true
-        sound_definitions_out.sound_definitions[definition.Name] = {
-            category: definition.category,
-            sounds: linked_sounds.map(sound => {
-                return {
-                    is3D: sound.is3D,
-                    volume: sound.volume,
-                    pitch: sound.pitch,
-                    weight: sound.weight,
-                    name: sound.changed ? "sounds/i/" + sound.SoundID : sound.DefaultFile
-                }
-            })
-        }
-    }
-
-    // Append files to archive
-    console.log("APPENDING SOUNDS TO ARCHIVE")
-    console.log(sound_definitions_out)
-    for (let sound of sounds.filter(sound => sound.changed)) {
-        onFile(fs.readFileSync(path.join(sounds_folder, sound.SoundID + ".ogg")), "sounds/i/" + sound.SoundID + ".ogg")
-    }
-
-    // // Cleanup
-    // delete sounds
-
-    // Export sound groups
-    let sound_groups = (await SafeQuery("SELECT * FROM dbo.PackSoundGroups WHERE PackSoundGroups.PackID = @packid", [
-        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
-    ])).recordset
-
-    let sound_groups_out: any = {
-        "block_sounds": {},
-        "entity_sounds": {entities: {}},
-        "individual_event_sounds": {
-            "events": {}
-        },
-        "interactive_sounds": {
-            "block_sounds": {},
-            "entity_sounds": {
-                "defaults": {
-                    "events": {
-                        "fall": {
-                            "default": {
-                                "pitch": 0.750,
-                                "sound": "",
-                                "volume": 1.0
-                            }
-                        },
-                        "jump": {
-                            "default": {
-                                "pitch": 0.750,
-                                "sound": "",
-                                "volume": 0.250
-                            }
-                        }
-                    },
-                    "pitch": 1.0,
-                    "volume": 0.250
-                },
-                "entities": {}
-            }
-        }
-    }
-    for (let item of sound_groups) {
-        let events: any[] = (await SafeQuery("SELECT * FROM dbo.PackSoundGroupEvents WHERE PackSoundGroupEvents.SoundGroupID = @id", [
-            {name: "id", type: mssql.TYPES.Int(), data: item.SoundGroupID}
-        ])).recordset
-
-        let _events: any = {}
-
-        for (let event of events) {
-            // Check if event has changed
-            let sound_definition = sound_definitons.find(definition => definition.SoundDefID === event.SoundDefID)
-            event.definition = sound_definition
-
-            _events[event.EventType] = {
-                sound: event.definition.Name,
-                volume: event.vol_lower === event.vol_higher ? event.vol_lower : [event.vol_lower, event.vol_higher],
-                pitch: event.pitch_lower === event.pitch_higher ? event.pitch_lower : [event.pitch_lower, event.pitch_higher],
-            }
-        }
-
-        if (!events.find(event => event.definition.changed)) continue
-
-        let _item = {
-            pitch: item.pitch_lower === item.pitch_higher ? item.pitch_lower : [item.pitch_lower, item.pitch_higher],
-            volume: item.vol_lower === item.vol_higher ? item.vol_lower : [item.vol_lower, item.vol_higher],
-            events: _events
-        }
-
-        if (item.type === "block_sounds") {
-            sound_groups_out["block_sounds"][item.GroupName] = _item
-        }
-        else if (item.type === "entity_sounds") {
-            sound_groups_out.entity_sounds.entities[item.GroupName] = _item
-        }
-        else if (item.type === "individual_event_sounds") {
-            sound_groups_out.individual_event_sounds.events = _item
-        }
-        else if (item.type === "interactive_sounds.block_sounds") {
-            sound_groups_out.interactive_sounds.block_sounds[item.GroupName] = _item.events
-        }
-        else if (item.type === "interactive_sounds.entity_sounds") {
-            sound_groups_out.interactive_sounds.entity_sounds.entities[item.GroupName] = _item
-        }
-    }
-
-
-    onFile(Buffer.from(JSON.stringify(sound_definitions_out)), "sounds/sound_definitions.json")
-    onFile(Buffer.from(JSON.stringify(sound_groups_out)), "sounds.json")
-
-    // Export terrain textures
-    let terrain_textures_array = (await SafeQuery(`SELECT dbo.PackTextureGroups.GameID  AS 'identifier',
-                                                          dbo.PackTextures.DefaultFile  AS 'DefaultFile',
-                                                          dbo.PackTextures.OverlayColor AS 'OverlayColor',
-                                                          dbo.PackTextures.TextureID
-                                                   FROM dbo.PackTextureGroups
-                                                            JOIN dbo.PackTextures ON dbo.PackTextures.TextureGroupID =
-                                                                                     dbo.PackTextureGroups.TextureGroupID
-                                                   WHERE dbo.PackTextureGroups.PackID = @packid
-                                                     AND type = 'terrain_texture'
-                                                   ORDER BY GameID ASC, Position ASC`, [
-        {name: "packid", type: mssql.TYPES.Int(), data: pack_id}
-    ])).recordset
-
-    let terrain_textures: any = {
-        num_mip_levels: 4, padding: 8, resource_pack_name: "vanilla", texture_data: {}
-    }
-    for (let texture of terrain_textures_array) {
-        if (!terrain_textures.texture_data[texture.identifier]) {
-            terrain_textures.texture_data[texture.identifier] = {textures: []}
-
-            let _path = texture.DefaultFile
-            if (fs.existsSync(path.join(path.resolve("./"), "assets", "pack_textures", texture.TextureID + ".png"))) {
-                onFile(fs.readFileSync(path.join(path.resolve("./"), "assets", "pack_textures", texture.TextureID + ".png")), "textures/i/" + texture.TextureID + ".png")
-                _path = "textures/i/" + texture.TextureID
-            }
-
-            if (texture.OverlayColor) {
-                terrain_textures.texture_data[texture.identifier].textures.push({
-                    overlay_color: "#" + texture.OverlayColor,
-                    path: _path
-                })
-            }
-            else terrain_textures.texture_data[texture.identifier].textures.push(_path)
-        }
-    }
-
-    // Export blocks
-    let blocks_array = (await SafeQuery(`
-                SELECT PB.GameID AS 'GameID', PBT.Type AS 'type', PTG.GameID AS 'TextureGameID', PSG.GroupName AS 'SoundGameID'
-                FROM dbo.PackBlocks PB
-                         JOIN dbo.PackBlockTextures PBT on PB.BlockID = PBT.BlockID
-                         JOIN dbo.PackTextureGroups PTG ON PBT.TextureGroupID = PTG.TextureGroupID
-                         JOIN dbo.PackSoundGroups PSG on PB.SoundGroupID = PSG.SoundGroupID
-                WHERE PB.PackID = @packid`,
-        [
-            {name: "packid", type: mssql.TYPES.Int(), data: pack_id}
-        ])).recordset
-    onFile(Buffer.from(JSON.stringify(terrain_textures)), "textures/terrain_texture.json")
-
-    let blocks: any = {}
-    for (let block of blocks_array) {
-        if (!blocks[block.GameID]) blocks[block.GameID] = {textures: {}}
-        if (block.SoundGameID) blocks[block.GameID].sound = block.SoundGameID
-        blocks[block.GameID].textures[block.type] = block.TextureGameID
-    }
-    onFile(Buffer.from(JSON.stringify(blocks)), "blocks.json")
-
-    onFile(Buffer.from(JSON.stringify({
-        "format_version": 2,
-        "header": {
-            "description": "Re-Flesh SEASON 5",
-            "name": "Re-Flesh SEASON 5",
-            "uuid": "5eb74438-a581-4b21-97bf-c13e4c4522f5",
-            "version": [pack.version_num_1, pack.version_num_2, pack.version_num_3],
-            "min_engine_version": [1, 19, 50]
-        },
-        "modules": [
-            {
-                "description": "Example vanilla resource pack",
-                "type": "resources",
-                "uuid": "b1b947d5-dece-484d-a6c8-6a0c829d5d96",
-                "version": [0, 0, 3]
-            }
-        ]
-    })), "manifest.json")
-    onFile(fs.readFileSync(path.join(path.resolve("./"), "assets", "pack", "pack_icon.png")), "pack_icon.png")
-}
 
 setup()
 

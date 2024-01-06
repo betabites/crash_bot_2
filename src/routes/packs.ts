@@ -10,6 +10,260 @@ import archiver from "archiver";
 
 export const PACK_ROUTER = express.Router()
 
+async function generatePack(pack_id: string, increase_version_num = false, onFile = (file: Buffer, location: string) => {
+}, onPackFound = (p: any) => {
+}) {
+    let pack = (await SafeQuery("SELECT * FROM dbo.Packs WHERE pack_id = @packid", [
+        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
+    ])).recordset[0]
+
+    if (increase_version_num) {
+        if (pack.version_num_3 < 255) {
+            pack.version_num_3 += 1
+        }
+        else if (pack.version_num_2 < 255) {
+            pack.version_num_2 += 1
+            pack.version_num_3 = 0
+        }
+        else if (pack.version_num_1 < 255) {
+            pack.version_num_3 = 0
+            pack.version_num_2 = 0
+            pack.version_num_1 += 1
+        }
+        else {
+            console.log("VERSION NUMBERS EXCEEDED")
+        }
+        await SafeQuery("UPDATE CrashBot.dbo.Packs SET version_num_1 = @n1, version_num_2 = @n2, version_num_3 = @n3 WHERE pack_id = @packid;", [
+            {name: "n1", type: mssql.TYPES.TinyInt(), data: pack.version_num_1},
+            {name: "n2", type: mssql.TYPES.TinyInt(), data: pack.version_num_2},
+            {name: "n3", type: mssql.TYPES.TinyInt(), data: pack.version_num_3},
+            {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
+        ])
+    }
+    onPackFound(pack)
+
+    // Load sounds
+    console.log("LOADING SOUNDS")
+    let sounds: any[] = (await SafeQuery("SELECT * FROM dbo.PackSounds WHERE PackID = @packid", [
+        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
+    ])).recordset
+
+    // Check for sounds that are not default
+    let sounds_folder = path.join(path.resolve("./"), "assets", "pack_sounds")
+    for (let sound of sounds) {
+        sound.changed = fs.existsSync(path.join(sounds_folder, sound.SoundID + ".ogg"))
+    }
+
+    // Load sound definitions
+    console.log("LOADING SOUND DEFINITIONS")
+    let sound_definitons: any[] = (await SafeQuery("SELECT * FROM dbo.PackSoundDefinitions WHERE PackID = @packid", [
+        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
+    ])).recordset
+
+    console.log("EXPORTING SOUNDS")
+    let sound_definitions_out: any = {
+        "format_version": "1.14.0",
+        "sound_definitions": {}
+    }
+
+    // Parse sound definitions into sound definitions JSON file
+    for (let definition of sound_definitons) {
+        // Check all linked sounds
+        let linked_sounds = sounds.filter(sound => sound.SoundDefID === definition.SoundDefID)
+        if (linked_sounds.length === 0 || linked_sounds.filter(sound => sound.changed).length === 0) {
+            definition.changed = false
+            continue
+        } // Ignore this definition as it has not changed.
+        definition.changed = true
+        sound_definitions_out.sound_definitions[definition.Name] = {
+            category: definition.category,
+            sounds: linked_sounds.map(sound => {
+                return {
+                    is3D: sound.is3D,
+                    volume: sound.volume,
+                    pitch: sound.pitch,
+                    weight: sound.weight,
+                    name: sound.changed ? "sounds/i/" + sound.SoundID : sound.DefaultFile
+                }
+            })
+        }
+    }
+
+    // Append files to archive
+    console.log("APPENDING SOUNDS TO ARCHIVE")
+    console.log(sound_definitions_out)
+    for (let sound of sounds.filter(sound => sound.changed)) {
+        onFile(fs.readFileSync(path.join(sounds_folder, sound.SoundID + ".ogg")), "sounds/i/" + sound.SoundID + ".ogg")
+    }
+
+    // // Cleanup
+    // delete sounds
+
+    // Export sound groups
+    let sound_groups = (await SafeQuery("SELECT * FROM dbo.PackSoundGroups WHERE PackSoundGroups.PackID = @packid", [
+        {name: "packid", type: mssql.TYPES.Int(), data: parseInt(pack_id)}
+    ])).recordset
+
+    let sound_groups_out: any = {
+        "block_sounds": {},
+        "entity_sounds": {entities: {}},
+        "individual_event_sounds": {
+            "events": {}
+        },
+        "interactive_sounds": {
+            "block_sounds": {},
+            "entity_sounds": {
+                "defaults": {
+                    "events": {
+                        "fall": {
+                            "default": {
+                                "pitch": 0.750,
+                                "sound": "",
+                                "volume": 1.0
+                            }
+                        },
+                        "jump": {
+                            "default": {
+                                "pitch": 0.750,
+                                "sound": "",
+                                "volume": 0.250
+                            }
+                        }
+                    },
+                    "pitch": 1.0,
+                    "volume": 0.250
+                },
+                "entities": {}
+            }
+        }
+    }
+    for (let item of sound_groups) {
+        let events: any[] = (await SafeQuery("SELECT * FROM dbo.PackSoundGroupEvents WHERE PackSoundGroupEvents.SoundGroupID = @id", [
+            {name: "id", type: mssql.TYPES.Int(), data: item.SoundGroupID}
+        ])).recordset
+
+        let _events: any = {}
+
+        for (let event of events) {
+            // Check if event has changed
+            let sound_definition = sound_definitons.find(definition => definition.SoundDefID === event.SoundDefID)
+            event.definition = sound_definition
+
+            _events[event.EventType] = {
+                sound: event.definition.Name,
+                volume: event.vol_lower === event.vol_higher ? event.vol_lower : [event.vol_lower, event.vol_higher],
+                pitch: event.pitch_lower === event.pitch_higher ? event.pitch_lower : [event.pitch_lower, event.pitch_higher],
+            }
+        }
+
+        if (!events.find(event => event.definition.changed)) continue
+
+        let _item = {
+            pitch: item.pitch_lower === item.pitch_higher ? item.pitch_lower : [item.pitch_lower, item.pitch_higher],
+            volume: item.vol_lower === item.vol_higher ? item.vol_lower : [item.vol_lower, item.vol_higher],
+            events: _events
+        }
+
+        if (item.type === "block_sounds") {
+            sound_groups_out["block_sounds"][item.GroupName] = _item
+        }
+        else if (item.type === "entity_sounds") {
+            sound_groups_out.entity_sounds.entities[item.GroupName] = _item
+        }
+        else if (item.type === "individual_event_sounds") {
+            sound_groups_out.individual_event_sounds.events = _item
+        }
+        else if (item.type === "interactive_sounds.block_sounds") {
+            sound_groups_out.interactive_sounds.block_sounds[item.GroupName] = _item.events
+        }
+        else if (item.type === "interactive_sounds.entity_sounds") {
+            sound_groups_out.interactive_sounds.entity_sounds.entities[item.GroupName] = _item
+        }
+    }
+
+
+    onFile(Buffer.from(JSON.stringify(sound_definitions_out)), "sounds/sound_definitions.json")
+    onFile(Buffer.from(JSON.stringify(sound_groups_out)), "sounds.json")
+
+    // Export terrain textures
+    let terrain_textures_array = (await SafeQuery(`SELECT dbo.PackTextureGroups.GameID  AS 'identifier',
+                                                          dbo.PackTextures.DefaultFile  AS 'DefaultFile',
+                                                          dbo.PackTextures.OverlayColor AS 'OverlayColor',
+                                                          dbo.PackTextures.TextureID
+                                                   FROM dbo.PackTextureGroups
+                                                            JOIN dbo.PackTextures ON dbo.PackTextures.TextureGroupID =
+                                                                                     dbo.PackTextureGroups.TextureGroupID
+                                                   WHERE dbo.PackTextureGroups.PackID = @packid
+                                                     AND type = 'terrain_texture'
+                                                   ORDER BY GameID ASC, Position ASC`, [
+        {name: "packid", type: mssql.TYPES.Int(), data: pack_id}
+    ])).recordset
+
+    let terrain_textures: any = {
+        num_mip_levels: 4, padding: 8, resource_pack_name: "vanilla", texture_data: {}
+    }
+    for (let texture of terrain_textures_array) {
+        if (!terrain_textures.texture_data[texture.identifier]) {
+            terrain_textures.texture_data[texture.identifier] = {textures: []}
+
+            let _path = texture.DefaultFile
+            if (fs.existsSync(path.join(path.resolve("./"), "assets", "pack_textures", texture.TextureID + ".png"))) {
+                onFile(fs.readFileSync(path.join(path.resolve("./"), "assets", "pack_textures", texture.TextureID + ".png")), "textures/i/" + texture.TextureID + ".png")
+                _path = "textures/i/" + texture.TextureID
+            }
+
+            if (texture.OverlayColor) {
+                terrain_textures.texture_data[texture.identifier].textures.push({
+                    overlay_color: "#" + texture.OverlayColor,
+                    path: _path
+                })
+            }
+            else terrain_textures.texture_data[texture.identifier].textures.push(_path)
+        }
+    }
+
+    // Export blocks
+    let blocks_array = (await SafeQuery(`
+                SELECT PB.GameID AS 'GameID', PBT.Type AS 'type', PTG.GameID AS 'TextureGameID', PSG.GroupName AS 'SoundGameID'
+                FROM dbo.PackBlocks PB
+                         JOIN dbo.PackBlockTextures PBT on PB.BlockID = PBT.BlockID
+                         JOIN dbo.PackTextureGroups PTG ON PBT.TextureGroupID = PTG.TextureGroupID
+                         JOIN dbo.PackSoundGroups PSG on PB.SoundGroupID = PSG.SoundGroupID
+                WHERE PB.PackID = @packid`,
+        [
+            {name: "packid", type: mssql.TYPES.Int(), data: pack_id}
+        ])).recordset
+    onFile(Buffer.from(JSON.stringify(terrain_textures)), "textures/terrain_texture.json")
+
+    let blocks: any = {}
+    for (let block of blocks_array) {
+        if (!blocks[block.GameID]) blocks[block.GameID] = {textures: {}}
+        if (block.SoundGameID) blocks[block.GameID].sound = block.SoundGameID
+        blocks[block.GameID].textures[block.type] = block.TextureGameID
+    }
+    onFile(Buffer.from(JSON.stringify(blocks)), "blocks.json")
+
+    onFile(Buffer.from(JSON.stringify({
+        "format_version": 2,
+        "header": {
+            "description": "Re-Flesh SEASON 5",
+            "name": "Re-Flesh SEASON 5",
+            "uuid": "5eb74438-a581-4b21-97bf-c13e4c4522f5",
+            "version": [pack.version_num_1, pack.version_num_2, pack.version_num_3],
+            "min_engine_version": [1, 19, 50]
+        },
+        "modules": [
+            {
+                "description": "Example vanilla resource pack",
+                "type": "resources",
+                "uuid": "b1b947d5-dece-484d-a6c8-6a0c829d5d96",
+                "version": [0, 0, 3]
+            }
+        ]
+    })), "manifest.json")
+    onFile(fs.readFileSync(path.join(path.resolve("./"), "assets", "pack", "pack_icon.png")), "pack_icon.png")
+}
+
 async function generatePackArchive(pack_id: string, increase_version_num = false, format: archiver.Format, options?: archiver.ArchiverOptions) {
     let archive = archiver(format, options)
 
