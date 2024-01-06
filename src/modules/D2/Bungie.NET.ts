@@ -16,8 +16,8 @@ import {
     DestinyItemType,
     DestinyVendorDefinition
 } from "bungie-net-core/lib/models/index.js";
-import {API_KEY} from "../../apis/Bungie.NET.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
+import {API_KEY} from "../../services/Bungie.NET.js";
 
 const D2ClassEmojis = {
     [DestinyClass.Titan]: "1186537374247829505",
