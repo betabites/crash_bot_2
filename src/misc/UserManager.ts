@@ -46,10 +46,10 @@ export class CrashBotUser {
     static async ListPlayerNames(include_currency = true) {
         if (include_currency) {
             return (await SafeQuery(`SELECT player_name, avatar_url, currency
-                                     FROM dbo.Users`)).recordset
+                                     FROM dbo.Users`, [])).recordset
         }
         else {
-            (await SafeQuery(`SELECT player_name FROM dbo.Users`)).recordset
+            (await SafeQuery(`SELECT player_name FROM dbo.Users`, [])).recordset
         }
     }
 

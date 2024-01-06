@@ -9,7 +9,14 @@ import {
 } from "@discordjs/voice";
 import {opus} from "prism-media";
 import * as Discord from "discord.js";
-import {GuildMember} from "discord.js";
+import {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    EmbedBuilder,
+    GuildMember,
+    MessageActionRowComponentBuilder
+} from "discord.js";
 import ytdl from "ytdl-core";
 import ytpl from "ytpl";
 import SafeQuery from "../SQL.js";
@@ -165,6 +172,22 @@ export class VoiceConnectionManager extends EventEmitter {
         else if (auto_record && newState.channel) {
             VoiceConnectionManager.join(newState.guild, newState.channel)
         }
+        // else if (newState.member?.id === "358045259726323716" && newState.channel) {
+        //     console.log("Preparing Mariah Carey")
+        //     setTimeout(async () => {
+        //         if (!newState.channel) return
+        //         const possible_items = [
+        //             "https://www.youtube.com/watch?v=aAkMkVFwAoo", // All I want for christmas is you
+        //             "https://www.youtube.com/watch?v=pwspj0rVasE", // We Are Feliz Navidad
+        //             "https://www.youtube.com/watch?v=FIxMHCJ4I9Y", // Mr Hanky The Christmas Poo
+        //             "https://www.youtube.com/watch?v=h0dKE4eEB4o", // The Christmas Noose Song
+        //             "https://www.youtube.com/watch?v=E1P5gcEtHSA", // Santa On The Throne Again
+        //             "https://www.youtube.com/watch?v=UkLYZmng3tg", // Royalty-free Christmas Songs #1
+        //         ]
+        //         const connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
+        //         if (connection) connection.addToQueue(await connection.generateQueueItem(possible_items[Math.floor(Math.random() * possible_items.length)]))
+        //     }, 10_000)
+        // }
         else if (newState.channelId === "1173416327352963092") {
             if (!newState.channel) return
             let connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
@@ -246,7 +269,7 @@ export class VoiceConnectionManager extends EventEmitter {
             try {
                 if (!this.msg) await this.fetchQueueMessage()
 
-                let embed = new Discord.MessageEmbed()
+                let embed = new EmbedBuilder()
                 if (!this.challenge_mode) {
                     embed.setTitle("Play Queue (" + this.queue.length + " items currently)")
 
@@ -290,38 +313,38 @@ export class VoiceConnectionManager extends EventEmitter {
                     }
                     this.msg?.edit({
                         content: " ", embeds: [embed], components: [
-                            new Discord.MessageActionRow()
+                            new ActionRowBuilder<MessageActionRowComponentBuilder>()
                                 .addComponents([
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_rewind")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏮"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_pause")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏯"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_skip")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏭"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_shuffle")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("🔀"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_stop")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏹"),
                                 ]),
-                            new Discord.MessageActionRow().addComponents([
-                                new Discord.MessageButton()
+                            new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents([
+                                new ButtonBuilder()
                                     .setCustomId("audio_challenge")
-                                    .setStyle("SECONDARY")
+                                    .setStyle(ButtonStyle.Secondary)
                                     .setLabel("Challenge Mode")
                                     .setEmoji("🏅")
                             ])
@@ -333,38 +356,38 @@ export class VoiceConnectionManager extends EventEmitter {
                     embed.setDescription("Challenge mode has been enabled! See if you can guess the songs! To disable challenge mode, click 'Challenge Mode' again.")
                     this.msg?.edit({
                         content: " ", embeds: [embed], components: [
-                            new Discord.MessageActionRow()
+                            new ActionRowBuilder<MessageActionRowComponentBuilder>()
                                 .addComponents([
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_rewind")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏮"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_pause")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏯"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_skip")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏭"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_shuffle")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("🔀"),
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("audio_stop")
-                                        .setStyle("SECONDARY")
+                                        .setStyle(ButtonStyle.Secondary)
                                         .setLabel(" ")
                                         .setEmoji("⏹")
                                 ]),
-                            new Discord.MessageActionRow().addComponents([
-                                new Discord.MessageButton()
+                            new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents([
+                                new ButtonBuilder()
                                     .setCustomId("audio_challenge")
-                                    .setStyle("PRIMARY")
+                                    .setStyle(ButtonStyle.Primary)
                                     .setLabel("Challenge Mode")
                                     .setEmoji("🏅")
                             ])

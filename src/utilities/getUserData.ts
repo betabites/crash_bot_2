@@ -27,7 +27,8 @@ export async function getUserData(member: GuildMember | string): Promise<{
     D2_RefreshToken: string,
     D2_MembershipId: number,
     D2_AccessTokenExpiry: Date,
-    D2_MembershipType: number
+    D2_MembershipType: number,
+    simpleton_experiment: boolean
 }> {
     let id = typeof member === "string" ? member : member.id
     let req = await SafeQuery(`SELECT *

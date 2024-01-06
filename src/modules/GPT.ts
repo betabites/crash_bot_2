@@ -1,5 +1,14 @@
-import {BaseModule, OnClientEvent, InteractionCommandResponse} from "./BaseModule.js";
-import Discord, {Client, CommandInteraction, GuildMember, Message, User} from "discord.js";
+import {BaseModule, OnClientEvent, InteractionChatCommandResponse} from "./BaseModule.js";
+import Discord, {
+    ChannelType,
+    ChatInputCommandInteraction,
+    Client, Colors,
+    CommandInteraction,
+    EmbedBuilder,
+    GuildMember,
+    Message,
+    User
+} from "discord.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandNumberOption, SlashCommandUserOption} from "@discordjs/builders";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
 import ChatGPT from "../misc/ChatGPT.js";
@@ -9,6 +18,7 @@ import mssql from "mssql";
 import {ShuffleArray} from "../misc/Common.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
+import {TWAGGER_POST_CHANNEL} from "../misc/sendTwaggerPost.js";
 
 export class GPTModule extends BaseModule {
     commands = [
@@ -60,11 +70,17 @@ export class GPTModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     onMessage(msg: Message) {
-        console.log("New message!")
+        if (msg.author.bot) return
+        else if (msg.channel.type === ChannelType.DM) {
+            askGPTQuestion(msg.author.username + " said: " + msg.content, msg.channel)
+        }
+        else if (msg.channel.type === ChannelType.PublicThread && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
+            askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
+        }
     }
 
-    @InteractionCommandResponse("ask-gpt")
-    onAskGPT(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("ask-gpt")
+    onAskGPT(interaction: ChatInputCommandInteraction) {
         if (!interaction.channel) {
             interaction.reply("Oops! Plase try again in a different channel")
             return
@@ -72,8 +88,8 @@ export class GPTModule extends BaseModule {
         askGPTQuestion(interaction.user.username + " said: " + (interaction.options.getString("message") || ""), interaction.channel, interaction)
     }
 
-    @InteractionCommandResponse("tldr")
-    async onTLDR(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("tldr")
+    async onTLDR(interaction: ChatInputCommandInteraction) {
         await interaction.deferReply({fetchReply: true, ephemeral: true})
         let lookback_hours = interaction.options.getInteger("hours") || 24
         if (lookback_hours < 1) {
@@ -110,8 +126,8 @@ export class GPTModule extends BaseModule {
         interaction.editReply(removeAllMentions(gpt_response.text, interaction.channel))
     }
 
-    @InteractionCommandResponse("catchphrase")
-    async onCatchphrase(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("catchphrase")
+    async onCatchphrase(interaction: ChatInputCommandInteraction) {
         getUserData(interaction.member as GuildMember)
             .then(async memberData => {
                 if (memberData.experimentWords === false) {
@@ -210,7 +226,7 @@ export class GPTModule extends BaseModule {
                     top.map(i => `${i.word} (${i.count}, uniqueness: ${i.percentage * 100})`).join(", ")
                 )
                     .then(AIres => {
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         // console.log("Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
 
                         //     top.map(i => `${i.word} (${i.count})`).join(", "))
@@ -223,7 +239,7 @@ export class GPTModule extends BaseModule {
                             value: interaction.options.getString("theme") || "no theme provided"
                         }])
                         interaction.editReply({
-                            content: " ", embeds: [embed, new Discord.MessageEmbed()
+                            content: " ", embeds: [embed, new EmbedBuilder()
                                 .setDescription("Sampled words: " + top.sort((a, b) => {
                                     return a.percentage < b.percentage ? 1 : -1
                                 }).map(i => `${i.word} \`${Math.round(i.percentage * 100)}%\``).join(", "))
@@ -232,10 +248,10 @@ export class GPTModule extends BaseModule {
                     })
                     .catch(e => {
                         console.log(e)
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         embed.setTitle("Service unavailable")
                         embed.setDescription("This service is currently unavailable. Please try again later")
-                        embed.setColor("RED")
+                        embed.setColor(Colors.Red)
                         embed.setFooter({text: "Crash Bot words experiment"})
                         interaction.editReply({content: " ", embeds: [embed]})
                     })

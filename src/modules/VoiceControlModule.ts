@@ -1,6 +1,6 @@
-import {BaseModule, InteractionButtonResponse, InteractionCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandNumberOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {ButtonInteraction, CommandInteraction, GuildMember} from "discord.js";
+import {ButtonInteraction, ChatInputCommandInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {CrashBotUser} from "../misc/UserManager.js";
 import SafeQuery from "../misc/SQL.js";
@@ -28,8 +28,18 @@ export class VoiceControlModule extends BaseModule {
             )
     ]
 
-    @InteractionCommandResponse("record")
-    async onRecordCommand(interaction: CommandInteraction) {
+    @OnClientEvent("messageCreate")
+    onMessage(msg: Message) {
+        if (msg.content === "<@892535864192827392> piss off" && msg.guildId) {
+            const connection = VoiceConnectionManager.connections.get(msg.guildId)
+            if (connection) {
+                connection.stop()
+            }
+        }
+    }
+
+    @InteractionChatCommandResponse("record")
+    async onRecordCommand(interaction: ChatInputCommandInteraction) {
         let com = interaction.options.getSubcommand()
         let shortcode = (await getUserData(interaction.member as GuildMember)).shortcode
 
@@ -147,7 +157,7 @@ export class VoiceControlModule extends BaseModule {
         }
     }
 
-    @InteractionButtonResponse("audo_rewind")
+    @InteractionButtonResponse("audio_rewind")
     onAudioRewindPress(interaction: ButtonInteraction) {
         interaction.reply({content: "Rewinding track...", ephemeral: true})
         VoiceConnectionManager.connections.get(interaction.guildId || "no guild")?.rewind()

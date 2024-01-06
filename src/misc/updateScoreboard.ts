@@ -1,5 +1,5 @@
 import {client} from "./Discord.js";
-import Discord, {Guild, GuildMember, TextChannel} from "discord.js";
+import Discord, {EmbedBuilder, Guild, GuildMember, TextChannel} from "discord.js";
 import SafeQuery from "./SQL.js";
 import RemoteStatusServer from "./RemoteStatusServer.js";
 
@@ -14,11 +14,11 @@ export async function updateScoreboard() {
     if (!channel) return
     let msg = await channel.messages.fetch("1105257601450651719")
 
-    let embed = new Discord.MessageEmbed
+    let embed = new EmbedBuilder()
     embed.setTitle("Scoreboard")
     embed.setDescription("Here you can see a list of online players")
 
-    let res = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id IS NOT NULL")
+    let res = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id IS NOT NULL", [])
     for (let user of res.recordset) {
         let member: GuildMember | null = null
         try {

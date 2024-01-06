@@ -1,8 +1,7 @@
-import Discord, {TextChannel} from "discord.js";
-import ChatGPT from "./src/misc/ChatGPT.js";
-import {client} from "./src/misc/Discord.js";
-import {ChannelTypes} from "discord.js/typings/enums.js";
-import SafeQuery from "./src/misc/SQL.js";
+import Discord, {EmbedBuilder, TextChannel, GuildChannelTypes} from "discord.js";
+import ChatGPT from "./ChatGPT.js";
+import {client} from "./Discord.js";
+import SafeQuery from "./SQL.js";
 import mssql from "mssql";
 
 const TWAGGER_SOURCE_CHANNELS = [
@@ -22,8 +21,8 @@ export async function sendTwaggerPost() {
     let messages: Discord.Collection<string, Discord.Message<boolean>> = new Discord.Collection([])
     let last_message: Discord.Message<boolean> | undefined
     while (messages.size < 150 || (messages.last()?.createdTimestamp || 0) >= lookback_until) {
-        let channel = await client.channels.fetch(TWAGGER_SOURCE_CHANNELS[Math.floor(Math.random() * TWAGGER_SOURCE_CHANNELS.length)])
-        if (!channel || channel.type !== "GUILD_TEXT") throw new Error("Could not find channel")
+        let channel = await client.channels.fetch(TWAGGER_SOURCE_CHANNELS[Math.floor(Math.random() * TWAGGER_SOURCE_CHANNELS.length)]) as TextChannel
+        if (!channel) throw new Error("Could not find channel")
         let new_messages = await channel.messages.fetch({
             limit: 100,
             before: last_message?.id
@@ -52,7 +51,7 @@ export async function sendTwaggerPost() {
     let message = await out_channel.send({
         content: " ",
         embeds: [
-            new Discord.MessageEmbed()
+            new EmbedBuilder()
                 .setAuthor({iconURL: client.user?.avatarURL() || "", name: "CrashBot4Ever"})
                 .setDescription(gpt_response.text)
                 .setFooter({text: "Posted on Twagger"})

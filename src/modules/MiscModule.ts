@@ -1,6 +1,19 @@
-import {BaseModule, InteractionCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandRoleOption, SlashCommandStringOption} from "@discordjs/builders";
-import {CommandInteraction, GuildMember} from "discord.js";
+import Discord, {
+    AttachmentBuilder,
+    ChatInputCommandInteraction,
+    CommandInteraction,
+    GuildMember,
+    Message
+} from "discord.js";
+import {sendTwaggerPost} from "../misc/sendTwaggerPost.js";
+import {getUserData} from "../utilities/getUserData.js";
+import SafeQuery from "../misc/SQL.js";
+import mssql from "mssql";
+import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
+import fs from "fs";
+import path from "path";
 
 export class MiscModule extends BaseModule {
     commands = [
@@ -20,6 +33,7 @@ export class MiscModule extends BaseModule {
                 new SlashCommandStringOption()
                     .setName("sussy_baka_message")
                     .setDescription("The message that will be sent to the selected random person")
+                    .setRequired(true)
             )
             .addStringOption(
                 new SlashCommandStringOption()
@@ -29,7 +43,40 @@ export class MiscModule extends BaseModule {
             )
     ]
 
-    @InteractionCommandResponse("vainsh")
+    @OnClientEvent("messageCreate")
+    async onMessage(msg: Message) {
+        if (msg.content.includes("<@892535864192827392>")) {
+            let action = Math.floor(Math.random() * 3)
+            switch (action) {
+                case 0:
+                    msg.member?.timeout(60 * 1000, 'Pls no ping')
+                    return
+                case 1:
+                    let user = await getUserData(msg.member as GuildMember)
+                    let req = await SafeQuery(`UPDATE CrashBot.dbo.Users
+                                           SET experimentBabyWords = 1
+                                           WHERE discord_id = @discordid`, [{
+                        name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.author.id
+                    }])
+                    msg.reply("Awesome! Thank you for enabling `babyspeak`!")
+                    return
+                case 2:
+                    askGPTQuestion("I am a stinky poo-poo face", msg.channel)
+            }
+        }
+        else if (msg.content === "test" && msg.author.id == "404507305510699019") {
+            sendTwaggerPost()
+        }
+        else if (msg.content.toLowerCase() === "guess what?") {
+            msg.reply({
+                content: "_", files: [
+                    new AttachmentBuilder(fs.readFileSync(path.resolve("./") + "/assets/guess_what.jpg"))
+                ]
+            })
+        }
+    }
+
+    @InteractionChatCommandResponse("vainsh")
     onVanish(interaction: CommandInteraction) {
         (interaction.member as GuildMember).timeout(5 * 60 * 1000, "They vanished!")
             .then(() => interaction.reply("You have vanished for 5 minutes!"))
@@ -38,8 +85,8 @@ export class MiscModule extends BaseModule {
             })
     }
 
-    @InteractionCommandResponse("sussybaka")
-    async onSussyBaka(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("sussybaka")
+    async onSussyBaka(interaction: ChatInputCommandInteraction) {
         console.log("Finding a sussy baka...")
         let role = interaction.options.getRole("role")
         let sussy_baka_msg = interaction.options.getString("sussy_baka_message")

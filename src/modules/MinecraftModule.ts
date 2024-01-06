@@ -1,4 +1,4 @@
-import {BaseModule, InteractionButtonResponse, InteractionCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {
     SlashCommandBooleanOption,
     SlashCommandBuilder,
@@ -6,12 +6,13 @@ import {
     SlashCommandSubcommandBuilder
 } from "@discordjs/builders";
 import Discord, {
-    ButtonInteraction,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonInteraction, ButtonStyle, ChatInputCommandInteraction,
     Client,
-    CommandInteraction, Guild,
+    CommandInteraction, EmbedBuilder, Guild,
     GuildMember,
-    Message,
-    MessageEmbed,
+    Message, MessageActionRowComponentBuilder,
     TextChannel
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
@@ -109,18 +110,18 @@ export class MinecraftModule extends BaseModule {
                     ])
 
                     if (data.recordset.length === 0) {
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         embed.setAuthor({
                             name: `${player.username} joined the game`,
                             iconURL: "http://canada1.national.edu/wp-content/uploads/2018/05/iStock-504858574.jpg"
                         })
 
-                        let row = new Discord.MessageActionRow()
+                        let row = new ActionRowBuilder<MessageActionRowComponentBuilder>()
                             .addComponents(
-                                new Discord.MessageButton()
+                                new ButtonBuilder()
                                     .setCustomId("link_minecraft_" + player.id)
                                     .setLabel("This is me. Link my account.")
-                                    .setStyle("SECONDARY")
+                                    .setStyle(ButtonStyle.Secondary)
                             )
 
                         channel.send({content: ' ', embeds: [embed], components: [row]})
@@ -128,7 +129,7 @@ export class MinecraftModule extends BaseModule {
                     else {
                         let member = await channel.guild.members.fetch(data.recordset[0].discord_id)
 
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         embed.setAuthor({
                             name: `${player.username} joined the game`,
                             iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32}) || ""
@@ -150,18 +151,18 @@ export class MinecraftModule extends BaseModule {
                     ])
 
                     if (data.recordset.length === 0) {
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         embed.setAuthor({
                             name: `${player.username} left the game`,
                             iconURL: "http://canada1.national.edu/wp-content/uploads/2018/05/iStock-504858574.jpg"
                         })
 
-                        let row = new Discord.MessageActionRow()
+                        let row = new ActionRowBuilder<MessageActionRowComponentBuilder>()
                             .addComponents(
-                                new Discord.MessageButton()
+                                new ButtonBuilder()
                                     .setCustomId("link_minecraft_" + player.id)
                                     .setLabel("This is me. Link my account.")
-                                    .setStyle("SECONDARY")
+                                    .setStyle(ButtonStyle.Secondary)
                             )
 
                         channel.send({content: ' ', embeds: [embed], components: [row]})
@@ -169,7 +170,7 @@ export class MinecraftModule extends BaseModule {
                     else {
                         let member = await channel.guild.members.fetch(data.recordset[0].discord_id)
 
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         embed.setAuthor({
                             name: `${player.username} left the game`,
                             iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32}) || ""
@@ -204,11 +205,11 @@ export class MinecraftModule extends BaseModule {
                              AND ${player.position[0]} <= ex
                              AND ${player.position[1]} <= ey
                              AND ${player.position[2]} <= ez
-                             AND dimension = '${player.dimension}'`).then(async res => {
+                             AND dimension = '${player.dimension}'`, []).then(async res => {
                         if (res.recordset.length === 0) {
                             await SafeQuery(`UPDATE dbo.MCTerritoriesLog
                                          SET active = 0
-                                         WHERE mc_id = '${player.id}'`)
+                                         WHERE mc_id = '${player.id}'`, [])
                         }
                         else for (let territory of res.recordset) {
                             let res = await SafeQuery("SELECT * FROM dbo.MCTerritoriesLog WHERE territory_id = @tid AND mc_id = @mcid AND active = 1", [
@@ -221,7 +222,7 @@ export class MinecraftModule extends BaseModule {
                                 let whitelist_entries = await SafeQuery(`SELECT *
                                                                      FROM dbo.MCTerritoriesWhitelist
                                                                      WHERE player_id = '${player.id}'
-                                                                       AND territory_id = ${territory.id}`)
+                                                                       AND territory_id = ${territory.id}`, [])
                                 if (
                                     (whitelist_entries.recordset.length !== 0 && !territory.blacklist_mode) ||
                                     whitelist_entries.recordset.length === 0 && territory.blacklist_mode
@@ -229,7 +230,7 @@ export class MinecraftModule extends BaseModule {
 
                                 await SafeQuery(`INSERT INTO dbo.MCTerritoriesLog (territory_id, mc_id, x, y, z)
                                              VALUES (${territory.id}, '${player.id}', ${player.position[0]},
-                                                     ${player.position[1]}, ${player.position[2]});`)
+                                                     ${player.position[1]}, ${player.position[2]});`, [])
                                 let owner = await client.users.fetch(territory.owner_id)
                                 owner.send(`${player.username} has entered your territory: ${territory.name} (${player.position[0], player.position[1], player.position[2]})`)
                                 if (!territory.kill) {
@@ -264,18 +265,18 @@ export class MinecraftModule extends BaseModule {
                     if (!advancement.display.title) return
 
                     if (data.recordset.length === 0) {
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         embed.setAuthor({
                             name: `${player.username} just earned [${advancement.display.title}]`,
                             iconURL: "http://canada1.national.edu/wp-content/uploads/2018/05/iStock-504858574.jpg"
                         })
 
-                        let row = new Discord.MessageActionRow()
+                        let row = new ActionRowBuilder<MessageActionRowComponentBuilder>()
                             .addComponents(
-                                new Discord.MessageButton()
+                                new ButtonBuilder()
                                     .setCustomId("link_minecraft_" + player.id)
                                     .setLabel("This is me. Link my account.")
-                                    .setStyle("SECONDARY")
+                                    .setStyle(ButtonStyle.Secondary)
                             )
 
                         channel.send({content: ' ', embeds: [embed], components: [row]})
@@ -283,7 +284,7 @@ export class MinecraftModule extends BaseModule {
                     else {
                         let member = await channel.guild.members.fetch(data.recordset[0].discord_id)
 
-                        let embed = new Discord.MessageEmbed()
+                        let embed = new EmbedBuilder()
                         embed.setAuthor({
                             name: `${player.username} just earned [${advancement.display.title}]`,
                             iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32}) || ""
@@ -363,8 +364,8 @@ export class MinecraftModule extends BaseModule {
         }
     }
 
-    @InteractionCommandResponse("minecraft")
-    async onMinecraftCommand(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("minecraft")
+    async onMinecraftCommand(interaction: ChatInputCommandInteraction) {
         // Used to manage experimental features
         let com = interaction.options.getSubcommand()
         if (com === "share_location") {
@@ -387,7 +388,7 @@ export class MinecraftModule extends BaseModule {
             // @ts-ignore
             let player = RemoteStatusServer.connections["pczWlxfMzPmuI6yjQMaQYA=="].getPlayer(user.mc_id)
 
-            let embed = new MessageEmbed()
+            let embed = new EmbedBuilder()
             embed.setAuthor({
                 name: `${member.user.username} (${player?.username || "not connected"})`,
                 iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32}) || ""
@@ -445,8 +446,8 @@ export class MinecraftModule extends BaseModule {
         interaction.reply({content: "Successfully linked!", ephemeral: true})
     }
 
-    @InteractionCommandResponse("execute")
-    async onExecuteCommand(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("execute")
+    async onExecuteCommand(interaction: ChatInputCommandInteraction) {
         if (interaction.guildId !== "892518158727008297") {
             interaction.reply({content: "Sorry but this command cannot be accessed from this Guild/Discord Server", ephemeral: true})
             return

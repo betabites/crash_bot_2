@@ -18,7 +18,16 @@ import SafeQuery from "./src/misc/SQL.js";
 import {Bank, BankResource, buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
 import {CrashBotUser} from "./src/misc/UserManager.js";
 import archiver from "archiver";
-import Discord, {Guild, GuildMember, Message, TextBasedChannel, TextChannel} from "discord.js";
+import Discord, {
+    EmbedBuilder,
+    Guild,
+    GuildMember,
+    Message,
+    TextBasedChannel,
+    TextChannel,
+    ChannelType,
+    ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageActionRowComponentBuilder, AttachmentBuilder
+} from "discord.js";
 import {fetchThrowTemplates, generateThrow} from "./src/misc/ThrowMaker.js";
 import ytdl from "ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
@@ -27,43 +36,32 @@ import WSS from "./src/misc/WSS.js";
 import {VoiceConnectionManager} from "./src/misc/VoiceManager/VoiceManager.js";
 import http from "http";
 import https from "https";
-import dotenv from "dotenv"
 import mssql from "mssql";
 import randomWords from "random-words";
 import bad_baby_words from "./badwords.json" assert {type: "json"}
 import {
-    activityNameSearch,
-    buildActivityMessage,
-    buildItemMessage,
-    buildVendorMessage,
-    itemNameSearch,
     setupBungieAPI,
-    SetupNotifications,
-    vendorNameSearch
-} from "./src/misc/Bungie.NET.js";
-import {sendTwaggerPost, TWAGGER_POST_CHANNEL} from "./sendTwaggerPost.js";
+} from "./src/modules/D2/Bungie.NET.js";
+import {TWAGGER_POST_CHANNEL} from "./src/misc/sendTwaggerPost.js";
 import {BaseModule} from "./src/modules/BaseModule.js";
-import {D2Module} from "./src/modules/D2.js";
-import {ImpersonationModule} from "./src/modules/ImpersonationModule.js";
+import {D2_ROUTER, D2Module} from "./src/modules/D2.js";
+import {RoleplayModule} from "./src/modules/RoleplayModule.js";
 import {askGPTQuestion} from "./src/utilities/askGPTQuestion.js";
 import {GPTModule} from "./src/modules/GPT.js";
 import {getUserData} from "./src/utilities/getUserData.js";
-import {toTitleCase} from "./src/utilities/toTitleCase.js";
 import {ResourcePackManagerModule} from "./src/modules/ResourcePackManagerModule.js";
 import {ImagesModule} from "./src/modules/ImagesModule.js";
-import {updateScoreboard} from "./src/misc/updateScoreboard.js";
 import {ExperimentsModule} from "./src/modules/ExperimentsModule.js";
 import {MinecraftModule} from "./src/modules/MinecraftModule.js";
 import {MiscModule} from "./src/modules/MiscModule.js";
 import {VoiceControlModule} from "./src/modules/VoiceControlModule.js";
 import {quoteReply} from "./src/utilities/quoteReply.js";
+import {sendNotifications} from "./src/modules/D2/SetupNotifications.js";
+import dotenv from "dotenv"
+import {ACHIEVEMENTS_ROUTER} from "./src/modules/GameAchievements.js";
+import {MEMORIES_ROUTER} from "./src/modules/Memories.js";
+import {PACK_ROUTER} from "./src/routes/packs.js";
 
-const HOT_POTATO_CHANNEL_ID = "1108718443525586944"
-// const spotify = require("spottydl")
-let hot_potato_timer_ms = 5.76e+7
-let hot_potato_holder
-
-let pack_updated = true
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 const moduleClasses = [
@@ -71,12 +69,15 @@ const moduleClasses = [
     ExperimentsModule,
     GPTModule,
     ImagesModule,
-    ImpersonationModule,
+    RoleplayModule,
     MinecraftModule,
     MiscModule,
     ResourcePackManagerModule,
     VoiceControlModule
 ]
+
+dotenv.config()
+
 let modules: BaseModule[] = []
 
 // let banner_images = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/html/web_assets/banner_images.json").toString())
@@ -94,70 +95,17 @@ let server_env_options = {
 // }
 // let sound_mappings = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/sounds/sound_definitions.json").toString()).sound_definitions
 let active_playlist_modifications = {}
+let pack_updated
 
 // Parse memes and convert any items with the .url attribute
 setInterval(async () => {
-    let res = await SafeQuery("SELECT * FROM dbo.Webhook WHERE timeout < GETDATE()")
+    let res = await SafeQuery("SELECT * FROM dbo.Webhook WHERE timeout < GETDATE()", [])
     for (let _webhook of res.recordset) {
         let webhook = new Discord.WebhookClient({id: _webhook.webhook_id, token: _webhook.token})
         webhook.delete()
     }
-    await SafeQuery("DELETE FROM dbo.Webhook WHERE timeout < GETDATE()")
+    await SafeQuery("DELETE FROM dbo.Webhook WHERE timeout < GETDATE()", [])
 }, 60000)
-
-// schedule.scheduleJob("0 50 23 * * *", async () => {
-//     let midnight = new Date()
-//     mcServer.avoid_discord = true
-//     mcServer.sendCommand("gamerule doInsomnia false\n" +
-//         "gamerule dodaylightcycle false\n" +
-//         "gamerule domobspawning false\n" +
-//         "gamerule doweathercycle false\n" +
-//         "time set midnight\n" +
-//         "weather clear\n" +
-//         "tellraw @a {\"rawtext\":[{\"text\":\"§lPreparing for an event...\"},{\"text\":\"§r§§The following changes have been made in preperation for an upcoming event:§§- Insomina disabled§§- Daylight cycle \"},{\"text\":\"§4disabled\"},{\"text\":\"§r§§- Mob spawning \"},{\"text\":\"§4disabled\"},{\"text\":\"§r§§- Weather cycle \"},{\"text\":\"§4disabled\"},{\"text\":\"§r§§- Weather \"},{\"text\":\"§2clear\"},{\"text\":\"§r§§- Time \"},{\"text\":\"§2midnight\"},{\"text\":\"§r§§- All rendered mobs \"},{\"text\":\"§4killed\"}]}"
-//     )
-//     midnight.setDate(midnight.getDate() + 1)
-//     midnight.setHours(0,0,0)
-//     while (true) {
-//         let seconds = Math.round((midnight.getTime() - (new Date()).getTime()) / 1000)
-//         let minutes = Math.floor(seconds / 60)
-//         seconds -= minutes * 60
-//         if (minutes !== 0) {
-//             mcServer.sendCommand(`titleraw @a actionbar {\"rawtext\":[{\"text\":\"${minutes}:${("0" + seconds).slice(("0" + seconds).length - 2, ("0" + seconds).length)}\"}]}`)
-//         } else {
-//             mcServer.sendCommand(`titleraw @a title {"rawtext":[{"text":"${seconds}"}]}`)
-//         }
-//         await wait(500)
-//         if (seconds === 0 && minutes === 0) {
-//             break
-//         }
-//     }
-//     new_years_fireworks()
-//     await wait(300000)
-//     mcServer.avoid_discord = false
-//     mcServer.sendCommand("gamerule doInsomnia true\n" +
-//         "gamerule dodaylightcycle true\n" +
-//         "gamerule domobspawning true\n" +
-//         "gamerule doweathercycle true"
-//     )
-// })
-
-// // Schedule April Fools day event
-// const aprilfools = schedule.scheduleJob("0 0 0 1 4 *", () => {
-//     client.channels.fetch("892518365766242375")
-//         .then(channel => {
-//             // let embed = new Discord.MessageEmbed()
-//             // embed.setTitle("QUEST UNLOCKED!")
-//             // embed.setDescription("Ruin Post Validator's day by continuously pinging it.")
-//             // embed.setFooter("WARNING: Foul language")
-//             // embed.addField("")
-//
-//             SafeQuery("UPDATE CrashBot.dbo.Users SET experimentBabyWords = TRUE WHERE 1=1")
-//             channel.send({
-//                 content: "@here HELP! Post Validator has stole the CrashBotUser to baby speak and enabled it for everyone! Let's ping the f\\*k out of them!"
-//             })
-//         })
-// })
 
 function spawnServer() {
     return spawn(server_env_options.shell, server_env_options.arguments, {
@@ -165,268 +113,7 @@ function spawnServer() {
     })
 }
 
-// class mcServerClass extends events.EventEmitter {
-//     constructor() {
-//         super();
-//
-//         this.avoid_discord = false
-//         this.server = null
-//         // this.start()
-//         this.result_coupler = []
-//         this.result_coupler_timeout = setTimeout(() => {
-//         }, 500)
-//     }
-//
-//     async sendCommand(command) {
-//         console.log(command)
-//         return new Promise(resolve => {
-//             this.sendOutAsync = (res) => {
-//                 clearTimeout(this.sendOutAsyncTimeout)
-//                 resolve(res)
-//             }
-//             this.server.stdin.write(command + "\n")
-//             this.sendOutAsyncTimeout = setTimeout(() => {
-//                 delete this.sendOutAsyncTimeout
-//                 resolve("Command did not send result fast enough")
-//             }, 10000)
-//         })
-//     }
-//
-//     async shutdown() {
-//         return new Promise(async resolve => {
-//             this.expecting_shutdown = true
-//             if (this.server !== null) {
-//                 this.shutdown_resolve = resolve
-//                 this.on("onShutdown", this.await_shutdown)
-//                 this.server.stdin.write("stop\n")
-//             } else {
-//                 resolve()
-//             }
-//         })
-//     }
-//
-//     await_shutdown() {
-//         this.expecting_shutdown = false
-//         this.removeListener("onShutdown", this.await_shutdown)
-//         this.shutdown_resolve()
-//         delete this.shutdown_resolve
-//     }
-//
-//     start() {
-//         if (this.server === null) {
-//             try {
-//                 this.server = spawnServer()
-//                 this.server.stdout.on("data", async data => {
-//                     let data_str = data.toString().slice(0, -1).replaceAll(/^\[[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]:[0-9][0-9][0-9] /ig, "[")
-//                     if (data_str !== "") {
-//                         try {
-//                             clearTimeout(this.result_coupler_timeout)
-//                         } catch (e) {
-//                         }
-//
-//                         this.result_coupler.push(data_str)
-//                         this.result_coupler_timeout = setTimeout(() => {
-//                             if (this.avoid_discord) {
-//                                 console.log(data_str + " (told to avoid Discord)")
-//                             } else {
-//                                 try {
-//                                     let embed = new Discord.MessageEmbed()
-//                                     let _data_str = this.result_coupler.join("\n")
-//                                     if (_data_str.length > 1000) {
-//                                         embed.setDescription(data_str.substr(0, 997) + "...")
-//                                     } else {
-//                                         embed.setDescription(_data_str)
-//                                     }
-//                                     if (data_str.startsWith("[INFO]")) {
-//                                         embed.setColor("#add8e6")
-//                                     }
-//                                     console_channel.send({
-//                                         embeds: [
-//                                             embed
-//                                         ]
-//                                     })
-//                                     console.log(this.result_coupler)
-//                                     this.result_coupler.length = 0
-//                                 } catch (e) {
-//                                     console.log(data_str + " (could not send through Discord)")
-//                                 }
-//                             }
-//                         }, 500)
-//
-//                         if (typeof this.sendOutAsync !== "undefined") {
-//                             this.sendOutAsync(data_str)
-//                             delete this.sendOutAsync
-//                         }
-//
-//                         if (data_str.startsWith("[INFO] Player disconnected: ")) {
-//                             console.log("Player disconnect triggered")
-//                             let data = data_str.replace("[INFO] Player disconnected: ", "").split(", xuid: ")
-//                             this.emit("onPlayerDisconnect", {
-//                                 player_name: data[0],
-//                                 xuid: data[1]
-//                             })
-//                         }
-//                         if (data_str.indexOf("logged in with entity id") !== -1) {
-//                             let split = data_str.split("]: ")[1].replace("logged in with entity id", "").replace("at","").split(" ")
-//                             let username_ip = split[0].split("[/")
-//                             let username = username_ip[0]
-//                             let ip = username_ip[1].replace("]", "")
-//                             let entity_id = parseInt(split[1])
-//                             let coordinates = split[2].replace("(","").replace(")","").split(",").map(i => parseInt(i))
-//                             this.emit("onPlayerConnect", {
-//                                 username, ip, entity_id, coordinates
-//                             })
-//                         }
-//
-//                         let data_split = data_str.split("]:")
-//                         if (data_split[0].endsWith(server_env_options.chatPrefix)) {
-//                             if (data_split[1].startsWith(" [") && data_split[data_split.length -1].endsWith("]")) {
-//                                 // User-run command
-//                                 command_channel.queue(data_str)
-//                             }
-//                             else if (data_split[1].startsWith(" <") || data_split[1].startsWith("[")) {
-//                                 // Chat message
-//                                 let embed = new Discord.MessageEmbed()
-//                                 let msg_content = data_str.replace(data_split[0] + "]:", "")
-//                                 let msg_sender = msg_content.replace(" <", "").split("> ")[0]
-//                                 msg_content = msg_content.replace(" <" + msg_sender + "> ", "")
-//
-//                                 // Detect what user's discord account it
-//                                 let key
-//                                 for (let _key of CrashBotUser.map) {
-//                                     if (msg_sender.indexOf(_key[1].player_name) !== -1) {
-//                                         key = _key[1]
-//                                         break
-//                                     }
-//                                 }
-//
-//                                 if (key) {
-//                                     client.users.fetch(key.discord_id).then(user => {
-//                                         chat_channel.createWebhook(user.username + " (from MC server)", {
-//                                             avatar: user.avatarURL(),
-//                                             reason: "MC server chat message"
-//                                         }).then(webhook => {
-//                                             webhook.send(msg_content).then(() => {
-//                                                 webhook.delete()
-//                                             })
-//                                         })
-//                                     })
-//                                 }
-//                                 else {
-//                                     chat_channel.createWebhook(msg_sender + " (from MC server)").then(webhook => {
-//                                         webhook.send(msg_content).then(() => {
-//                                             webhook.delete()
-//                                         })
-//                                     })
-//                                 }
-//                             }
-//                         }
-//
-//                         // Check if server can perform a backup
-//                         if (data_str.endsWith("Saved the game")) {
-//                             // Make sure that the server doesn't try to save while a backup is in progress
-//                             await this.sendCommand("save-off")
-//
-//                             // Clear old backups
-//                             console.log("Cleaning up old backups...")
-//                             let old_backups = fs.readdirSync("/home/ubscontrol/java_server/backups").sort()
-//                             if (old_backups.length >= 3) {
-//                                 console.log("Removing: " + old_backups[0])
-//                                 fs.unlinkSync("/home/ubscontrol/java_server/backups/" + old_backups[0])
-//                             }
-//
-//                             console.log("Performing backup ZIP")
-//
-//                             let output_file_location = '/home/ubscontrol/java_server/backups/' + (new Date()).getTime().toString() + "_backup.zip"
-//                             let output = fs.createWriteStream(output_file_location);
-//                             let archive = archiver('zip');
-//                             let parent = this
-//
-//                             output.on('close', function () {
-//                                 mcServer.sendCommand("save-on")
-//                                 parent.emit("onBackupComplete", {
-//                                     fileLocation: output_file_location
-//                                 })
-//                                 output.close()
-//                             });
-//
-//                             archive.on('error', function (err) {
-//                                 console.log(err)
-//                                 parent.sendCommand("save-on")
-//                                 parent.emit("onBackupError", {
-//                                     error: err
-//                                 })
-//                             });
-//
-//                             archive.pipe(output);
-//                             this.emit("onBackupReadStream", {
-//                                 stream: archive
-//                             })
-//
-//                             // append files from a sub-directory, putting its contents at the root of archive
-//                             archive.directory("/home/ubscontrol/java_server/world", false);
-//
-//                             archive.finalize();
-//                         }
-//                     }
-//                 })
-//                 this.server.stdout.on("close", data => {
-//                     if (this.expecting_shutdown !== true) {
-//                         console.log("Unexpected server crash. Try running /restart_server.")
-//                         try {
-//                             console_channel.send("Unexpected server crash. Try running /restart_server.")
-//                         }
-//                         catch (e) {
-//                             console.log("Unexpected server crash. Try running /restart_server. (could not send through Discord)")
-//                         }
-//                     }
-//                     console.log("Server shutdown")
-//
-//                     // Set all players as disconnected
-//                     for (let key of CrashBotUser.map) {
-//                         if (key[1].active === true) {
-//                             key[1].active = false
-//                             key[1].active_time += Math.round(((new Date()).getTime() - key[1].active_start) / 1000)
-//                             key[1].active_start = (new Date()).getTime()
-//                         }
-//                     }
-//
-//                     this.emit("onShutdown")
-//                     this.server = null
-//                 })
-//
-//                 return "Server has been started"
-//             } catch (e) {
-//                 console.log("Server start failed")
-//             }
-//         } else {
-//             return "Cannot start server. Server is already started."
-//         }
-//     }
-//
-//     async getOnlinePlayers() {
-//         let command = (await this.sendCommand("list")).toString().replace("]: There are ", ",,").replace(" of a max of ", ",,").replace(" players online: ", ",,").split(",,")
-//         return {
-//             online: parseInt(command[1]),
-//             total: parseInt(command[2]),
-//             players: command[3].split(", ")
-//         }
-//     }
-// }
-
 let bank = new Bank()
-
-// Setup banner expirer
-// setInterval(() => {
-//     for (let player of CrashBotUser.map) {
-//         for (let banner of player[1].banners) {
-//             if (banner.expire + 1814400000 < (new Date).getTime()) {
-//                 // Expire the banner
-//                 player[1].banners.splice(player[1].banners.indexOf(banner), 1)
-//             }
-//         }
-//     }
-// }, 86400000)
 
 let resources = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/json/bank_backup.json").toString())
 for (let resource of resources) {
@@ -438,48 +125,8 @@ for (let resource of bank.resources) {
     console.log(resource.calculateWorth())
 }
 
-// mcServer.on("onPlayerConnect", player => {
-//     wss.broadcast(JSON.stringify({
-//         action: "player_connected",
-//         player_name: player.username
-//     }))
-//     update_status()
-// })
-// mcServer.on("onPlayerDisconnect",  player => {
-//     wss.broadcast(JSON.stringify({
-//         action: "player_disconnected",
-//         player_name: player.player_name
-//     }))
-//     update_status()
-//
-//     let key
-//     for (let _player of CrashBotUser.map) {
-//         if (_player[1].player_name === player.player_name) {
-//             key = _player
-//             break
-//         }
-//     }
-//
-//     if (key) {
-//         key[1].active = false
-//         key[1].active_time += Math.round(((new Date()).getTime() - key[1].active_start) / 1000)
-//         key[1].active_start = (new Date()).getTime()
-//     }
-// })
-
-// const backup = schedule.scheduleJob("0 0 * * *", () => {
-//     mcServer.sendCommand("save-all")
-// })
-// setTimeout(() => {
-//     performResourcePackUpgrade()
-// }, 120000)
-
-// setTimeout(() => {
-//     create_backup()
-// }, 30000)
-
 let app = express()
-let httpServer = http.createServer(app).listen(8080)
+let httpServer = http.createServer(app).listen(8051)
 let httpsServer = https.createServer({
     key: fs.readFileSync(path.resolve("./") + "/assets/ssl/privkey.pem"),
     cert: fs.readFileSync(path.resolve("./") + "/assets/ssl/fullchain.pem")
@@ -504,14 +151,6 @@ app.get("/home/:key", async (req, res) => {
     // console.log(html)
     res.send(html)
 })
-
-// app.get("/triggerUpdate", async (req, res) => {
-//     if (await performResourcePackUpgrade()) {
-//         res.send("Upgrade successful")
-//     } else {
-//         res.send("Nothing to upgrade")
-//     }
-// })
 
 app.post("/", async (req, res) => {
     // console.log("picked up a post")
@@ -739,14 +378,14 @@ app.post("/newthrow", async (req, res) => {
                     channel?.send({
                         content: "This new template from <@" + player.data.discord_id + "> needs to be verified.",
                         files: [
-                            new Discord.MessageAttachment(_meme.file as string)
+                            new AttachmentBuilder(_meme.file as string)
                         ],
                         components: [
-                            new Discord.MessageActionRow()
+                            new ActionRowBuilder<MessageActionRowComponentBuilder>()
                                 .addComponents(
-                                    new Discord.MessageButton()
+                                    new ButtonBuilder()
                                         .setCustomId("verify_throw_" + meme.location)
-                                        .setStyle("PRIMARY")
+                                        .setStyle(ButtonStyle.Primary)
                                         .setLabel("Verify")
                                         .setEmoji("👍")
                                 )
@@ -1017,107 +656,6 @@ app.post("/vote/:id", (req, res) => {
 
 })
 
-app.get("/memories/fetch/channel/:channelid/*.zip", async (req, res) => {
-    console.log("Inserting data into SQL database...")
-    console.log(req.params)
-
-    // Clear old backups
-    let archive = archiver('zip');
-    let parent = this
-
-    archive.on('error', function (err) {
-        console.log(err)
-
-    });
-
-    archive.pipe(res);
-
-
-    // await client.login("ODkyNTM1ODY0MTkyODI3Mzky.GBe_2E.iFchqslODvFaIimIiD0itIz_INcU-U_YgSbMfc")
-    let memories
-    if (req.params.channelid === "all") {
-        memories = await SafeQuery(`SELECT *
-                                    FROM dbo.Memories
-                                    WHERE (type = 1 OR attachment_id IS NOT NULL)`)
-    }
-    else {
-        memories = await SafeQuery(`SELECT *
-                                    FROM dbo.Memories
-                                    WHERE (type = 1 OR attachment_id IS NOT NULL)
-                                      AND channel_id = '${req.params.channelid}'`)
-    }
-    let queue = new QueueManager(8)
-    for (let memory of memories.recordset) {
-        if (memory.type === 0) {
-            let extension = memory.data.split(".")[memory.data.split(".").length - 1]
-            if (extension === "jpg" || extension === "jpeg" || extension === "png") {
-                queue.pushToQueue(downloadDiscordAttachmentWithInfo, [memory.msg_id, memory.channel_id, "https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
-            }
-            else {
-                queue.pushToQueue(downloadDiscordAttachment, ["https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
-            }
-        }
-        else {
-            // console.log([memory.data, archive])
-            queue.pushToQueue(download_ytdl, [memory.data, archive])
-        }
-    }
-    await queue.start()
-
-    archive.finalize()
-})
-app.get("/memories/fetch/user/:userId/*.zip", async (req, res) => {
-    console.log("Inserting data into SQL database...")
-    console.log(req.params)
-
-    // Clear old backups
-    let archive = archiver('zip');
-    let parent = this
-
-    archive.on('error', function (err) {
-        console.log(err)
-
-    });
-
-    archive.pipe(res);
-
-
-    // await client.login("ODkyNTM1ODY0MTkyODI3Mzky.GBe_2E.iFchqslODvFaIimIiD0itIz_INcU-U_YgSbMfc")
-    let memories
-    if (req.params.userId === "all") {
-        memories = await SafeQuery(`SELECT *
-                                    FROM dbo.Memories
-                                    WHERE (type = 1 OR attachment_id IS NOT NULL)`)
-    }
-    else {
-        memories = await SafeQuery(`SELECT *
-                                    FROM dbo.Memories
-                                    WHERE (type = 1 OR attachment_id IS NOT NULL)
-                                      AND author_discord_id = '${req.params.userId}'`)
-    }
-    console.log(memories)
-    let queue = new QueueManager(8)
-    queue.auto_start = false
-    for (let memory of memories.recordset) {
-        console.log(memory)
-        if (memory.type === 0) {
-            let extension = memory.data.split(".")[memory.data.split(".").length - 1]
-            if (extension === "jpg" || extension === "jpeg" || extension === "png") {
-                queue.pushToQueue(downloadDiscordAttachmentWithInfo, [memory.msg_id, memory.channel_id, "https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
-            }
-            else {
-                queue.pushToQueue(downloadDiscordAttachment, ["https://cdn.discordapp.com/attachments/" + memory.channel_id + "/" + memory.attachment_id + "/" + memory.data, extension, archive])
-            }
-        }
-        else {
-            queue.pushToQueue(download_ytdl, [memory.data, archive])
-        }
-    }
-    await queue.start()
-
-    archive.finalize()
-})
-
 // app.get("/playSound/:sound", (req, res) => {
 //     mcServer.sendCommand("tellraw @a {\"rawtext\":[{\"text\":\"Now queuing; SOUND HERE\"}]}")
 //     mcServer.avoid_discord = true
@@ -1173,505 +711,10 @@ app.get("/memories/fetch/user/:userId/*.zip", async (req, res) => {
 // })
 
 
-// PACK MAKER API:
-app.get("/packs", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify((await SafeQuery("SELECT pack_id, pack_name, \"public\" FROM dbo.Packs")).recordset))
-})
-app.get("/packs/:packid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT pack_id, pack_name, \"public\" FROM dbo.Packs WHERE pack_id = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    if (data.recordset.length === 1) res.send(JSON.stringify(data.recordset[0]))
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/file.zip", async (req, res) => {
-    // Convert the resource pack to a .mcpack file
-    (await generatePackArchive(req.params.packid, false, "zip")).pipe(res)
-})
-
-app.get("/packs/:packid/blocks", async (req, res) => {
-    let data = await SafeQuery("SELECT BlockID, GameID, SoundGroupID FROM dbo.PackBlocks WHERE PackID = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    for (let item of data.recordset) {
-        // Find textures
-        let textures = await SafeQuery("SELECT TextureGroupID, Type FROM dbo.PackBlockTextures WHERE BlockID = @blockid AND PackID = @packid", [
-            {name: "packid", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-            {name: "blockid", type: mssql.TYPES.Int(), data: item.BlockID}
-        ])
-        item.texture_groups = textures.recordset
-    }
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.get("/packs/:packid/blocks/:blockid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT BlockID, GameID, SoundGroupID FROM dbo.PackBlocks WHERE PackID = @id AND BlockID = @blockid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "blockid", type: mssql.TYPES.Int(), data: parseInt(req.params.blockid)}
-    ])
-    if (data.recordset.length === 1) {
-        data.recordset[0].texture_groups = (await SafeQuery("SELECT TextureGroupID, Type FROM dbo.PackBlockTextures WHERE BlockID = @blockid AND PackID = @packid", [
-            {name: "packid", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-            {name: "blockid", type: mssql.TYPES.Int(), data: parseInt(req.params.blockid)}
-        ])).recordset
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/entities", async (req, res) => {
-    let data = await SafeQuery("SELECT EntityID, identifier, SoundGroupID, InteractiveSoundGroupID FROM dbo.PackEntities WHERE PackID = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    for (let item of data.recordset) {
-        // Find textures
-        let textures = await SafeQuery("SELECT TextureID, Type FROM dbo.PackEntityTextures WHERE EntityID = @entity", [
-            {name: "entity", type: mssql.TYPES.Int(), data: item.EntityID}
-        ])
-        item.textures = textures.recordset
-    }
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.get("/packs/:packid/entities/:entityid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT EntityID, identifier, InteractiveSoundGroupID, SoundGroupID FROM dbo.PackEntities WHERE PackID = @id AND EntityID = @entityid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "entityid", type: mssql.TYPES.Int(), data: parseInt(req.params.entityid)}
-    ])
-    if (data.recordset.length === 1) {
-        // Find textures
-        data.recordset[0].textures = (await SafeQuery("SELECT TextureID, Type FROM dbo.PackEntityTextures WHERE EntityID = @entity", [
-            {name: "entity", type: mssql.TYPES.Int(), data: data.recordset[0].EntityID}
-        ])).recordset
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/textures/groups", async (req, res) => {
-    let data = await SafeQuery("SELECT TextureGroupID, GameID, type FROM dbo.PackTextureGroups WHERE PackID = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    for (let item of data.recordset) {
-        // Find textures
-        let textures = await SafeQuery("SELECT TextureID, Position, OverlayColor FROM dbo.PackTextures WHERE TextureGroupID = @id ORDER BY Position ASC", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(item.TextureGroupID)},
-        ])
-        item.textures = textures.recordset
-    }
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.get("/packs/:packid/textures/groups/:groupid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT TextureGroupID, GameID, type FROM dbo.PackTextureGroups WHERE PackID = @id AND TextureGroupID = @groupid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "groupid", type: mssql.TYPES.Int(), data: parseInt(req.params.groupid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        data.recordset[0].textures = (await SafeQuery("SELECT TextureID, Position, OverlayColor FROM dbo.PackTextures WHERE TextureGroupID = @id ORDER BY Position ASC", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(data.recordset[0].TextureGroupID)},
-        ])).recordset
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/textures/", async (req, res) => {
-    let data = await SafeQuery("SELECT TextureID, TextureGroupID, Position, OverlayColor FROM dbo.PackTextures WHERE PackID = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.get("/packs/:packid/textures/:textureid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT TextureID, TextureGroupID, Position, OverlayColor FROM dbo.PackTextures WHERE PackID = @id AND TextureID = @textureid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "textureid", type: mssql.TYPES.Int(), data: parseInt(req.params.textureid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.post("/packs/:packid/textures/:textureid/upload", async (req, res) => {
-    let file = req.files?.file as UploadedFile
-    if (!file) {
-        res.send("No file attached")
-        return
-    }
-    else if (file.name.endsWith(".png")) {
-        res.send("PNGs only")
-        return
-    }
-
-    file.mv(path.join(path.resolve("./"), "assets", "pack_textures", req.params.textureid.toString() + ".png")).then(r => {
-        res.send("OK!")
-    })
-})
-
-app.get("/packs/:packid/textures/:textureid/stream", async (req, res) => {
-    let data = await SafeQuery("SELECT TextureID, DefaultFile FROM dbo.PackTextures WHERE PackID = @id AND TextureID = @textureid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "textureid", type: mssql.TYPES.Int(), data: parseInt(req.params.textureid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        let _path = path.join(path.resolve("./"), "assets", "pack_textures", data.recordset[0].TextureID.toString() + ".png")
-        if (fs.existsSync(_path)) res.sendFile(_path)
-        else res.sendFile(path.join(path.resolve("./"), "assets", "pack", data.recordset[0].DefaultFile + ".png"))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/textures/:textureid/stream/original", async (req, res) => {
-    let data = await SafeQuery("SELECT TextureID, DefaultFile FROM dbo.PackTextures WHERE PackID = @id AND TextureID = @textureid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "textureid", type: mssql.TYPES.Int(), data: parseInt(req.params.textureid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        res.sendFile(path.join(path.resolve("./"), "assets", "pack", data.recordset[0].DefaultFile + ".png"))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/sounds/groups", async (req, res) => {
-    let data = await SafeQuery("SELECT SoundGroupID, pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type FROM dbo.PackSoundGroups WHERE PackID = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    for (let item of data.recordset) {
-        // Find sound events
-        let events = await SafeQuery("SELECT EventID, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID, EventType FROM dbo.PackSoundGroupEvents WHERE SoundGroupID = @id", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(item.SoundGroupID)},
-        ])
-        item.events = events.recordset
-    }
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.get("/packs/:packid/sounds/groups/:groupid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT SoundGroupID, pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type FROM dbo.PackSoundGroups WHERE PackID = @id AND SoundGroupID = @groupid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "groupid", type: mssql.TYPES.Int(), data: parseInt(req.params.groupid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        data.recordset[0].events = (await SafeQuery("SELECT EventID, pitch_lower, pitch_higher, vol_lower, vol_higher, SoundDefID, EventType FROM dbo.PackSoundGroupEvents WHERE SoundGroupID = @id", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(data.recordset[0].SoundGroupID)},
-        ])).recordset
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/sounds/definitions", async (req, res) => {
-    let data = await SafeQuery("SELECT SoundDefID, Name FROM dbo.PackSoundDefinitions WHERE PackID = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    for (let item of data.recordset) {
-        // Find sounds
-        let sounds = await SafeQuery("SELECT SoundID, is3D, volume, pitch, weight FROM dbo.PackSounds WHERE SoundDefID = @id", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(item.SoundDefID)},
-        ])
-        item.sounds = sounds.recordset
-    }
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.get("/packs/:packid/sounds/definitions/:groupid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT SoundDefID, Name FROM dbo.PackSoundDefinitions WHERE PackID = @id AND SoundDefID = @groupid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "groupid", type: mssql.TYPES.Int(), data: parseInt(req.params.groupid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        data.recordset[0].sounds = (await SafeQuery("SELECT SoundID, is3D, volume, pitch, weight FROM dbo.PackSounds WHERE SoundDefID = @id", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(data.recordset[0].SoundDefID)},
-        ])).recordset
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/sounds/", async (req, res) => {
-    let data = await SafeQuery("SELECT SoundID, SoundDefID, is3D, pitch, volume, weight, enabled FROM dbo.PackSounds WHERE PackID = @id; SELECT @@IDENTITY AS NewID", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.post("/packs/:packid/sounds/", express.json(), async (req, res) => {
-    let requirements = ["SoundDefID", "is3D", "volume", "pitch", "weight", "enabled"]
-    for (let item of requirements) if (typeof req.body[item] === "undefined") {
-        res.status(400)
-        res.send("Missing parameter: " + item)
-        return
-    }
-
-    let data: mssql.IResult<{
-        NewID: string
-    }> = await SafeQuery("INSERT INTO CrashBot.dbo.PackSounds (SoundDefID, is3D, volume, pitch, weight, enabled, PackID) VALUES (@sounddef, @is3D, @volume, @pitch, @weight, @enabled, @packid); SELECT @@IDENTITY AS NewID;", [
-        {name: "sounddef", type: mssql.TYPES.Int(), data: req.body.SoundDefID},
-        {name: "is3D", type: mssql.TYPES.Bit(), data: req.body.is3D},
-        {name: "volume", type: mssql.TYPES.Int(), data: req.body.volume},
-        {name: "pitch", type: mssql.TYPES.Int(), data: req.body.pitch},
-        {name: "weight", type: mssql.TYPES.Int(), data: req.body.weight},
-        {name: "enabled", type: mssql.TYPES.Int(), data: req.body.enabled},
-        {name: "packid", type: mssql.TYPES.Int(), data: req.params.packid}
-    ])
-    res.setHeader("content-type", "application/json")
-    console.log(data)
-    res.send(JSON.stringify({
-        SoundID: data.recordsets[0][0].NewID
-    }))
-})
-
-app.post("/packs/:packid/sounds/:soundid", express.json(), async (req, res) => {
-    let requirements = ["SoundDefID", "is3D", "volume", "pitch", "weight", "enabled"]
-    for (let item of requirements) if (typeof req.body[item] === "undefined") {
-        res.status(400)
-        res.send("Missing parameter: " + item)
-        return
-    }
-
-    let data = await SafeQuery("UPDATE CrashBot.dbo.PackSounds SET SoundDefID = @sounddef, is3D = @is3D, volume = @volume, pitch = @pitch, weight = @weight, enabled = @enabled WHERE SoundID = @id", [
-        {name: "sounddef", type: mssql.TYPES.Int(), data: req.body.SoundDefID},
-        {name: "is3D", type: mssql.TYPES.Bit(), data: req.body.is3D},
-        {name: "volume", type: mssql.TYPES.Int(), data: req.body.volume},
-        {name: "pitch", type: mssql.TYPES.Int(), data: req.body.pitch},
-        {name: "weight", type: mssql.TYPES.Int(), data: req.body.weight},
-        {name: "enabled", type: mssql.TYPES.Int(), data: req.body.enabled},
-        {name: "id", type: mssql.TYPES.Int(), data: req.params.soundid}
-    ])
-    res.setHeader("content-type", "application/json")
-    console.log(data)
-    res.send(JSON.stringify({
-        SoundID: req.params.soundid
-    }))
-})
-
-app.post("/packs/:packid/sounds/:soundid/upload", async (req, res) => {
-    console.log(req)
-    let file = req.files?.file as UploadedFile
-    if (typeof file === "undefined") {
-        res.status(400)
-        res.send("File not attached")
-        return
-    }
-
-    if (!(file.name.endsWith(".mp3") || file.name.endsWith(".wav"))) {
-        res.send(400)
-        res.send("Unsupported file type")
-    }
-
-    let output = path.join(path.resolve("./"), "assets", "pack_sounds", req.params.soundid + ".ogg")
-    if (fs.existsSync(output)) fs.unlinkSync(output)
-    let name = file.name.split(".")
-    let location = file.tempFilePath + "." + name[name.length - 1]
-    file.mv(location).then(r => {
-        console.log("TRANSPOSING")
-        ffmpeg(location)
-            .output(output)
-            .audioChannels(1)
-            .audioBitrate("112k")
-            .audioQuality(3)
-            .audioFrequency(22050)
-            .on('end', () => {
-                res.send("OK!")
-            })
-            .on("error", (e) => {
-                console.log(e)
-            })
-            .run()
-    })
-})
-
-app.post("/packs/:packid/sounds/:soundid/ytupload", express.json(), async (req, res) => {
-    console.log(req.body)
-    let video_info = await ytdl.getInfo(ytdl.getURLVideoID(req.body.yturi))
-
-    if (parseInt(video_info.videoDetails.lengthSeconds) > 420) {
-        res.send("TOO LONG")
-        return
-    }
-    let output = path.join(path.resolve("./"), "assets", "pack_sounds", req.params.soundid + ".ogg")
-
-    if (fs.existsSync(output)) fs.unlinkSync(output)
-
-    let stream = await ytdl(req.body.yturi, {quality: "highestaudio"})
-    console.log(stream)
-    ffmpeg(stream)
-        .output(output)
-        .audioChannels(1)
-        .audioBitrate("112k")
-        .audioQuality(3)
-        .on("end", () => {
-            console.log("OK")
-        })
-        .on("error", (e) => {
-            console.log(e)
-        })
-        .noVideo()
-        .run()
-    res.send("OK")
-})
-
-app.get("/packs/:packid/sounds/:soundid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT SoundID, SoundDefID, is3D, pitch, volume, weight, enabled FROM dbo.PackSounds WHERE PackID = @id AND SoundID = @soundid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "soundid", type: mssql.TYPES.Int(), data: parseInt(req.params.soundid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/sounds/:soundid/stream", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT SoundID, SoundDefID, is3D, pitch, volume, weight FROM dbo.PackSounds WHERE PackID = @id AND SoundID = @soundid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "soundid", type: mssql.TYPES.Int(), data: parseInt(req.params.soundid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        let _path = path.join(path.resolve("./"), "assets", "pack_sounds", data.recordset[0].SoundID.toString() + ".ogg")
-        if (fs.existsSync(_path)) res.sendFile(_path)
-        else res.sendFile(path.join(path.resolve("./"), "assets", "pack_sounds", "template.mp3"))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/items/", async (req, res) => {
-    let data = await SafeQuery("SELECT ItemID, TextureGroupID, GameID FROM dbo.PackItems WHERE PackID = @id", [
-        {
-            name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)
-        }
-    ])
-
-    for (let item of data.recordset) {
-        // Find sound events
-        let textures = await SafeQuery("SELECT TextureID, Position, OverlayColor FROM dbo.PackTextures WHERE TextureGroupID = @id", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(item.TextureGroupID)},
-        ])
-        item.textures = textures.recordset
-    }
-    res.setHeader("content-type", "application/json")
-    res.send(JSON.stringify(data.recordset))
-})
-
-app.get("/packs/:packid/items/:itemid", async (req, res) => {
-    res.setHeader("content-type", "application/json")
-    let data = await SafeQuery("SELECT ItemID, TextureGroupID, GameID FROM dbo.PackItems WHERE PackID = @id AND ItemID = @itemid", [
-        {name: "id", type: mssql.TYPES.Int(), data: parseInt(req.params.packid)},
-        {name: "itemid", type: mssql.TYPES.Int(), data: parseInt(req.params.itemid)}
-    ])
-
-    if (data.recordset.length === 1) {
-        data.recordset[0].textures = (await SafeQuery("SELECT TextureID, Position, OverlayColor FROM dbo.PackTextures WHERE TextureGroupID = @id", [
-            {name: "id", type: mssql.TYPES.Int(), data: parseInt(data.recordset[0].TextureGroupID)},
-        ])).recordset
-        res.send(JSON.stringify(data.recordset[0]))
-    }
-    else {
-        res.status(404)
-        res.send("{\"error\":404}")
-    }
-})
-
-app.get("/packs/:packid/languages/items", async (req, res) => {
-    if (req.query.language) {
-        console.log(req.query.language)
-        let languages = await SafeQuery("SELECT * FROM dbo.PackLanguages WHERE PackID = @packid", [
-            {name: "packid", type: mssql.TYPES.Int(), data: req.params.packid}
-        ])
-
-    }
-    else {
-        let language_items = (await SafeQuery("SELECT * FROM dbo.PackLanguageItems WHERE PackID = @packid", [
-            {name: "packid", type: mssql.TYPES.Int(), data: req.params.packid}
-        ])).recordset
-
-        let out: any = {}
-        for (let item of language_items) {
-            if (!out[item.GameItem]) out[item.GameItem] = {}
-            out[item.GameItem][item.LanguageID] = item.Text
-        }
-        res.header("content-type", "application/json")
-        res.send(JSON.stringify(out))
-    }
-})
-
+app.use("/packs", PACK_ROUTER)
+app.use("/destiny", D2_ROUTER)
+app.use("/achievements", ACHIEVEMENTS_ROUTER)
+app.use("/memories", MEMORIES_ROUTER)
 
 let wss = new WSS(httpServer, httpsServer)
 
@@ -1731,7 +774,7 @@ client.on("ready", async () => {
     // })
     // client.channels.fetch("892518365766242375")
     //     .then(channel => {
-    //         // let embed = new Discord.MessageEmbed()
+    //         // let embed = new EmbedBuilder()
     //         // embed.setTitle("QUEST UNLOCKED!")
     //         // embed.setDescription("Ruin Post Validator's day by continuously pinging it.")
     //         // embed.setFooter("WARNING: Foul language")
@@ -1783,7 +826,7 @@ client.on("ready", async () => {
     // }
 
     // setInterval(() => {
-    //     let embed = new Discord.MessageEmbed()
+    //     let embed = new EmbedBuilder()
     //     let players_sorted = Array.from(CrashBotUser.map, ([name, value]) => (value)).sort((a,b) => {
     //         if (a.player_name > b.player_name) {
     //             return 1
@@ -1847,11 +890,12 @@ client.on("userUpdate", (oldUser, newUser) => {
 })
 
 client.on("interactionCreate", async (interaction): Promise<void> => {
-    if (interaction.isCommand()) {
+    if (interaction.isChatInputCommand()) {
+        interaction
         // Process module slash commands
         for (let module of modules) {
             for (let command of module.subscribedSlashCommands.filter(i => i[0] === interaction.commandName)) {
-                command[1](interaction)
+                command[1].call(module, interaction)
             }
         }
     }
@@ -1866,8 +910,7 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                         case "string":
                             return i[0] === interaction.customId
                     }
-                }))
-            {
+                })) {
                 command[1](interaction)
             }
         }
@@ -1883,9 +926,8 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                         case "string":
                             return i[0] === interaction.customId
                     }
-                }))
-            {
-                command[1](interaction)
+                })) {
+                command[1].call(module, interaction)
             }
         }
     }
@@ -1901,100 +943,17 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                         case "string":
                             return i[0] === interaction.commandName
                     }
-                }))
-            {
-                command[1](interaction)
+                })) {
+                command[1].call(module, interaction)
             }
         }
     }
 })
 
 client.on("messageCreate", async (msg): Promise<void> => {
-    console.log(msg.channel.type)
-    if (msg.author.bot) return
     if (msg.content.toLowerCase() === "who's not touching grass?") {
         msg.reply("This command is currently unavailable")
         // let players = await mcServer.getOnlinePlayers()
-
-        // let embed = new Discord.MessageEmbed()
-        //
-        // if (players.online === 0) {
-        //     embed.setTitle("Ooh. It seems like everyone is touching grass at the moment")
-        // }
-        // else if (players.online < 3) {
-        //     embed.setTitle("A few people aren't touching grass at the moment")
-        // }
-        // else {
-        //     embed.setTitle("My Lord. There are a lot of people not touching grass at the moment")
-        // }
-        // embed.setDescription(players.online + "/" + players.total + " players online\n" + players.players.join(", "))
-        // msg.reply({content: " ", embeds: [embed]})
-    }
-
-    // if (msg.channel.id === "892518396166569994" && msg.author.bot === false) {
-    //     // mcServer.sendCommand(msg.content)
-    // }
-    // if (msg.author.id === "404507305510699019" && msg.content.startsWith("test")) {
-    //     console.log("RUNNING TEST...")
-    //     let attachment = msg.attachments.first()
-    //     console.log(attachment)
-    //     let name = attachment.name.split(".")
-    //     let extension = name[name.length - 1]
-    //     let file = await download_discord_attachment(attachment.url, extension)
-    //     let font_big = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
-    //     let font_small = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE)
-    //     Jimp.read(file)
-    //         .then(async image => {
-    //             // console.log(image.getWidth(), image.getHeight())
-    //             let width = image.getWidth()
-    //             let height = image.getHeight()
-    //
-    //             if (width > height && width > 1080) {
-    //                 height = (height / width) * 1080
-    //                 width = 1080
-    //                 image.resize(width, height)
-    //             } else if (height > width && height > 1080) {
-    //                 width = (width / height) * 1080
-    //                 height = 1080
-    //                 image.resize(width, height)
-    //             }
-    //
-    //             // Place black bar along bottom
-    //             let color = Jimp.rgbaToInt(255, 255, 255, .75)
-    //             new Jimp(width, height + 130, "#000", async (err, out) => {
-    //                 out.composite(image, 0, 0)
-    //
-    //                 let author = await Jimp.read(msg.member.avatarURL({format: "jpg"}) || msg.author.avatarURL({format: "jpg"}))
-    //                 author.resize(100, 100)
-    //                 author.circle()
-    //                 out.composite(author, 20, height + 20)
-    //
-    //                 out.print(font_big, 140, height + 20, msg.member.nickname || msg.author.username)
-    //                 out.print(font_small, 140, height + 80, "#" + msg.channel.name)
-    //                 if (msg.content && msg.content.length < 100) out.print(font_small, 200, height + 20, {
-    //                         text: msg.content,
-    //                         alignmentX: Jimp.HORIZONTAL_ALIGN_RIGHT
-    //                         // alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE
-    //                     },
-    //                     width - 220,
-    //                     height)
-    //                 out.getBufferAsync(Jimp.MIME_JPEG).then(buffer => {
-    //                     msg.reply({
-    //                         content: "TEST", files: [
-    //                             new Discord.MessageAttachment()
-    //                                 .setFile(buffer)
-    //                         ]
-    //                     })
-    //                 })
-    //             })
-    //         })
-    // }
-    if (msg.content.toLowerCase() === "guess what?") {
-        msg.reply({
-            content: "_", files: [
-                new Discord.MessageAttachment(fs.readFileSync(path.resolve("./") + "/assets/guess_what.jpg"))
-            ]
-        })
     }
     else if (msg.content.toLowerCase().replaceAll(/[^a-zA-Z0-9]/g, "") === "herecomesanotherchineseearthquake") {
         msg.reply({content: "e" + "br".repeat(Math.floor(Math.random() * 999)), tts: true})
@@ -2034,246 +993,10 @@ client.on("messageCreate", async (msg): Promise<void> => {
                 "respond to this quote in a funny way:\n\n" +
                 msg.content
             )
-            let embed = new Discord.MessageEmbed()
+            let embed = new EmbedBuilder()
             embed.setDescription(AIres.text)
             msg.reply({embeds: [embed]})
         }
-    }
-    if (msg.content.toLowerCase() === "what are my most popular words?") {
-        getUserData(msg.member as GuildMember)
-            .then(res => {
-                if (res.experimentWords === false) {
-                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
-                    return
-                }
-
-                SafeQuery("SELECT word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
-                    {name: "discordid", type: mssql.TYPES.VarChar(100), data: msg.member?.id || ""}
-                ])
-                    .then(res => {
-                        if (res.recordset.length < 20) {
-                            msg.reply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
-                        }
-                        else {
-                            let embed = new Discord.MessageEmbed()
-                            let top = res.recordset.slice(0, 20).map((i: any) => {
-                                return "`" + toTitleCase(i.word) + "` " + i.sum + " times"
-                            })
-                            embed.setTitle("You've said...")
-                            embed.setDescription(top.join("\n"))
-                            embed.setFooter({text: "Crash Bot words experiment"})
-                            msg.reply({content: " ", embeds: [embed]})
-                        }
-                    })
-            })
-    }
-    else if (msg.content.includes("<@892535864192827392>")) {
-        let action = Math.floor(Math.random() * 3)
-        switch (action) {
-            case 0:
-                msg.member?.timeout(60 * 1000, 'Pls no ping')
-                return
-            case 1:
-                let user = await getUserData(msg.member as GuildMember)
-                let req = await SafeQuery(`UPDATE CrashBot.dbo.Users
-                                           SET experimentBabyWords = 1
-                                           WHERE discord_id = @discordid`, [{
-                    name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.author.id
-                }])
-                msg.reply("Awesome! Thank you for enabling `babyspeak`!")
-                return
-            case 2:
-                askGPTQuestion("I am a stinky poo-poo face", msg.channel)
-        }
-    }
-    else if (msg.content.toLowerCase().includes("how many times have i said ")) {
-        getUserData(msg.member as GuildMember)
-            .then(async res => {
-                if (res.experimentWords === false) {
-                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
-                    return
-                }
-
-                let words = msg.content.toLowerCase().split("how many times have i said ")[1].replace(/[^A-Za-z ]/g, "").split(" ")
-                let words_results = []
-                let embed = new Discord.MessageEmbed()
-
-                for (let word of words) {
-                    if (word === "") continue
-
-                    let res = await SafeQuery("SELECT word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid AND word = @word GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
-                        {name: "discordid", type: mssql.TYPES.VarChar(100), data: msg.member?.id || ""},
-                        {name: "word", type: mssql.TYPES.VarChar(100), data: word}
-                    ])
-                    if (res.recordset.length === 0) {
-                        words_results.push("You haven't said `" + toTitleCase(word) + "` yet.")
-                    }
-                    else {
-                        words_results.push("`" + toTitleCase(word) + "` " + res.recordset[0].sum + " times")
-                    }
-                }
-
-                embed.setTitle("You've said...")
-                embed.setDescription(words_results.join("\n"))
-                embed.setFooter({text: "Crash Bot words experiment"})
-                msg.reply({content: " ", embeds: [embed]})
-            })
-    }
-    else if (msg.content.toLowerCase().includes("how many times have we said ")) {
-        getUserData(msg.member as GuildMember)
-            .then(async res => {
-                if (res.experimentWords === false) {
-                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
-                    return
-                }
-
-                let words = msg.content.toLowerCase().split("how many times have we said ")[1].replace(/[^A-Za-z ]/g, "").split(" ")
-                let words_results = []
-                let embed = new Discord.MessageEmbed()
-
-                let likelihood = -1
-
-                for (let word of words) {
-                    if (word === "") continue
-
-                    let res = await SafeQuery("SELECT word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE word = @word AND guild_id = @guildid GROUP BY word ORDER BY sum DESC", [
-                        {name: "word", type: mssql.TYPES.VarChar(100), data: word},
-                        {name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || ""},
-                    ])
-                    if (res.recordset.length === 0) {
-                        words_results.push("We haven't said `" + toTitleCase(word) + "` yet.")
-                        likelihood = 0
-                    }
-                    else {
-                        words_results.push("We've said `" + toTitleCase(word) + "` " + res.recordset[0].sum + " times")
-                        if (likelihood === -1) likelihood = res.recordset[0].sum
-                        else if (likelihood === 0) {
-                        }
-                        else likelihood = likelihood / res.recordset[0].sum
-                    }
-                }
-
-                embed.setTitle("Of all the people on this server who have the experiment enabled...")
-                embed.setDescription(words_results.join("\n"))
-                embed.setFooter({text: `The overall phrase (statistically) has been said ${Math.floor(likelihood)} times. Crash Bot words experiment`})
-                msg.reply({content: " ", embeds: [embed]})
-            })
-    }
-    else if (msg.content.toLowerCase().includes("what are some barely spoken words")) {
-        if (msg.channel.type === "DM") {
-            msg.reply("Oops. You can't use this phrase in this channel")
-            return
-        }
-        let results = await SafeQuery("SELECT TOP 10 word, SUM(count + pseudo_addition) as 'count', discord_id FROM CrashBot.dbo.WordsExperiment WHERE guild_id=@guildid AND \"count\" = 1 GROUP BY word, discord_id ORDER BY \"count\", NEWID()", [
-            {name: "guildid", type: mssql.TYPES.VarChar(), data: msg.channel.guild.id}
-        ])
-        msg.reply({
-            content: " ",
-            embeds: [
-                new Discord.MessageEmbed()
-                    .setDescription("These words have only ever been spoken once in this server:\n" +
-                        results.recordset.map(i => {
-                            return `- \`${i.word}\` by <@${i.discord_id}>`
-                        }).join("\n")
-                    )
-                    .setFooter({text: "Crash Bot only counts words as of 2023-08-01, and only from users who have the words experiment enabled."})
-            ]
-        })
-    }
-    else if (msg.content.toLowerCase().replaceAll(" ", "").startsWith("whatis<@") && msg.content.toLowerCase().replaceAll(" ", "").endsWith("'scatchphrase?") && (msg.mentions.members?.size || 0) > 0) {
-        getUserData(msg.member as GuildMember)
-            .then(res => {
-                if (res.experimentWords === false) {
-                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
-                    return
-                }
-
-                SafeQuery("SELECT TOP 30 word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
-                    {name: "discordid", type: mssql.TYPES.VarChar(100), data: msg.mentions.members?.firstKey() || ""}
-                ])
-                    .then(async res => {
-                        if (res.recordset.length < 20) {
-                            msg.reply("We don't quite have enough data yet. The user you mentioned may not have this experiment enabled.")
-                        }
-                        else {
-                            let top = ShuffleArray(res.recordset).slice(0, 20).map((i: any) => {
-                                return toTitleCase(i.word)
-                            })
-                            ChatGPT.sendMessage(
-                                "Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
-                                top.join(", ")
-                            )
-                                .then(AIres => {
-                                    let embed = new Discord.MessageEmbed()
-                                    console.log("Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
-                                        top.join(", "))
-
-                                    embed.setTitle("Is this your catchphrase?")
-                                    embed.setDescription(AIres.text)
-                                    embed.setFooter({text: "Crash Bot words experiment"})
-                                    msg.reply({content: " ", embeds: [embed]})
-                                })
-                                .catch(e => {
-                                    console.log(e)
-                                    let embed = new Discord.MessageEmbed()
-                                    embed.setTitle("Service unavailable")
-                                    embed.setDescription("This service is currently unavailable. Please try again later")
-                                    embed.setColor("RED")
-                                    embed.setFooter({text: "Crash Bot words experiment"})
-                                    msg.reply({content: " ", embeds: [embed]})
-                                })
-                        }
-                    })
-            })
-    }
-    else if (msg.content.toLowerCase().replace(/[^a-z]/g, '') === "whatisourserverscatchphrase") {
-        getUserData(msg.member as GuildMember)
-            .then(res => {
-                if (res.experimentWords === false) {
-                    msg.reply("You haven't enabled the words experiment. You need to do this first.\n/experiments words true")
-                    return
-                }
-
-                SafeQuery("SELECT TOP 40 word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE guild_id = @guildid GROUP BY word ORDER BY sum DESC",
-                    [{name: "guildid", type: mssql.TYPES.VarChar(20), data: msg.guild?.id || ""},
-                    ]
-                )
-                    .then(async res => {
-                        if (res.recordset.length < 20) {
-                            msg.reply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
-                        }
-                        else {
-                            let top = ShuffleArray(res.recordset).slice(0, 20).map((i: any) => {
-                                return {
-                                    word: i.word,
-                                    sum: i.sum
-                                }
-                            })
-                            ChatGPT.sendMessage(
-                                "Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
-                                top.map(i => i.word).join(", ")
-                            )
-                                .then(AIres => {
-                                    let embed = new Discord.MessageEmbed()
-
-                                    embed.setTitle("Would this be a suitable catchphrase?")
-                                    embed.setDescription(AIres.text)
-                                    embed.setFooter({text: "Crash Bot words experiment"})
-                                    embed.setFields([{name: "Sampled words", value: top.map(i => i.word).join(", ")}])
-                                    msg.reply({content: " ", embeds: [embed]})
-                                })
-                                .catch(e => {
-                                    console.log(e)
-                                    let embed = new Discord.MessageEmbed()
-                                    embed.setTitle("Service unavailable")
-                                    embed.setDescription("This service is currently unavailable. Please try again later")
-                                    embed.setColor("RED")
-                                    embed.setFooter({text: "Crash Bot words experiment"})
-                                    msg.reply({content: " ", embeds: [embed]})
-                                })
-                        }
-                    })
-            })
     }
     else if (msg.channel.id !== "892518159167393823" && (Math.random() <= 0.01 || msg.content.toLowerCase() === "i need inspiring")) {
         quoteReply(msg.channel)
@@ -2302,15 +1025,6 @@ client.on("messageCreate", async (msg): Promise<void> => {
             .catch(e => {
                 console.log(e)
             })
-    }
-    else if (msg.channel.type === "DM") {
-        askGPTQuestion(msg.author.username + " said: " + msg.content, msg.channel)
-    }
-    else if (msg.channel.type === "GUILD_PUBLIC_THREAD" && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
-        askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
-    }
-    else if (msg.content === "test" && msg.author.id == "404507305510699019") {
-        sendTwaggerPost()
     }
     else {
         // Do word count
@@ -2359,7 +1073,8 @@ client.on("messageCreate", async (msg): Promise<void> => {
                                 })
                             }
                             else {
-                                return channel.createWebhook(msg.member?.nickname || msg.member?.user.username || "Unknown user", {
+                                return channel.createWebhook({
+                                    name: msg.member?.nickname || msg.member?.user.username || "Unknown user",
                                     avatar: msg.member?.avatarURL() || msg.member?.user.avatarURL(),
                                     reason: "Needed new cheese"
                                 })
@@ -2428,7 +1143,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
 
                                         (channel as TextBasedChannel).send({
                                             content: ' ', embeds: [
-                                                new Discord.MessageEmbed()
+                                                new EmbedBuilder()
                                                     .setTitle(title)
                                                     .setDescription(message)
                                             ]
@@ -2439,6 +1154,49 @@ client.on("messageCreate", async (msg): Promise<void> => {
                         }
                     }
                     if (spam) msg.react("😟")
+                }
+                if (res.simpleton_experiment) {
+                    if (msg.content.length > 1500) {
+                        msg.reply("This message is too long to simplify")
+                        return
+                    }
+                    let message = await ChatGPT.sendMessage(`Simplify this message so that it uses as few words as possible. Make it as simple and short as possible and avoid long words at all costs. Even if removing detail. Text speech and emojis may be used: ${msg.content}`)
+                    let channel = msg.channel as TextChannel
+                    channel
+                        .fetchWebhooks()
+                        .then((hooks): Promise<Discord.Webhook> => {
+                            let webhook = hooks.find(hook => {
+                                return hook.name === (msg.member?.nickname || msg.member?.user.username || "Unknown member")
+                            })
+                            if (webhook) {
+                                return new Promise((resolve) => {
+                                    // @ts-ignore
+                                    resolve(webhook)
+                                })
+                            }
+                            else {
+                                return channel.createWebhook({
+                                    name: msg.member?.nickname || msg.member?.user.username || "Unknown user",
+                                    avatar: msg.member?.avatarURL() || msg.member?.user.avatarURL(),
+                                    reason: "Needed new cheese"
+                                })
+                            }
+                        })
+                        .then(webhook => {
+                            console.log(webhook)
+                            msg.delete()
+                            webhook.send({
+                                content: message.text,
+                                allowedMentions: {
+                                    parse: [],
+                                    users: [],
+                                    roles: [],
+                                    repliedUser: false
+                                }
+                            })
+                        }).catch(e => {
+                        console.error(e)
+                    })
                 }
             })
         if (imageCaptureChannels.indexOf(msg.channel.id) !== -1 && !msg.author.bot) {
@@ -2496,7 +1254,6 @@ process.on("unhandledRejection", (e) => {
 })
 
 client.on("messageDelete", msg => {
-    console.log(msg)
     for (let attachment of msg.attachments) {
         SafeQuery(`DELETE
                    FROM dbo.Banners
@@ -2512,6 +1269,11 @@ client.on("messageDelete", msg => {
 // Setup
 async function setup() {
     let array_entities;
+
+    setInterval(() => {
+        sendNotifications()
+    }, 10000)
+
     try {
         // console.log(await SafeQuery("SELECT * FROM dbo.Users"))
         //
@@ -2571,7 +1333,7 @@ async function setup() {
                 }
                 // console.log(sound_defs[item].id)
             }
-            await SafeQuery(queries.join(";") + ";")
+            await SafeQuery(queries.join(";") + ";", [])
 
             let sounds = JSON.parse(fs.readFileSync(path.resolve("./") + "/assets/pack/sounds.json").toString())
             let _sounds
@@ -2694,9 +1456,9 @@ async function setup() {
             }
 
             _sounds = sounds.individual_event_sounds.events
-            await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (1, 1, 1, 1, 'indiv', 'individual_event_sounds');")
+            await SafeQuery("INSERT INTO CrashBot.dbo.PackSoundGroups (pitch_lower, pitch_higher, vol_lower, vol_higher, GroupName, type) VALUES (1, 1, 1, 1, 'indiv', 'individual_event_sounds');", [])
 
-            let individual_id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = 'indiv'")).recordset[0].SoundGroupID
+            let individual_id = (await SafeQuery("SELECT SoundGroupID FROM dbo.PackSoundGroups WHERE PackSoundGroups.GroupName = 'indiv'", [])).recordset[0].SoundGroupID
             for (let event of Object.keys(_sounds)) {
                 if (!_sounds[event].sound) continue
                 if (!sound_defs[_sounds[event].sound]) continue
@@ -3062,60 +1824,10 @@ async function setup() {
     }
 }
 
-function download_ytdl(url: string, archive: archiver.Archiver): Promise<void> {
-    return new Promise(async (resolve, reject) => {
-        // Pick a filename
-        let name = makeid(10) + ".mp4"
-        while (fs.existsSync(path.resolve("./") + "/memories/" + name)) {
-            name = makeid(10) + ".mp4"
-        }
-        try {
-            // await ytdl.getInfo(url, {filter: "audioandvideo"})
-            // console.log("GOT INFO!")
-            let audio_download = ytdl(url, {filter: "audioonly", quality: "highestaudio"})
-            audio_download.pipe(fs.createWriteStream("ffmpeg_tmp/" + name + ".mp3"))
-            audio_download.on("end", () => {
-                let video_download = ytdl(url, {filter: "videoonly", quality: "highestvideo"})
-                video_download.pipe(fs.createWriteStream("ffmpeg_tmp/" + name))
-                video_download.on("end", () => {
-                    console.log("HERE!")
-                    console.log(`ffmpeg -i ${name} -i ${name}.mp3 -c:v copy -c:a aac ${name}.mp4`)
-                    exec(`ffmpeg -i ffmpeg_tmp/${name} -i ffmpeg_tmp/${name}.mp3 -c:v copy -c:a aac ffmpeg_tmp/${name}.mp4`, (err, stdout, stderr) => {
-                        if (err) {
-                            console.log(err)
-                        }
-                        archive.append(fs.createReadStream("ffmpeg_tmp/" + name + ".mp4"), {name})
-                        setTimeout(() => {
-                            fs.rmSync("ffmpeg_tmp/" + name)
-                            fs.rmSync("ffmpeg_tmp/" + name + ".mp3")
-                            fs.rmSync("ffmpeg_tmp/" + name + ".mp4")
-                        }, 30000)
-                        resolve()
-                    })
-                })
-            })
-        } catch (e) {
-            reject(e)
-        }
-    })
-}
-
 //
 // setTimeout(() => {
 //     rot_potato()
 // }, 30000)
-
-
-async function generatePackArchive(pack_id: string, increase_version_num = false, format: archiver.Format, options?: archiver.ArchiverOptions) {
-    let archive = archiver(format, options)
-
-    await generatePack(pack_id, increase_version_num, (file, location) => {
-        archive.append(file, {name: location})
-    })
-
-    archive.finalize()
-    return archive
-}
 
 async function generatePack(pack_id: string, increase_version_num = false, onFile = (file: Buffer, location: string) => {
 }, onPackFound = (p: any) => {

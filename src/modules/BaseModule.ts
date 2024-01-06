@@ -1,18 +1,25 @@
 import {
-    ApplicationCommandDataResolvable, AutocompleteInteraction, ButtonInteraction,
-    Client, ClientApplication,
-    ClientEvents, CommandInteraction, Interaction, SelectMenuInteraction,
+    ApplicationCommandDataResolvable,
+    ApplicationCommandResolvable,
+    AutocompleteInteraction,
+    ButtonInteraction,
+    ChatInputCommandInteraction,
+    Client,
+    ClientApplication,
+    ClientEvents,
+    CommandInteraction,
+    Interaction,
+    MessageContextMenuCommandInteraction,
+    SelectMenuInteraction,
+    SlashCommandBuilder,
+    SlashCommandSubcommandsOnlyBuilder
 } from "discord.js";
 import {client} from "../misc/Discord.js";
-import {SlashCommandBuilder} from "@discordjs/builders";
-import {InteractionTypes} from "discord.js/typings/enums.js";
-
-type SlashCommandBuilderOmitted = Omit<SlashCommandBuilder, "addSubcommandGroup" | "addSubcommand">
 
 export abstract class BaseModule {
     readonly client: Client
-    readonly commands: (ApplicationCommandDataResolvable | SlashCommandBuilderOmitted)[] = []
-    subscribedSlashCommands: [string, (interaction: CommandInteraction) => void][] = []
+    readonly commands: any[] = []
+    subscribedSlashCommands: [string, (interaction: ChatInputCommandInteraction) => void][] = []
     subscribedButtonInteractions: [string | ((id: string) => boolean), (interaction: ButtonInteraction) => void][] = []
     subscribedSelectMenuInteractions: [string | ((id: string) => boolean), (interaction: SelectMenuInteraction) => void][] = []
     subscribedAutocompleteInteractions: [string | ((id: string) => boolean), (interaction: AutocompleteInteraction) => void][] = []
@@ -51,9 +58,10 @@ export function OnClientEvent<Event extends keyof ClientEvents>(clientEvent: Eve
     return decorator
 }
 
-export function InteractionCommandResponse(identifier: string) {
-    function decorator(originalMethod: (interaction: CommandInteraction) => any, context: ClassMethodDecoratorContext<BaseModule>) {
+export function InteractionChatCommandResponse(identifier: string) {
+    function decorator(originalMethod: (interaction: ChatInputCommandInteraction) => any, context: ClassMethodDecoratorContext<BaseModule>) {
         context.addInitializer(function init(this: BaseModule) {
+            originalMethod.bind(this)
             this.subscribedSlashCommands.push([identifier, originalMethod])
         })
 

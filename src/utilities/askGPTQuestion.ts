@@ -1,11 +1,13 @@
-import Discord, {TextBasedChannel} from "discord.js";
+import Discord, {ChatInputCommandInteraction, EmbedBuilder, TextBasedChannel} from "discord.js";
 import SafeQuery from "../misc/SQL.js";
 import mssql from "mssql";
 import {removeAllMentions} from "./removeAllMentions.js";
 import ChatGPT from "../misc/ChatGPT.js";
 import {splitMessage} from "./splitMessage.js";
 
-export async function askGPTQuestion(message: string, channel: TextBasedChannel, interaction?: Discord.BaseCommandInteraction) {
+export async function askGPTQuestion(message: string, channel: TextBasedChannel, interaction?: ChatInputCommandInteraction) {
+    console.log(message)
+
     let gpt_channel_search = await SafeQuery("SELECT * FROM dbo.GPTCHannels WHERE channelid = @channelid", [
         {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
     ])
@@ -50,12 +52,11 @@ export async function askGPTQuestion(message: string, channel: TextBasedChannel,
         if (interaction && !interaction_replied) {
             await interaction.editReply({
                 content: " ",
-                embeds: [new Discord.MessageEmbed()
+                embeds: [new EmbedBuilder()
                     .setDescription(message)
                 ]
             })
             interaction_replied = true
         }
-        channel.send(text)
     }
 }

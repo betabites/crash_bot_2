@@ -1,0 +1,39 @@
+# Crash Bot Source Code
+
+Welcome to the Crash Bot source code!
+
+`Crash Bot` is Discord Bot software built with [discord.js](https://discord.js.org).
+
+## Crash Bot Modules
+
+The different services that Crash Bot provides are spilt into modules. Since Crash Bot is Discord-first software,
+modules are defined primarily based on the functionality they provide through Discord.
+
+Modules are built by first extending the Base Module class, then by referencing them in the entrypoint file (`index.ts`).
+
+```typescript
+// MyFirstClass.ts
+import {BaseModule, OnClientEvent} from "./BaseModule";
+import {Message} from "discord.js";
+
+class MyFirstClass extends BaseModule {
+    @OnClientEvent('messageCreate')
+    onNewMessage(msg: Message) {
+        // Whenever the bot receives a new message, do stuff here...
+    }
+}
+```
+
+
+
+```typescript
+// index.ts
+import {MyFirstClass} from "./myFirstClass.ts"
+
+// ...
+moduleClass = [
+    ...,
+    MyFirstClass
+]
+// ...
+```

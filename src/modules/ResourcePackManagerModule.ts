@@ -1,6 +1,6 @@
-import {BaseModule, InteractionButtonResponse, InteractionCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandStringOption} from "@discordjs/builders";
-import {ButtonInteraction, CommandInteraction} from "discord.js";
+import {ButtonInteraction, ChatInputCommandInteraction, CommandInteraction} from "discord.js";
 import SafeQuery from "../misc/SQL.js";
 import mssql from "mssql";
 
@@ -23,7 +23,7 @@ export class ResourcePackManagerModule extends BaseModule {
     ]
 
     @InteractionButtonResponse("getlink")
-    @InteractionCommandResponse("getlink")
+    @InteractionChatCommandResponse("getlink")
     async onGetLink(interaction: CommandInteraction | ButtonInteraction) {
         // Get the code
 
@@ -47,8 +47,8 @@ export class ResourcePackManagerModule extends BaseModule {
         }
     }
 
-    @InteractionCommandResponse("getcode")
-    async onGetCode(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("getcode")
+    async onGetCode(interaction: ChatInputCommandInteraction) {
         let mc_username = interaction.options.getString("mc_username")
         let req = await SafeQuery(`SELECT shortcode
                                        FROM dbo.Users

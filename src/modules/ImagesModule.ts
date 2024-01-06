@@ -1,6 +1,13 @@
-import {BaseModule, InteractionButtonResponse, InteractionCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandUserOption} from "@discordjs/builders";
-import Discord, {ButtonInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
+import Discord, {
+    ActionRowBuilder, AttachmentBuilder, BaseMessageOptions, ButtonBuilder,
+    ButtonInteraction, ButtonStyle, ChatInputCommandInteraction,
+    CommandInteraction,
+    GuildMember,
+    Message,
+    MessageActionRowComponentBuilder
+} from "discord.js";
 import SafeQuery from "../misc/SQL.js";
 import {client} from "../misc/Discord.js";
 import {fetchThrowTemplates, generateThrow} from "../misc/ThrowMaker.js";
@@ -30,8 +37,8 @@ export class ImagesModule extends BaseModule {
             .setDescription("Receive the blessing (or curse) of a random screenshot.")
     ]
 
-    @InteractionCommandResponse("throw")
-    onThrow(interaction: CommandInteraction) {
+    @InteractionChatCommandResponse("throw")
+    onThrow(interaction: ChatInputCommandInteraction) {
         // Read available memes
         interaction.deferReply().then(async () => {
             let sender = interaction.member as GuildMember
@@ -41,7 +48,7 @@ export class ImagesModule extends BaseModule {
 
                 interaction.editReply({
                     content: "TEMPLATE: `" + meme.template.location + "`", files: [
-                        new Discord.MessageAttachment(fs.readFileSync(meme.file))
+                        new AttachmentBuilder(fs.readFileSync(meme.file))
                     ]
                 }).then(() => {
 
@@ -55,7 +62,7 @@ export class ImagesModule extends BaseModule {
         })
     }
 
-    @InteractionCommandResponse("random_capture")
+    @InteractionChatCommandResponse("random_capture")
     async onRandomCapture(interaction: CommandInteraction) {
         interaction.reply(await generateRandomCaptureMsg() || "Oops. Could not find a random cature")
     }
@@ -98,25 +105,25 @@ export class ImagesModule extends BaseModule {
 
 interface RandomCaptureData {
     content: string
-    components: Discord.MessageActionRow[]
+    components: BaseMessageOptions["components"]
 }
 
 async function generateRandomCaptureMsg(): Promise<RandomCaptureData | void> {
-    let capture = (await SafeQuery("SELECT TOP 1 * from dbo.Memories ORDER BY NEWID()")).recordset[0]
+    let capture = (await SafeQuery("SELECT TOP 1 * from dbo.Memories ORDER BY NEWID()", [])).recordset[0]
     if (capture.type === 0) {
         let channel = await client.channels.fetch(capture.channel_id)
         if (capture.attachment_id) {
             let data: RandomCaptureData = {
                 content: "https://cdn.discordapp.com/attachments/" + capture.channel_id + "/" + capture.attachment_id + "/" + capture.data,
                 components: [
-                    new Discord.MessageActionRow()
+                    new ActionRowBuilder<MessageActionRowComponentBuilder>()
                         .addComponents(
-                            new Discord.MessageButton()
-                                .setStyle("LINK")
+                            new ButtonBuilder()
+                                .setStyle(ButtonStyle.Link)
                                 .setURL("https://discord.com/channels/892518158727008297/" + capture.channel_id + "/" + capture.msg_id)
                                 .setLabel("Go to original message"),
-                            new Discord.MessageButton()
-                                .setStyle("SECONDARY")
+                            new ButtonBuilder()
+                                .setStyle(ButtonStyle.Secondary)
                                 .setCustomId("random_capture")
                                 .setLabel("Another")
                                 .setEmoji("🔃")
@@ -129,14 +136,14 @@ async function generateRandomCaptureMsg(): Promise<RandomCaptureData | void> {
             let data: RandomCaptureData = {
                 content: "Unfortunately this capture does not support previewing. Click the button below to see it.",
                 components: [
-                    new Discord.MessageActionRow()
+                    new ActionRowBuilder<MessageActionRowComponentBuilder>()
                         .addComponents(
-                            new Discord.MessageButton()
-                                .setStyle("LINK")
+                            new ButtonBuilder()
+                                .setStyle(ButtonStyle.Link)
                                 .setURL("https://discord.com/channels/892518158727008297/" + capture.channel_id + "/" + capture.msg_id)
                                 .setLabel("Go to original message"),
-                            new Discord.MessageButton()
-                                .setStyle("SECONDARY")
+                            new ButtonBuilder()
+                                .setStyle(ButtonStyle.Secondary)
                                 .setCustomId("random_capture")
                                 .setLabel("Another")
                                 .setEmoji("🔃")

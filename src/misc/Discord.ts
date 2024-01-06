@@ -1,4 +1,4 @@
-import Discord, {Client, GuildMember, Message, TextChannel, Webhook} from "discord.js";
+import Discord, {Client, GuildMember, IntentsBitField, Message, TextChannel, Webhook, GatewayIntentBits} from "discord.js";
 import SafeQuery from "./SQL.js";
 import mssql from "mssql";
 import Jimp from "jimp";
@@ -7,18 +7,22 @@ import fs from "fs";
 import archiver from "archiver";
 import https from "https";
 import * as path from "path";
+import {Writable} from "stream"
+import * as stream from "stream";
 
 export const client = new Client({
     intents: [
-        Discord.Intents.FLAGS.GUILDS,
-        Discord.Intents.FLAGS.GUILD_MESSAGES,
-        Discord.Intents.FLAGS.GUILD_MEMBERS,
-        Discord.Intents.FLAGS.GUILD_VOICE_STATES,
-        Discord.Intents.FLAGS.DIRECT_MESSAGES,
-        Discord.Intents.FLAGS.DIRECT_MESSAGE_TYPING,
-        Discord.Intents.FLAGS.DIRECT_MESSAGE_REACTIONS,
-        Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS
-    ], partials: ["CHANNEL"]
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.DirectMessageTyping,
+        GatewayIntentBits.DirectMessageReactions,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessageTyping,
+        GatewayIntentBits.GuildMessageTyping
+    ], partials: [Discord.Partials.Channel]
 })
 
 export async function sendImpersonateMessage(channel: TextChannel, member: GuildMember, message: string) {
@@ -42,7 +46,8 @@ export async function sendImpersonateMessage(channel: TextChannel, member: Guild
                 {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
                 {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
             ]).then(() => {
-                return channel.createWebhook(member.nickname || member.user.username, {
+                return channel.createWebhook({
+                    name: member.nickname || member.user.username,
                     avatar: member.avatarURL() || member.user.avatarURL(),
                     reason: "Needed new cheese"
                 })
@@ -61,19 +66,19 @@ export async function sendImpersonateMessage(channel: TextChannel, member: Guild
         })
 }
 
-export function downloadDiscordAttachmentWithInfo(msg_id: string, channel_id: string, url: string, extension: string, archive: archiver.Archiver): Promise<Buffer | void> {
+export function downloadDiscordAttachmentWithInfo(msg_id: string, channel_id: string, url: string, extension: string, stream: (filename: string) => Writable): Promise<Buffer | void> {
     return new Promise(async resolve => {
         let _msg: Message | null
         try {
             // @ts-ignore
             _msg = await (await client.channels.fetch(channel_id)).messages.fetch(msg_id)
         } catch (e) {
-            resolve(downloadDiscordAttachment(url, extension, archive))
+            resolve(downloadDiscordAttachment(url, extension, stream))
             return
         }
         let msg = _msg as Message
 
-        let file = await downloadDiscordAttachment(url, extension)
+        let file = await downloadDiscordAttachment(url, extension, stream)
         let font_big = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
         let font_small = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE)
         Jimp.read(file)
@@ -121,7 +126,8 @@ export function downloadDiscordAttachmentWithInfo(msg_id: string, channel_id: st
                         while (fs.existsSync(path.resolve("./") + "/memories/" + name)) {
                             name = makeid(10) + ".jpg"
                         }
-                        archive.append(buffer, {name})
+                        const writeStream = stream(name)
+                        writeStream.end(buffer)
                         resolve()
                     })
                 })
@@ -133,7 +139,7 @@ export function downloadDiscordAttachmentWithInfo(msg_id: string, channel_id: st
     })
 }
 
-export function downloadDiscordAttachment(url: string, fileextension: string, archive: archiver.Archiver | null = null): Promise<Buffer> {
+export function downloadDiscordAttachment(url: string, fileextension: string, stream: (filename: string) => Writable): Promise<Buffer> {
     return new Promise(resolve => {
         // Pick a filename
         let name = makeid(10) + "." + fileextension
@@ -142,13 +148,15 @@ export function downloadDiscordAttachment(url: string, fileextension: string, ar
         }
         let req = https.get(url.replace("http:", "https:"), (res) => {
             let data: Buffer[] = []
-            if (archive) archive.append(res, {name})
+            const writeStream = stream(name)
+            res.pipe(writeStream)
             res.on("data", (chunk) => {
                 data.push(chunk)
             })
             res.on('close', () => {
                 resolve(Buffer.concat(data))
             })
+
         })
     })
 }

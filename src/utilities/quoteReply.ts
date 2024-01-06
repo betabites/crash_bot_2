@@ -1,4 +1,11 @@
-import Discord, {MessageComponentInteraction, TextBasedChannel} from "discord.js";
+import {
+    MessageComponentInteraction,
+    TextBasedChannel,
+    AttachmentBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
+} from "discord.js";
 import inspirobot from "inspirobot.js";
 
 export function quoteReply(channel: TextBasedChannel, interaction: MessageComponentInteraction | null = null) {
@@ -7,23 +14,27 @@ export function quoteReply(channel: TextBasedChannel, interaction: MessageCompon
             let msg_content = {
                 content: 'Created by: inspirobot.me',
                 files: [
-                    new Discord.MessageAttachment(image, "quote.jpg")
+                    new AttachmentBuilder(image, {name: "quote.jpg"})
                 ],
                 components: [
-                    new Discord.MessageActionRow()
+                    new ActionRowBuilder()
                         .addComponents(
-                            new Discord.MessageButton()
+                            new ButtonBuilder()
                                 .setCustomId("another_inspiro_quote")
                                 .setLabel("Another!")
-                                .setStyle("PRIMARY"),
-                            new Discord.MessageButton()
+                                .setStyle(ButtonStyle.Primary),
+                            new ButtonBuilder()
                                 .setCustomId("offensive_inspiro_quote")
                                 .setLabel("I found this offensif")
-                                .setStyle("SECONDARY")
+                                .setStyle(ButtonStyle.Secondary)
                         )
                 ]
             }
+            // TODO: PATCH LATER!!!
+            // @ts-ignore
             if (interaction) interaction.reply(msg_content)
+            // TODO: PATCH LATER!!!
+            // @ts-ignore
             else channel.send(msg_content)
         })
 }
