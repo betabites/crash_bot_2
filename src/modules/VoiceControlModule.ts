@@ -1,6 +1,6 @@
 import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandNumberOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {ButtonInteraction, ChatInputCommandInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
+import {ButtonInteraction, ChatInputCommandInteraction, GuildMember, Message} from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {CrashBotUser} from "../misc/UserManager.js";
 import SafeQuery from "../services/SQL.js";

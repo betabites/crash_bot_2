@@ -1,10 +1,10 @@
 import {
-    MessageComponentInteraction,
-    TextBasedChannel,
-    AttachmentBuilder,
     ActionRowBuilder,
+    AttachmentBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    MessageComponentInteraction,
+    TextBasedChannel
 } from "discord.js";
 import inspirobot from "inspirobot.js";
 

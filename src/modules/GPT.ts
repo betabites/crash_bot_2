@@ -1,15 +1,20 @@
-import {BaseModule, OnClientEvent, InteractionChatCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import Discord, {
     ChannelType,
     ChatInputCommandInteraction,
-    Client, Colors,
-    CommandInteraction,
+    Client,
+    Colors,
     EmbedBuilder,
     GuildMember,
     Message,
     User
 } from "discord.js";
-import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandNumberOption, SlashCommandUserOption} from "@discordjs/builders";
+import {
+    SlashCommandBuilder,
+    SlashCommandNumberOption,
+    SlashCommandStringOption,
+    SlashCommandUserOption
+} from "@discordjs/builders";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
 import ChatGPT from "../services/ChatGPT.js";
 import {removeAllMentions} from "../utilities/removeAllMentions.js";

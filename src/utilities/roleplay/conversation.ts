@@ -1,5 +1,5 @@
 import {AICharacterData, CharacterData} from "./CharacterData.js";
-import {Colors, EmbedBuilder, TextChannel, Webhook, WebhookClient} from "discord.js";
+import {EmbedBuilder, TextChannel, Webhook, WebhookClient} from "discord.js";
 import SafeQuery from "../../services/SQL.js";
 import mssql from "mssql";
 import path from "path";

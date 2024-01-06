@@ -1,12 +1,13 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
-import {SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandBooleanOption} from "@discordjs/builders";
+import {SlashCommandBooleanOption, SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import Discord, {
     ChatInputCommandInteraction,
     Colors,
-    CommandInteraction,
     EmbedBuilder,
     GuildMember,
-    Message, TextBasedChannel, TextChannel, Typing
+    Message,
+    TextBasedChannel,
+    TextChannel
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import SafeQuery from "../services/SQL.js";
@@ -17,7 +18,6 @@ import ChatGPT from "../services/ChatGPT.js";
 import bad_baby_words from "../../badwords.json";
 import randomWords from "random-words";
 import {client} from "../services/Discord.js";
-import ytdl from "ytdl-core";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 

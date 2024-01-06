@@ -1,16 +1,13 @@
 import {BaseModule} from "./BaseModule.js";
 import express from "express";
 import SafeQuery, {sql} from "../services/SQL.js";
-import e from "express";
-import archiver from "archiver";
 import {makeid, QueueManager} from "../misc/Common.js";
 import {downloadDiscordAttachment, downloadDiscordAttachmentWithInfo} from "../services/Discord.js";
 import fs from "fs";
 import path from "path";
 import ytdl from "ytdl-core";
-import {exec} from "child_process";
 import ffmpeg from "fluent-ffmpeg";
-import {PassThrough, Writable} from "stream"
+import {Writable} from "stream"
 
 export class Memories extends BaseModule {
 

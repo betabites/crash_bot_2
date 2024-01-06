@@ -1,4 +1,4 @@
-import Discord, {EmbedBuilder, TextChannel, GuildChannelTypes} from "discord.js";
+import Discord, {EmbedBuilder, TextChannel} from "discord.js";
 import ChatGPT from "../services/ChatGPT.js";
 import {client} from "../services/Discord.js";
 import SafeQuery from "../services/SQL.js";

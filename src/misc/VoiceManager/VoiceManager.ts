@@ -1,13 +1,5 @@
 import {EventEmitter} from "events";
-import {
-    AudioPlayerStatus,
-    createAudioPlayer,
-    createAudioResource,
-    EndBehaviorType,
-    NoSubscriberBehavior,
-    PlayerSubscription
-} from "@discordjs/voice";
-import {opus} from "prism-media";
+import {PlayerSubscription} from "@discordjs/voice";
 import * as Discord from "discord.js";
 import {
     ActionRowBuilder,
@@ -20,20 +12,18 @@ import {
 import ytdl from "ytdl-core";
 import ytpl from "ytpl";
 import SafeQuery from "../../services/SQL.js";
-import {makeid, QueueManager, ShuffleArray} from "../Common.js";
+import {QueueManager, ShuffleArray} from "../Common.js";
 import mssql from "mssql"
 import yts from "yt-search";
-import ffmpeg from "fluent-ffmpeg"
 import {client, getToken} from "../../services/Discord.js";
 import Spotify from "../../services/Spotify.js";
-import * as path from "path";
-import * as stream from "stream";
-import {parentPort, Worker} from "worker_threads"
+import {Worker} from "worker_threads"
 import {
+    AcknowledgementMessage,
     AUDIO_MANAGER_MESSAGE_TYPES,
     messageToAudioManager,
-    VOICE_MANAGER_MESSAGE_TYPES,
-    messageToVoiceManager, AcknowledgementMessage
+    messageToVoiceManager,
+    VOICE_MANAGER_MESSAGE_TYPES
 } from "./types.js";
 import * as crypto from "crypto";
 

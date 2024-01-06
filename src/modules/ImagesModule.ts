@@ -1,8 +1,13 @@
 import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandUserOption} from "@discordjs/builders";
-import Discord, {
-    ActionRowBuilder, AttachmentBuilder, BaseMessageOptions, ButtonBuilder,
-    ButtonInteraction, ButtonStyle, ChatInputCommandInteraction,
+import {
+    ActionRowBuilder,
+    AttachmentBuilder,
+    BaseMessageOptions,
+    ButtonBuilder,
+    ButtonInteraction,
+    ButtonStyle,
+    ChatInputCommandInteraction,
     CommandInteraction,
     GuildMember,
     Message,

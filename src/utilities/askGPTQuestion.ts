@@ -1,4 +1,4 @@
-import Discord, {ChatInputCommandInteraction, EmbedBuilder, TextBasedChannel} from "discord.js";
+import {ChatInputCommandInteraction, EmbedBuilder, TextBasedChannel} from "discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {removeAllMentions} from "./removeAllMentions.js";

@@ -1,15 +1,14 @@
 import sqlite3 from "sqlite3";
 import {getDestinyManifest} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {BasicBungieClient} from "bungie-net-core/lib/client.js";
-import {sql} from "../../services/SQL.js";
-import {rows} from "mssql";
 import {
     DestinyActivityDefinition,
-    DestinyInventoryItemDefinition, DestinyStatDefinition,
+    DestinyInventoryItemDefinition,
+    DestinyStatDefinition,
     DestinyVendorDefinition
 } from "bungie-net-core/lib/models/index.js";
 import {groupItemsWithMatchingNames} from "../../utilities/groupItemsWithMatchingNames.js";
-import {flatten, surfaceFlatten} from "../../utilities/surfaceFlatten.js";
+import {surfaceFlatten} from "../../utilities/surfaceFlatten.js";
 
 const client = new BasicBungieClient();
 

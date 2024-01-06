@@ -1,14 +1,12 @@
-import Discord, {Client, GuildMember, IntentsBitField, Message, TextChannel, Webhook, GatewayIntentBits} from "discord.js";
+import Discord, {Client, GatewayIntentBits, GuildMember, Message, TextChannel, Webhook} from "discord.js";
 import SafeQuery from "./SQL.js";
 import mssql from "mssql";
 import Jimp from "jimp";
 import {makeid} from "../misc/Common.js";
 import fs from "fs";
-import archiver from "archiver";
 import https from "https";
 import * as path from "path";
 import {Writable} from "stream"
-import * as stream from "stream";
 
 export const client = new Client({
     intents: [

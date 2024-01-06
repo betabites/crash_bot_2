@@ -1,12 +1,6 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandRoleOption, SlashCommandStringOption} from "@discordjs/builders";
-import Discord, {
-    AttachmentBuilder,
-    ChatInputCommandInteraction,
-    CommandInteraction,
-    GuildMember,
-    Message
-} from "discord.js";
+import {AttachmentBuilder, ChatInputCommandInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
 import {sendTwaggerPost} from "../misc/sendTwaggerPost.js";
 import {getUserData} from "../utilities/getUserData.js";
 import SafeQuery from "../services/SQL.js";

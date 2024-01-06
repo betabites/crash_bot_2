@@ -1,5 +1,5 @@
 import {client} from "../services/Discord.js";
-import Discord, {EmbedBuilder, Guild, GuildMember, TextChannel} from "discord.js";
+import {EmbedBuilder, GuildMember, TextChannel} from "discord.js";
 import SafeQuery from "../services/SQL.js";
 import RemoteStatusServer from "./RemoteStatusServer.js";
 

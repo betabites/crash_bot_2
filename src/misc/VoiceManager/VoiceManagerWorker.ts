@@ -17,10 +17,8 @@ import ytdl from "ytdl-core";
 import SafeQuery from "../../services/SQL.js";
 import {makeid, QueueManager} from "../Common.js";
 import mssql from "mssql"
-import yts from "yt-search";
 import ffmpeg from "fluent-ffmpeg"
 import {client} from "../../services/Discord.js";
-import fs from "fs";
 import * as path from "path";
 import * as stream from "stream";
 import {parentPort, workerData} from "worker_threads"

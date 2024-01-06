@@ -1,18 +1,10 @@
 import {
-    ApplicationCommandDataResolvable,
-    ApplicationCommandResolvable,
     AutocompleteInteraction,
     ButtonInteraction,
     ChatInputCommandInteraction,
     Client,
-    ClientApplication,
     ClientEvents,
-    CommandInteraction,
-    Interaction,
-    MessageContextMenuCommandInteraction,
-    SelectMenuInteraction,
-    SlashCommandBuilder,
-    SlashCommandSubcommandsOnlyBuilder
+    SelectMenuInteraction
 } from "discord.js";
 import {client} from "../services/Discord.js";
 

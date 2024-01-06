@@ -5,14 +5,18 @@ import {
     SlashCommandStringOption,
     SlashCommandSubcommandBuilder
 } from "@discordjs/builders";
-import Discord, {
+import {
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonInteraction, ButtonStyle, ChatInputCommandInteraction,
+    ButtonInteraction,
+    ButtonStyle,
+    ChatInputCommandInteraction,
     Client,
-    CommandInteraction, EmbedBuilder, Guild,
+    EmbedBuilder,
+    Guild,
     GuildMember,
-    Message, MessageActionRowComponentBuilder,
+    Message,
+    MessageActionRowComponentBuilder,
     TextChannel
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
@@ -20,7 +24,7 @@ import SafeQuery from "../services/SQL.js";
 import {updateScoreboard} from "../misc/updateScoreboard.js";
 import mssql from "mssql";
 import RemoteStatusServer, {Connection as ServerConnection} from "./../misc/RemoteStatusServer.js";
-import {client, sendImpersonateMessage} from "../services/Discord.js";
+import {sendImpersonateMessage} from "../services/Discord.js";
 
 RemoteStatusServer.io.on("connection", () => {
     console.log("Client connected")

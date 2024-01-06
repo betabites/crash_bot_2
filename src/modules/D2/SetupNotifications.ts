@@ -3,14 +3,14 @@ import {
     ButtonBuilder,
     ButtonStyle,
     EmbedBuilder,
-    MessageActionRowComponentBuilder, TextBasedChannel,
+    MessageActionRowComponentBuilder,
+    TextBasedChannel,
     User
 } from "discord.js";
 import SafeQuery, {sql} from "../../services/SQL.js";
 import mssql from "mssql";
-import {buildItemEmbed, buildVendorEmbed, getVendorItems} from "./Bungie.NET.js";
+import {buildItemEmbed, buildVendorEmbed} from "./Bungie.NET.js";
 import {client} from "../../services/Discord.js";
-import {VendorDefinition} from "../../misc/DestinyDefinitions/VendorDefinitions.js";
 import {MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
 import {DestinyVendorDefinition} from "bungie-net-core/lib/models/index.js";
 

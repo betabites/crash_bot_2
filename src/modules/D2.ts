@@ -13,12 +13,14 @@ import {
     ButtonInteraction,
     ButtonStyle,
     ChatInputCommandInteraction,
-    Client, Colors,
+    Client,
+    Colors,
     EmbedBuilder,
     Message,
     MessageActionRowComponentBuilder,
     SelectMenuInteraction,
-    StringSelectMenuBuilder, TextChannel
+    StringSelectMenuBuilder,
+    TextChannel
 } from "discord.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {
@@ -27,7 +29,8 @@ import {
     buildTinyItemEmbed,
     buildTinyVendorEmbed,
     buildVendorMessage,
-    getNextWeekday, onlyVendorsThatSellStuff,
+    getNextWeekday,
+    onlyVendorsThatSellStuff,
     Weekdays
 } from "./D2/Bungie.NET.js";
 import {ItemType} from "../misc/DestinyDefinitions/DestinyDefinitions.js";

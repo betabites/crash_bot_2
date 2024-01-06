@@ -1,23 +1,12 @@
 import {BaseModule, InteractionAutocompleteResponse, InteractionChatCommandResponse} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {
-    AutocompleteInteraction,
-    ChatInputCommandInteraction,
-    Client,
-    Colors,
-    EmbedBuilder,
-    TextChannel,
-    Webhook,
-    WebhookClient
-} from "discord.js";
+import {AutocompleteInteraction, ChatInputCommandInteraction, Client, TextChannel} from "discord.js";
 import {removeAllMentions} from "../utilities/removeAllMentions.js";
 import * as path from "path";
 import Jimp from "jimp";
 import crypto from "crypto";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
-import ChatGPT from "../services/ChatGPT.js";
-import {ChatMessage} from "chatgpt";
 import {AICharacterData, CharacterData} from "../utilities/roleplay/CharacterData.js";
 import {Conversation} from "../utilities/roleplay/conversation.js";
 
