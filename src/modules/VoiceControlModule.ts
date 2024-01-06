@@ -8,7 +8,7 @@ import mssql from "mssql";
 import ffmpeg from "fluent-ffmpeg";
 import {PassThrough} from "stream";
 import path from "path";
-import {VoiceConnectionManager} from "../misc/VoiceManager/VoiceManager.js";
+import {VoiceConnectionManager} from "../services/VoiceManager/VoiceManager.js";
 
 export class VoiceControlModule extends BaseModule {
     commands = [

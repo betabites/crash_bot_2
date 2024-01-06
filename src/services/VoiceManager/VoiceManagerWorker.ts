@@ -14,11 +14,11 @@ import {opus} from "prism-media";
 import * as Discord from "discord.js";
 import {GuildMember} from "discord.js";
 import ytdl from "ytdl-core";
-import SafeQuery from "../../services/SQL.js";
-import {makeid, QueueManager} from "../Common.js";
+import SafeQuery from "../SQL.js";
+import {makeid, QueueManager} from "../../misc/Common.js";
 import mssql from "mssql"
 import ffmpeg from "fluent-ffmpeg"
-import {client} from "../../services/Discord.js";
+import {client} from "../Discord.js";
 import * as path from "path";
 import * as stream from "stream";
 import {parentPort, workerData} from "worker_threads"

@@ -28,7 +28,7 @@ import ytdl from "ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
 import {makeid} from "./src/misc/Common.js";
 import WSS from "./src/misc/WSS.js";
-import {VoiceConnectionManager} from "./src/misc/VoiceManager/VoiceManager.js";
+import {VoiceConnectionManager} from "./src/services/VoiceManager/VoiceManager.js";
 import http from "http";
 import https from "https";
 import mssql from "mssql";

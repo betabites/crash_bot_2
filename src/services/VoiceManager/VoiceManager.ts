@@ -11,12 +11,12 @@ import {
 } from "discord.js";
 import ytdl from "ytdl-core";
 import ytpl from "ytpl";
-import SafeQuery from "../../services/SQL.js";
-import {QueueManager, ShuffleArray} from "../Common.js";
+import SafeQuery from "../SQL.js";
+import {QueueManager, ShuffleArray} from "../../misc/Common.js";
 import mssql from "mssql"
 import yts from "yt-search";
-import {client, getToken} from "../../services/Discord.js";
-import Spotify from "../../services/Spotify.js";
+import {client, getToken} from "../Discord.js";
+import Spotify from "../Spotify.js";
 import {Worker} from "worker_threads"
 import {
     AcknowledgementMessage,
