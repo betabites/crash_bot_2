@@ -1,8 +1,8 @@
 import Discord, {ChatInputCommandInteraction, EmbedBuilder, TextBasedChannel} from "discord.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {removeAllMentions} from "./removeAllMentions.js";
-import ChatGPT from "../misc/ChatGPT.js";
+import ChatGPT from "../services/ChatGPT.js";
 import {splitMessage} from "./splitMessage.js";
 
 export async function askGPTQuestion(message: string, channel: TextBasedChannel, interaction?: ChatInputCommandInteraction) {

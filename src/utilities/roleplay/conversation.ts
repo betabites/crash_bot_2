@@ -1,10 +1,10 @@
 import {AICharacterData, CharacterData} from "./CharacterData.js";
 import {Colors, EmbedBuilder, TextChannel, Webhook, WebhookClient} from "discord.js";
-import SafeQuery from "../../misc/SQL.js";
+import SafeQuery from "../../services/SQL.js";
 import mssql from "mssql";
 import path from "path";
 import {ChatMessage} from "chatgpt";
-import ChatGPT from "../../misc/ChatGPT.js";
+import ChatGPT from "../../services/ChatGPT.js";
 
 interface AINarration {
     type: "narration",

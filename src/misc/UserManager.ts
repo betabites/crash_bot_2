@@ -1,6 +1,6 @@
 import {GuildMember} from "discord.js";
 import {makeid} from "./Common.js";
-import SafeQuery from "./SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 
 export class CrashBotUser {

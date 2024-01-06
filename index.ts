@@ -5,9 +5,9 @@ import express from "express"
 import fileUpload, {UploadedFile} from "express-fileupload"
 import fs from "fs"
 import * as path from "path";
-import {client, getToken,} from "./src/misc/Discord.js";
-import ChatGPT from "./src/misc/ChatGPT.js";
-import SafeQuery from "./src/misc/SQL.js";
+import {client, getToken,} from "./src/services/Discord.js";
+import ChatGPT from "./src/services/ChatGPT.js";
+import SafeQuery from "./src/services/SQL.js";
 import {buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
 import {CrashBotUser} from "./src/misc/UserManager.js";
 import Discord, {

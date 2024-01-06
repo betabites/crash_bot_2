@@ -14,7 +14,7 @@ import {
     SlashCommandBuilder,
     SlashCommandSubcommandsOnlyBuilder
 } from "discord.js";
-import {client} from "../misc/Discord.js";
+import {client} from "../services/Discord.js";
 
 export abstract class BaseModule {
     readonly client: Client

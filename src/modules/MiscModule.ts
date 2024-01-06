@@ -9,7 +9,7 @@ import Discord, {
 } from "discord.js";
 import {sendTwaggerPost} from "../misc/sendTwaggerPost.js";
 import {getUserData} from "../utilities/getUserData.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
 import fs from "fs";

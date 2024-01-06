@@ -1,5 +1,5 @@
 import Discord, {TextBasedChannel} from "discord.js";
-import {client} from "../misc/Discord.js";
+import {client} from "../services/Discord.js";
 
 export function removeAllMentions(str: string, channel_or_guild: Discord.Guild | TextBasedChannel): string {
     let channel: Discord.TextBasedChannel | undefined

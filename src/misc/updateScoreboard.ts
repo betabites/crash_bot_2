@@ -1,6 +1,6 @@
-import {client} from "./Discord.js";
+import {client} from "../services/Discord.js";
 import Discord, {EmbedBuilder, Guild, GuildMember, TextChannel} from "discord.js";
-import SafeQuery from "./SQL.js";
+import SafeQuery from "../services/SQL.js";
 import RemoteStatusServer from "./RemoteStatusServer.js";
 
 let last_scoreboard_update = Date.now() - 30000

@@ -10,7 +10,7 @@ import Discord, {
 import {StatDefinition} from "../../misc/DestinyDefinitions/StatDefinitions.js";
 import {ActivityDefinition} from "../../misc/DestinyDefinitions/ActivityDefinitions.js";
 import {VendorDefinition} from "../../misc/DestinyDefinitions/VendorDefinitions.js";
-import SafeQuery, {sql} from "../../misc/SQL.js";
+import SafeQuery, {sql} from "../../services/SQL.js";
 import mssql from "mssql";
 import fetch from "node-fetch"
 import {groupItemsWithMatchingNames} from "../../utilities/groupItemsWithMatchingNames.js";

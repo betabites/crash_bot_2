@@ -9,14 +9,14 @@ import Discord, {
     Message, TextBasedChannel, TextChannel, Typing
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {ShuffleArray} from "../misc/Common.js";
-import ChatGPT from "../misc/ChatGPT.js";
+import ChatGPT from "../services/ChatGPT.js";
 import bad_baby_words from "../../badwords.json";
 import randomWords from "random-words";
-import {client} from "../misc/Discord.js";
+import {client} from "../services/Discord.js";
 import ytdl from "ytdl-core";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"

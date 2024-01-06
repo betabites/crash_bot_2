@@ -44,7 +44,7 @@ import {
 import {atSpecificTime, itemAvailableAtVendor} from "./D2/SetupNotifications.js";
 import express from "express";
 import * as console from "console";
-import SafeQuery, {PutOperation, sql} from "../misc/SQL.js";
+import SafeQuery, {PutOperation, sql} from "../services/SQL.js";
 import cookieParser from "cookie-parser"
 import {getMembershipDataForCurrentUser} from "bungie-net-core/lib/endpoints/User/index.js";
 import {BasicBungieClient} from "bungie-net-core/lib/client.js";

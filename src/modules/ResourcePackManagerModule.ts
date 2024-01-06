@@ -1,7 +1,7 @@
 import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandStringOption} from "@discordjs/builders";
 import {ButtonInteraction, ChatInputCommandInteraction, CommandInteraction} from "discord.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 
 export class ResourcePackManagerModule extends BaseModule {

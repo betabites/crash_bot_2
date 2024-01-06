@@ -1,7 +1,7 @@
 import sqlite3 from "sqlite3";
 import {getDestinyManifest} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {BasicBungieClient} from "bungie-net-core/lib/client.js";
-import {sql} from "../../misc/SQL.js";
+import {sql} from "../../services/SQL.js";
 import {rows} from "mssql";
 import {
     DestinyActivityDefinition,

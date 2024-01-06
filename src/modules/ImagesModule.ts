@@ -8,8 +8,8 @@ import Discord, {
     Message,
     MessageActionRowComponentBuilder
 } from "discord.js";
-import SafeQuery from "../misc/SQL.js";
-import {client} from "../misc/Discord.js";
+import SafeQuery from "../services/SQL.js";
+import {client} from "../services/Discord.js";
 import {fetchThrowTemplates, generateThrow} from "../misc/ThrowMaker.js";
 import * as fs from "fs";
 import path from "path";

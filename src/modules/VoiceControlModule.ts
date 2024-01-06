@@ -3,7 +3,7 @@ import {SlashCommandBuilder, SlashCommandNumberOption, SlashCommandSubcommandBui
 import {ButtonInteraction, ChatInputCommandInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {CrashBotUser} from "../misc/UserManager.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import ffmpeg from "fluent-ffmpeg";
 import {PassThrough} from "stream";

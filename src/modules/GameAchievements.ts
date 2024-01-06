@@ -1,5 +1,5 @@
 import {BaseModule} from "./BaseModule.js";
-import SafeQuery, {sql} from "../misc/SQL.js";
+import SafeQuery, {sql} from "../services/SQL.js";
 import express from "express";
 
 export enum GAME_IDS {

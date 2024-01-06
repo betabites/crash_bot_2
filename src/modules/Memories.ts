@@ -1,10 +1,10 @@
 import {BaseModule} from "./BaseModule.js";
 import express from "express";
-import SafeQuery, {sql} from "../misc/SQL.js";
+import SafeQuery, {sql} from "../services/SQL.js";
 import e from "express";
 import archiver from "archiver";
 import {makeid, QueueManager} from "../misc/Common.js";
-import {downloadDiscordAttachment, downloadDiscordAttachmentWithInfo} from "../misc/Discord.js";
+import {downloadDiscordAttachment, downloadDiscordAttachmentWithInfo} from "../services/Discord.js";
 import fs from "fs";
 import path from "path";
 import ytdl from "ytdl-core";

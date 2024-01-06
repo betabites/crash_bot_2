@@ -16,11 +16,11 @@ import Discord, {
     TextChannel
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import {updateScoreboard} from "../misc/updateScoreboard.js";
 import mssql from "mssql";
 import RemoteStatusServer, {Connection as ServerConnection} from "./../misc/RemoteStatusServer.js";
-import {client, sendImpersonateMessage} from "../misc/Discord.js";
+import {client, sendImpersonateMessage} from "../services/Discord.js";
 
 RemoteStatusServer.io.on("connection", () => {
     console.log("Client connected")

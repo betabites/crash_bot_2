@@ -2,7 +2,7 @@ import Discord, {Client, GuildMember, IntentsBitField, Message, TextChannel, Web
 import SafeQuery from "./SQL.js";
 import mssql from "mssql";
 import Jimp from "jimp";
-import {makeid} from "./Common.js";
+import {makeid} from "../misc/Common.js";
 import fs from "fs";
 import archiver from "archiver";
 import https from "https";

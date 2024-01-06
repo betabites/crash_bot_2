@@ -1,7 +1,7 @@
 import Discord, {EmbedBuilder, TextChannel, GuildChannelTypes} from "discord.js";
-import ChatGPT from "./ChatGPT.js";
-import {client} from "./Discord.js";
-import SafeQuery from "./SQL.js";
+import ChatGPT from "../services/ChatGPT.js";
+import {client} from "../services/Discord.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 
 const TWAGGER_SOURCE_CHANNELS = [

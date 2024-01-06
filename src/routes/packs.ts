@@ -1,5 +1,5 @@
 import express from "express";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {UploadedFile} from "express-fileupload";
 import path from "path";

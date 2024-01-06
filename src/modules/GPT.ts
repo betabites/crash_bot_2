@@ -11,9 +11,9 @@ import Discord, {
 } from "discord.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandNumberOption, SlashCommandUserOption} from "@discordjs/builders";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
-import ChatGPT from "../misc/ChatGPT.js";
+import ChatGPT from "../services/ChatGPT.js";
 import {removeAllMentions} from "../utilities/removeAllMentions.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {ShuffleArray} from "../misc/Common.js";
 import {getUserData} from "../utilities/getUserData.js";

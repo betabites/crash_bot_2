@@ -1,5 +1,5 @@
 import {GuildMember} from "discord.js";
-import SafeQuery from "../misc/SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {CrashBotUser} from "../misc/UserManager.js";
 
