@@ -5,7 +5,6 @@ import Discord, {
     MessageActionRowComponentBuilder,
     SelectMenuBuilder
 } from "discord.js";
-import {VendorDefinition} from "../../misc/DestinyDefinitions/VendorDefinitions.js";
 import SafeQuery, {sql} from "../../services/SQL.js";
 import mssql from "mssql";
 import fetch from "node-fetch"
@@ -204,7 +203,7 @@ export async function buildItemMessage(searchQuery: string, item: DestinyInvento
     }
 }
 
-export function getItemVendors(itemHash: number): Promise<VendorDefinition[]> {
+export function getItemVendors(itemHash: number): Promise<DestinyVendorDefinition[]> {
     return new Promise((resolve, reject) => {
         destinyManifestDatabase.all<InventoryItem>(
             `SELECT *
@@ -218,7 +217,7 @@ export function getItemVendors(itemHash: number): Promise<VendorDefinition[]> {
                 }
 
                 resolve(rows.map(i => {
-                    let data: VendorDefinition = JSON.parse(i.json)
+                    let data: DestinyVendorDefinition = JSON.parse(i.json)
                     return data
                 }))
             }
@@ -415,7 +414,7 @@ export function buildVendorEmbed(vendor: DestinyVendorDefinition, footer?: strin
     return embed
 }
 
-export function buildTinyVendorEmbed(vendor: VendorDefinition) {
+export function buildTinyVendorEmbed(vendor: DestinyVendorDefinition) {
     let embed = new EmbedBuilder()
         .setAuthor({
             iconURL: `https://bungie.net` + vendor.displayProperties.largeIcon,
@@ -484,7 +483,7 @@ export function updateMSVendors(): Promise<void> {
         destinyManifestDatabase.all<InventoryItem>(
             'SELECT * FROM "DestinyVendorDefinition" WHERE 1',
             async (err, rows) => {
-                let vendors: VendorDefinition[] = rows.map(i => JSON.parse(i.json))
+                let vendors: DestinyVendorDefinition[] = rows.map(i => JSON.parse(i.json))
                 await SafeQuery("DELETE FROM CrashBot.dbo.DestinyVendors WHERE 1=1", [])
 
                 console.log(`Updating ${vendors.length} D2 vendors...`)

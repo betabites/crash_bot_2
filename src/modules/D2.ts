@@ -33,16 +33,14 @@ import {
     onlyVendorsThatSellStuff,
     Weekdays
 } from "./D2/Bungie.NET.js";
-import {ItemType} from "../misc/DestinyDefinitions/DestinyDefinitions.js";
 import {surfaceFlatten} from "../utilities/surfaceFlatten.js";
 import {groupItemsWithMatchingNames} from "../utilities/groupItemsWithMatchingNames.js";
-import {VendorDefinition} from "../misc/DestinyDefinitions/VendorDefinitions.js";
 import {
     BungieMembershipType,
     DestinyActivityDefinition,
     DestinyComponentType,
-    DestinyInventoryItemDefinition,
-    DestinyRecordComponent
+    DestinyInventoryItemDefinition, DestinyItemType,
+    DestinyRecordComponent, DestinyVendorDefinition
 } from "bungie-net-core/lib/models/index.js";
 import {atSpecificTime, itemAvailableAtVendor} from "./D2/SetupNotifications.js";
 import express from "express";
@@ -69,12 +67,12 @@ interface SqlLiteItem {
 }
 
 const AUTO_MESSAGE_RESPONSE_EXCLUDE_TYPES = [
-    ItemType.None,
-    ItemType.Currency,
-    ItemType.Dummy,
-    ItemType.Package,
-    ItemType.Emote,
-    ItemType.Mod
+    DestinyItemType.None,
+    DestinyItemType.Currency,
+    DestinyItemType.Dummy,
+    DestinyItemType.Package,
+    DestinyItemType.Emote,
+    DestinyItemType.Mod
 ]
 
 export const D2_ROUTER = express.Router()
@@ -188,7 +186,7 @@ export class D2Module extends BaseModule {
         //                                                        WHERE ? LIKE "%" || LOWER(name) || "%" AND name IS NOT ''`,
         //     [msg.content.toLowerCase()]
         // )
-        const vendors: VendorDefinition[] = []
+        const vendors: DestinyVendorDefinition[] = []
 
         for (let item of groupItemsWithMatchingNames(
             items,
