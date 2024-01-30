@@ -52,6 +52,7 @@ import dotenv from "dotenv"
 import {ACHIEVEMENTS_ROUTER} from "./src/modules/GameAchievements.js";
 import {MEMORIES_ROUTER} from "./src/modules/Memories.js";
 import {PACK_ROUTER} from "./src/routes/packs.js";
+import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
 
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
 const moduleClasses = [
@@ -94,12 +95,16 @@ app.use(fileUpload({
     limits: {fileSize: 50 * 1024 * 1024}
 }));
 
+app.use(express.static("web"))
+
 app.get("/home/:key", async (req, res) => {
     let html
     if (await CrashBotUser.CheckKey(req.params.key)) {
         let user = new CrashBotUser(req.params.key)
         await user.get()
-        html = fs.readFileSync(path.resolve("./") + "/assets/html/index.html").toString().replace(/:keyhere:/g, req.params.key).replace(/\[owned]/g, JSON.stringify(await user.getOwned())).replace(/:username:/g, user.data["player_name"])
+        html = fs.readFileSync(
+            path.resolve("./") + "/assets/html/index.html"
+        ).toString()
     }
     else {
         html = "Invalid key"
@@ -504,6 +509,7 @@ app.use("/packs", PACK_ROUTER)
 app.use("/destiny", D2_ROUTER)
 app.use("/achievements", ACHIEVEMENTS_ROUTER)
 app.use("/memories", MEMORIES_ROUTER)
+app.use("/discord/auth", DISCORD_AUTH_ROUTER)
 
 let wss = new WSS(httpServer, httpsServer)
 
@@ -553,6 +559,8 @@ client.on("userUpdate", (oldUser, newUser) => {
 })
 
 client.on("interactionCreate", async (interaction): Promise<void> => {
+    interaction.type
+
     if (interaction.isChatInputCommand()) {
         interaction
         // Process module slash commands
@@ -661,7 +669,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
             msg.reply({embeds: [embed]})
         }
     }
-    else if (msg.channel.id !== "892518159167393823" && (Math.random() <= 0.01 || msg.content.toLowerCase() === "i need inspiring")) {
+    else if (msg.channel.id !== "892518159167393823" && (Math.random() <= 0.01 || msg.content.toLowerCase() === "i need inspiring") && !msg.author.bot) {
         quoteReply(msg.channel)
     }
     else if (msg.channel.id === "999848214691852308") {

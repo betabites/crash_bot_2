@@ -777,6 +777,7 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
         const params = new URLSearchParams()
         params.set("grant_type", "authorization_code")
         params.set("code", code)
+        params.set("redirect_uri", req.url)
         // params.set("client_id", "44873")
         // params.set("client_secret", BUNGIENET_SECRET)
         console.log(token_url)
@@ -784,8 +785,8 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
             method: "post",
             headers: {
                 // "Accept": "application/json",
-                // 'Content-Type': 'application/x-www-form-urlencoded',
-                "Authorization": "Basic " + Buffer.from("44873:" + process.env.BUNGIE_CLIENT_SECRET).toString("base64")
+                'Content-Type': 'application/x-www-form-urlencoded',
+                // "Authorization": "Basic " + Buffer.from("44873:" + process.env.BUNGIE_CLIENT_SECRET).toString("base64")
             },
             body: params
         })

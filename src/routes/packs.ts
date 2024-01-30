@@ -7,6 +7,7 @@ import fs from "fs";
 import ffmpeg from "fluent-ffmpeg";
 import ytdl from "ytdl-core";
 import archiver from "archiver";
+import cors from "cors"
 
 export const PACK_ROUTER = express.Router()
 
@@ -275,11 +276,13 @@ async function generatePackArchive(pack_id: string, increase_version_num = false
     return archive
 }
 
+PACK_ROUTER.use(cors())
 
 PACK_ROUTER.get("/", async (req, res) => {
     res.setHeader("content-type", "application/json")
     res.send(JSON.stringify((await SafeQuery("SELECT pack_id, pack_name, \"public\" FROM dbo.Packs", [])).recordset))
 })
+
 PACK_ROUTER.get("/:packid", async (req, res) => {
     res.setHeader("content-type", "application/json")
     let data = await SafeQuery("SELECT pack_id, pack_name, \"public\" FROM dbo.Packs WHERE pack_id = @id", [

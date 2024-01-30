@@ -15,7 +15,7 @@ import mssql from "mssql";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {ShuffleArray} from "../misc/Common.js";
 import ChatGPT from "../services/ChatGPT.js";
-import bad_baby_words from "../../badwords.json";
+import bad_baby_words from "../../badwords.json" assert {type: "json"};
 import randomWords from "random-words";
 import {client} from "../services/Discord.js";
 
@@ -71,7 +71,6 @@ export class ExperimentsModule extends BaseModule {
                     )
             )
     ]
-    gucciLastTypingStop = new Date()
 
     @OnClientEvent("messageCreate")
     async onMessage(msg: Message) {
@@ -422,22 +421,22 @@ export class ExperimentsModule extends BaseModule {
                 })
         }
 
-        if (msg.author.id === '677389499516583946') {
-            const random_replies = ['stfu']
-            setTimeout(() => {
-                msg.reply(random_replies[Math.floor(random_replies.length * Math.random())])
-            }, 50000 + (Math.floor(Math.random() * 10000)))
-        }
-        else if (msg.author.id === '684506859482382355') {
-            msg.reply("kill yourself").then(msg => {
-                setTimeout(() => msg.edit("luv u ❤️"), 1000)
-            })
-        }
+        // if (msg.author.id === '677389499516583946') {
+        //     const random_replies = ['stfu']
+        //     setTimeout(() => {
+        //         msg.reply(random_replies[Math.floor(random_replies.length * Math.random())])
+        //     }, 50000 + (Math.floor(Math.random() * 10000)))
+        // }
+        // else if (msg.author.id === '684506859482382355') {
+        //     msg.reply("kill yourself").then(msg => {
+        //         setTimeout(() => msg.edit("luv u ❤️"), 1000)
+        //     })
+        // }
 
     }
 
     @InteractionChatCommandResponse("experiments")
-    async onExperimentsCommand(interaction: ChatInputCommandInteraction) {
+    async onExperimentsCommand(interaction: ChatInputCommandInteraction)    {
         // Used to manage experimental features
         let com = interaction.options.getSubcommand()
         if (com === "quoteresponseai") {
@@ -458,7 +457,6 @@ export class ExperimentsModule extends BaseModule {
         else if (com === "words") {
             let bool = interaction.options.getBoolean("setting")
             // Get the user's key
-            let user = await getUserData(interaction.member as GuildMember)
             let req = await SafeQuery(`UPDATE CrashBot.dbo.Users
                                            SET experimentWords = ${bool ? 1 : 0}
                                            WHERE discord_id = @discordid`, [{

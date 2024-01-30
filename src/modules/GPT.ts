@@ -70,7 +70,6 @@ export class GPTModule extends BaseModule {
 
     constructor(client: Client) {
         super(client);
-        console.log("Bound client")
     }
 
     @OnClientEvent("messageCreate")
