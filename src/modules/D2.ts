@@ -8,14 +8,14 @@ import {
 } from "./BaseModule.js";
 import {
     ActionRowBuilder,
-    AutocompleteInteraction,
+    AutocompleteInteraction, BaseMessageOptions,
     ButtonBuilder,
     ButtonInteraction,
     ButtonStyle,
     ChatInputCommandInteraction,
     Client,
     Colors,
-    EmbedBuilder,
+    EmbedBuilder, InteractionReplyOptions,
     Message,
     MessageActionRowComponentBuilder,
     SelectMenuInteraction,
@@ -81,7 +81,9 @@ export class D2Module extends BaseModule {
     readonly liveScheduleChannelID = "1049104983586517092"
     readonly liveScheduleID = "1188381813048094732"
     readonly maxFireteamSize = 6
-    liveScheduleMessage: Message | null = null
+    primaryScheduleMessage: Message | null = null
+    private _scheduleMessages: Message[] = []
+
     readonly commands = [
         (new SlashCommandBuilder())
             .setName("destiny2")
@@ -133,21 +135,46 @@ export class D2Module extends BaseModule {
             )
     ]
 
+    get scheduleMessages() {
+        if (this.primaryScheduleMessage) return [...this._scheduleMessages, this.primaryScheduleMessage]
+        else return [...this._scheduleMessages]
+    }
+
     constructor(client: Client) {
         super(client);
         setTimeout(async () => {
-            this.liveScheduleMessage?.edit(await this.generateScheduleMessage())
-            syncD2Achievements()
+            await this.updateScheduleMessages()
+            void syncD2Achievements()
         }, 10000)
         setInterval(async () => {
-            this.liveScheduleMessage?.edit(await this.generateScheduleMessage())
-            await syncD2Achievements()
+            await this.updateScheduleMessages()
+            void syncD2Achievements()
         }, 120000)
+
+        setInterval(async () => {
+            // Every 10 minutes, remove old schedule messages
+            for (let message of this._scheduleMessages) {
+                if (message.createdTimestamp > (Date.now() - 600000)) {
+                    // Message is less than 10 minutes old
+                    continue
+                }
+                await message.suppressEmbeds(true)
+                await message.edit(`This message has expired. Please either run \`/destiny2 schedule\` again or check the pins.`)
+                this._scheduleMessages.splice(this._scheduleMessages.indexOf(message), 1)
+            }
+        }, 600000)
         this.client.channels.fetch(this.liveScheduleChannelID).then(channel => {
             if (channel instanceof TextChannel) channel.messages.fetch(this.liveScheduleID).then(message => {
-                this.liveScheduleMessage = message
+                this.primaryScheduleMessage = message
             })
         })
+    }
+
+    async updateScheduleMessages() {
+        let embed = await this.generateScheduleMessage()
+        for (let message of this.scheduleMessages) {
+            await message.edit(embed)
+        }
     }
 
     @OnClientEvent("messageCreate")
@@ -297,10 +324,11 @@ export class D2Module extends BaseModule {
                 break
             case "schedule":
                 interaction.reply(await this.generateScheduleMessage())
+                    .then(msg => this._scheduleMessages.push(msg))
         }
     }
 
-    async generateScheduleMessage() {
+    async generateScheduleMessage(): Promise<BaseMessageOptions & { fetchReply: true }> {
         const raids: (DestinyActivityDefinition & { votes?: number })[] = await listRaids()
         const userVotes = await SafeQuery<{
             D2_ActivityVote: string,
@@ -390,7 +418,8 @@ export class D2Module extends BaseModule {
                             .setCustomId("d2_raid_make_available")
                             .setStyle(ButtonStyle.Secondary)
                     )
-            ]
+            ],
+            fetchReply: true
         }
     }
 
@@ -428,7 +457,7 @@ export class D2Module extends BaseModule {
                             SET D2_ActivityVote = ${interaction.values[0]}
                             WHERE discord_id = ${interaction.user.id}`)
         interaction.reply({content: "Thank you for voting!", ephemeral: true})
-        this.liveScheduleMessage?.edit(await this.generateScheduleMessage())
+        await this.updateScheduleMessages()
     }
 
     @InteractionButtonResponse("d2_raid_make_available")
@@ -488,13 +517,18 @@ export class D2Module extends BaseModule {
                             WHERE discord_id = ${interaction.user.id}`)
 
         let fullSessions: Date[] = []
+        let almostFullSessions: Date[] = []
         for (let date of dates) {
             // Check that the session is not already full
-            if ((await SafeQuery("SELECT discord_id FROM dbo.UserGameSessionsSchedule WHERE session_time = @date", [
+            const attendees = (await SafeQuery("SELECT discord_id FROM dbo.UserGameSessionsSchedule WHERE session_time = @date", [
                 {name: "date", type: mssql.TYPES.DateTime2(), data: new Date(date)}
-            ])).recordset.length >= this.maxFireteamSize) {
+            ])).recordset
+            if (attendees.length >= this.maxFireteamSize) {
                 fullSessions.push(new Date(date))
                 continue
+            }
+            else if (attendees.length === 4) {
+                almostFullSessions.push(new Date(date))
             }
 
             await SafeQuery("INSERT INTO dbo.UserGameSessionsSchedule (session_time, game_id, discord_id) VALUES (@date, 0, @discordid)", [
@@ -512,7 +546,7 @@ export class D2Module extends BaseModule {
             ephemeral: true
         })
 
-        this.liveScheduleMessage?.edit(await this.generateScheduleMessage())
+        this.updateScheduleMessages()
     }
 
     @InteractionAutocompleteResponse("destiny2")
@@ -611,7 +645,10 @@ export class D2Module extends BaseModule {
                 console.error(e)
                 interaction.editReply({
                     content: "oops! We couldn't find an item with that name."
-                })
+                }).catch(e => {})
+                interaction.reply({
+                    content: "oops! We couldn't find an item with that name."
+                }).catch(e => {})
             })
     }
 

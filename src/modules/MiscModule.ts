@@ -2,7 +2,7 @@ import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseM
 import {SlashCommandBuilder, SlashCommandRoleOption, SlashCommandStringOption} from "@discordjs/builders";
 import {AttachmentBuilder, ChatInputCommandInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
 import {sendTwaggerPost} from "../misc/sendTwaggerPost.js";
-import {getUserData} from "../utilities/getUserData.js";
+import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
@@ -48,7 +48,7 @@ export class MiscModule extends BaseModule {
                 case 1:
                     let user = await getUserData(msg.member as GuildMember)
                     let req = await SafeQuery(`UPDATE CrashBot.dbo.Users
-                                           SET experimentBabyWords = 1
+                                           SET speech_mode = ${SPEECH_MODES.BABY_SPEAK}
                                            WHERE discord_id = @discordid`, [{
                         name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.author.id
                     }])

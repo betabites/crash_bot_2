@@ -53,6 +53,8 @@ import {ACHIEVEMENTS_ROUTER} from "./src/modules/GameAchievements.js";
 import {MEMORIES_ROUTER} from "./src/modules/Memories.js";
 import {PACK_ROUTER} from "./src/routes/packs.js";
 import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
+import {SpeechModule} from "./src/modules/Speech.js";
+import {PointsModule} from "./src/modules/Points.js";
 
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
 const moduleClasses = [
@@ -64,7 +66,9 @@ const moduleClasses = [
     MinecraftModule,
     MiscModule,
     ResourcePackManagerModule,
-    VoiceControlModule
+    VoiceControlModule,
+    SpeechModule,
+    PointsModule
 ]
 
 dotenv.config()

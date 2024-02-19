@@ -5,8 +5,14 @@ import {CrashBotUser} from "../misc/UserManager.js";
 
 export enum SPEECH_MODES {
     NORMAL,
-    BABYSPEAK,
-    SIMPLETON
+    BABY_SPEAK,
+    SIMPLETON,
+    SMART_ASS,
+    COLOURFUL,
+    LISP,
+    FURRY,
+    KIWI,
+    LINUX_CHAD
 }
 
 export async function getUserData(member: GuildMember | string): Promise<{
