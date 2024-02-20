@@ -58,7 +58,7 @@ export class MiscModule extends BaseModule {
                     askGPTQuestion("I am a stinky poo-poo face", msg.channel)
             }
         }
-        else if (msg.content === "test" && msg.author.id == "404507305510699019") {
+        else if (msg.content === "twagger" && msg.author.id == "404507305510699019") {
             sendTwaggerPost()
         }
         else if (msg.content.toLowerCase() === "guess what?") {
