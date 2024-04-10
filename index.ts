@@ -6,8 +6,8 @@ import fileUpload, {UploadedFile} from "express-fileupload"
 import fs from "fs"
 import * as path from "path";
 import {client, getToken,} from "./src/services/Discord.js";
-import ChatGPT from "./src/services/ChatGPT.js";
-import SafeQuery from "./src/services/SQL.js";
+import openai from "./src/services/ChatGPT.js";
+import SafeQuery, {sql} from "./src/services/SQL.js";
 import {buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
 import {CrashBotUser} from "./src/misc/UserManager.js";
 import Discord, {
@@ -635,10 +635,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
     }
     if ((msg.channel.id === "910649212264386583" || msg.channel.id === "892518396166569994") && msg.content.replace(/[^"“”‘’]/g, "").length >= 2) {
         // Assume this message is a quote
-        await SafeQuery("INSERT INTO dbo.Quotes (msg_id, quote) VALUES (@msg,@quote)", [
-            {name: "msg", type: mssql.TYPES.VarChar(100), data: msg.id},
-            {name: "quote", type: mssql.TYPES.VarChar(100), data: msg.content}
-        ])
+        await SafeQuery(sql`INSERT INTO dbo.Quotes (msg_id, quote) VALUES (${msg.id},${msg.content})`)
         msg.react("🫃")
 
         // Check to see if all users have 'quoteresponseai' enabled
@@ -664,7 +661,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
 
         if (ai) {
             console.log("AI responding...")
-            let AIres = await ChatGPT.sendMessage(
+            let AIres = await openai.sendMessage(
                 "respond to this quote in a funny way:\n\n" +
                 msg.content
             )

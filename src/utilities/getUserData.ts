@@ -12,7 +12,20 @@ export enum SPEECH_MODES {
     LISP,
     FURRY,
     KIWI,
-    LINUX_CHAD
+    LINUX_CHAD,
+    SWIFTIE,
+    DRUNK,
+    WHITE_TRASH_BREAD,
+    GERMAN_CHEESE,
+    PEANUT_NUTTER,
+    ALCOHOLIC_BUTTER,
+    BREAD,
+    CHEESE,
+    PEANUT_BUTTER,
+    BUTTER,
+    SHAGGY,
+    JAM,
+    KEESH
 }
 
 export async function getUserData(member: GuildMember | string): Promise<{

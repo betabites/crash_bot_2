@@ -1,5 +1,5 @@
 import Discord, {EmbedBuilder, TextChannel} from "discord.js";
-import ChatGPT from "../services/ChatGPT.js";
+import openai from "../services/ChatGPT.js";
 import {client} from "../services/Discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
@@ -43,7 +43,7 @@ export async function sendTwaggerPost() {
     }
     tldr = tldr.reverse().slice(0, 180)
     // let gpt_response = await ChatGPT.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
-    let gpt_response = await ChatGPT.sendMessage("Create a twitter post based around this conversation that is either heart warming, controversial, spiteful, or anything else that would make it feel more like a twitter post:\n" + JSON.stringify(tldr));
+    let gpt_response = await openai.sendMessage("Create a twitter post based around this conversation that is either heart warming, controversial, spiteful, or anything else that would make it feel more like a twitter post:\n" + JSON.stringify(tldr));
     // @ts-ignore
     // interaction.editReply(removeAllMentions(gpt_response.text, interaction.channel))
     const out_channel = (await client.channels.fetch(TWAGGER_POST_CHANNEL) as TextChannel)

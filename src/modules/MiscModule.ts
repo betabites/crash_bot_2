@@ -8,8 +8,10 @@ import mssql from "mssql";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
 import fs from "fs";
 import path from "path";
+import {INSULTS} from "./Insults.js";
 
 export class MiscModule extends BaseModule {
+    insultsPool = JSON.parse(JSON.stringify(INSULTS))
     commands = [
         new SlashCommandBuilder()
             .setName("vanish")
@@ -39,26 +41,7 @@ export class MiscModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async onMessage(msg: Message) {
-        if (msg.content.includes("<@892535864192827392>")) {
-            let action = Math.floor(Math.random() * 3)
-            switch (action) {
-                case 0:
-                    msg.member?.timeout(60 * 1000, 'Pls no ping')
-                    return
-                case 1:
-                    let user = await getUserData(msg.member as GuildMember)
-                    let req = await SafeQuery(`UPDATE CrashBot.dbo.Users
-                                           SET speech_mode = ${SPEECH_MODES.BABY_SPEAK}
-                                           WHERE discord_id = @discordid`, [{
-                        name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.author.id
-                    }])
-                    msg.reply("Awesome! Thank you for enabling `babyspeak`!")
-                    return
-                case 2:
-                    askGPTQuestion("I am a stinky poo-poo face", msg.channel)
-            }
-        }
-        else if (msg.content === "twagger" && msg.author.id == "404507305510699019") {
+        if (msg.content === "twagger" && msg.author.id == "404507305510699019") {
             sendTwaggerPost()
         }
         else if (msg.content.toLowerCase() === "guess what?") {
@@ -68,6 +51,19 @@ export class MiscModule extends BaseModule {
                 ]
             })
         }
+        else if (msg.content === "insult me") {
+            let text = this.randomInsult()
+            console.log(`INSULT: ${text}`)
+            msg.reply(text)
+        }
+    }
+
+    private randomInsult() {
+        let index = Math.floor(Math.random() * this.insultsPool.length)
+        let result = this.insultsPool[index]
+        this.insultsPool.splice(index, 1)
+        if (this.insultsPool.length === 0) this.insultsPool = JSON.parse(JSON.stringify(INSULTS))
+        return result
     }
 
     @InteractionChatCommandResponse("vainsh")

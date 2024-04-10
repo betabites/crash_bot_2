@@ -14,7 +14,7 @@ import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {ShuffleArray} from "../misc/Common.js";
-import ChatGPT from "../services/ChatGPT.js";
+import openai from "../services/ChatGPT.js";
 import bad_baby_words from "../../badwords.json" assert {type: "json"};
 import randomWords from "random-words";
 import {client} from "../services/Discord.js";
@@ -198,7 +198,7 @@ export class ExperimentsModule extends BaseModule {
                                         sum: i.sum
                                     }
                                 })
-                                ChatGPT.sendMessage(
+                                openai.sendMessage(
                                     "Using some of these words, create a catchphrase. Extra words can be added.\n\n" +
                                     top.map(i => i.word).join(", ")
                                 )
