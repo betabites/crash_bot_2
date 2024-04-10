@@ -71,12 +71,12 @@ export function generateThrow(sender: GuildMember, target: GuildMember, template
             .then(async image => {
                 try {
                     let sender_pfp = await Jimp.read(
-                        sender.avatarURL({format: "jpg"}) || sender.user.avatarURL({format: "jpg"}) || ""
+                        sender.avatarURL({extension: "jpg"}) || sender.user.avatarURL({extension: "jpg"}) || ""
                     )
 
 
                     let target_pfp = await Jimp.read(
-                        target.avatarURL({format: "jpg"}) || target.user.avatarURL({format: "jpg"}) || ""
+                        target.avatarURL({extension: "jpg"}) || target.user.avatarURL({extension: "jpg"}) || ""
                     )
 
                     let random_users = ShuffleArray((await sender.guild.members.fetch()).map(i => {
@@ -105,7 +105,7 @@ export function generateThrow(sender: GuildMember, target: GuildMember, template
                         }
                         else if (location.type === "random") {
                             let temp = await Jimp.read(
-                                random_users[current_random].avatarURL({format: "jpg"}) || random_users[current_random].user.avatarURL({format: "jpg"}) || ""
+                                random_users[current_random].avatarURL({extension: "jpg"}) || random_users[current_random].user.avatarURL({extension: "jpg"}) || ""
                             )
 
                             if (typeof location.circle !== "undefined") {

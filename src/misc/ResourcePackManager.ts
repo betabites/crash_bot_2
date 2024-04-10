@@ -1,8 +1,7 @@
 import fs from "fs";
 import path from "path";
-import {SafeQuery} from "./SQL.js";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
-import {GuildMember} from "discord.js";
 import * as stream from "stream";
 import archiver from "archiver";
 
