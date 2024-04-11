@@ -182,7 +182,7 @@ export class VoiceConnectionManager extends EventEmitter {
             if (!newState.channel) return
             let connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
             if (!connection) return
-            let queue_item = await connection.generateQueueItem("https://www.youtube.com/watch?v=cZwFJClScX0")
+            let queue_item = await connection.generateQueueItem("https://www.youtube.com/watch?v=yyOHQ3h_Vh0&t=18s")
             queue_item.repeat = true
             connection.addToQueue(queue_item)
         }

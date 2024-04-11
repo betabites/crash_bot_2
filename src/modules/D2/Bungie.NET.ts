@@ -5,18 +5,18 @@ import Discord, {
     MessageActionRowComponentBuilder,
     SelectMenuBuilder
 } from "discord.js";
-import SafeQuery, {sql} from "../../services/SQL.js";
+import SafeQuery, {SafeTransaction, sql} from "../../services/SQL.js";
 import mssql from "mssql";
 import fetch from "node-fetch"
 import {
     DestinyActivityDefinition,
-    DestinyClass,
+    DestinyClass, DestinyComponentType, DestinyDestinationDefinition,
     DestinyInventoryItemDefinition,
     DestinyItemType,
-    DestinyVendorDefinition
+    DestinyVendorDefinition, DestinyVendorSaleItemComponent, DestinyVendorsResponse
 } from "bungie-net-core/lib/models/index.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
-import {API_KEY} from "../../services/Bungie.NET.js";
+import {API_KEY, BungieAPIResponse} from "../../services/Bungie.NET.js";
 
 const D2ClassEmojis = {
     [DestinyClass.Titan]: "1186537374247829505",
@@ -234,19 +234,24 @@ export async function buildVendorMessage(searchQuery: string, item: DestinyVendo
 
     // Detect the item type
     let embeds: EmbedBuilder[] = []
-    let embed = buildVendorEmbed(item)
+    let embed: EmbedBuilder
 
 
     // Fetch all items that the vendor is selling
     try {
-        let itemHashes: number[] =
-            JSON.parse(
-                (await SafeQuery("SELECT ItemHashes FROM CrashBot.dbo.DestinyVendors WHERE VendorHash = @hash", [
-                    {name: "hash", type: mssql.BigInt(), data: item.hash}
-                ])).recordset[0].ItemHashes
-            )
+        let dynamicInfo = (await SafeQuery<{ItemHashes: string, VendorLocationIndex: number | null}>("SELECT ItemHashes, VendorLocationIndex FROM CrashBot.dbo.DestinyVendors WHERE VendorHash = @hash", [
+            {name: "hash", type: mssql.BigInt(), data: item.hash}
+        ])).recordset[0]
+        let destination = dynamicInfo.VendorLocationIndex !== null ?
+            (await MANIFEST_SEARCH.destinations.byHash([
+                item.locations[dynamicInfo.VendorLocationIndex].destinationHash
+            ]))[0] :
+            null
 
-        console.log(itemHashes, item.hash)
+        console.log("DESTINATION:", destination)
+        embed = buildVendorEmbed(item, undefined, destination)
+        let itemHashes: number[] =
+            JSON.parse(dynamicInfo.ItemHashes)
 
         let items = await MANIFEST_SEARCH.items.byHash(itemHashes)
         let categories: { [key: string]: DestinyInventoryItemDefinition[] } = {}
@@ -292,6 +297,7 @@ export async function buildVendorMessage(searchQuery: string, item: DestinyVendo
                 })
         )
     } catch (e) {
+        embed = buildVendorEmbed(item)
         console.error(e)
     }
 
@@ -403,12 +409,15 @@ export function buildTinyItemEmbed(item: DestinyInventoryItemDefinition) {
 }
 
 
-export function buildVendorEmbed(vendor: DestinyVendorDefinition, footer?: string) {
+export function buildVendorEmbed(vendor: DestinyVendorDefinition, footer?: string | undefined | null, destination: DestinyDestinationDefinition | null = null) {
     const nextReset = getTimeOfNextReset(vendor.resetIntervalMinutes * 60000, vendor.resetOffsetMinutes * 60000)
     console.log("NEXT RESET:", nextReset)
+    let description = `Next reset: <t:${Math.floor(nextReset.getTime() / 1000)}:R>`
+    if (destination !== null) description += `\nCurrently at: \`${destination.displayProperties.name}\``
+    description += `\n\n${vendor.displayProperties.description}`
     let embed = new EmbedBuilder()
         .setTitle(vendor.displayProperties.name)
-        .setDescription(`Next reset: <t:${Math.floor(nextReset.getTime() / 1000)}:R>\n\n${vendor.displayProperties.description}`)
+        .setDescription(description)
         .setImage(`https://bungie.net` + vendor.displayProperties.largeIcon)
     if (footer) embed.setFooter({text: footer})
     return embed
@@ -502,29 +511,40 @@ export function updateMSVendors(): Promise<void> {
                 // Fetch main D2 profile to use for refreshes
                 let user = (await SafeQuery("SELECT * FROM dbo.Users WHERE id = 2", [])).recordset[0]
 
-                let req = await fetch(`https://bungie.net/Platform/Destiny2/1/Profile/4611686018512362465/Character/2305843009761454376/Vendors/?components=402`, {
+                let req = await fetch(`https://bungie.net/Platform/Destiny2/1/Profile/4611686018512362465/Character/2305843009761454376/Vendors/?components=400,402`, {
                     method: "GET",
                     headers: {
                         Authorization: "Bearer " + user["D2_AccessToken"],
                         "X-API-Key": API_KEY
                     }
                 })
-                let data = await req.json()
-                console.log(data)
+                let data = await req.json() as BungieAPIResponse<DestinyVendorsResponse<[DestinyComponentType.Vendors, DestinyComponentType.VendorSales]>>
 
-                console.log(`Updating ${data.Response.sales.data.length} rotating vendors...`)
-                for (let vendorHash of Object.keys(data.Response.sales.data)) {
-                    let selling_items = Object.keys(data.Response.sales.data[vendorHash].saleItems).map(i => {
-                        return data.Response.sales.data[vendorHash].saleItems[i].itemHash as number
-                    })
-                    try {
-                        await SafeQuery("UPDATE dbo.DestinyVendors SET ItemHashes = @json WHERE VendorHash = @hash", [
-                            {name: "json", type: mssql.TYPES.VarChar(2000), data: JSON.stringify(selling_items)},
-                            {name: "hash", type: mssql.TYPES.BigInt(), data: parseInt(vendorHash)}
-                        ])
-                    } catch (e) {
+                await SafeTransaction(async (query) => {
+                    if (!data.Response?.vendors.data) throw new Error("Failed to obtain vendor data")
+                    console.log(`Updating ${Object.keys(data.Response.vendors.data).length} vendors...`)
+
+                    for (let vendorHash of Object.keys(data.Response.vendors.data)) {
+                        await query(sql`UPDATE dbo.DestinyVendors
+                                      SET VendorLocationIndex = ${data.Response.vendors.data[vendorHash].vendorLocationIndex}
+                                      WHERE VendorHash = ${vendorHash}`)
                     }
-                }
+                })
+
+
+                await SafeTransaction(async (query) => {
+                    if (!data.Response?.sales.data) throw new Error("Failed to obtain vendor sales data")
+                    console.log(`Updating ${Object.keys(data.Response.sales.data).length} rotating vendor sales...`)
+                    for (let vendorHash of Object.keys(data.Response.sales.data)) {
+                        let selling_items = Object.keys(data.Response.sales.data[vendorHash].saleItems).map(i => {
+                            // @ts-ignore
+                            return data.Response.sales.data[vendorHash].saleItems[i].itemHash as number
+                        })
+                        await query(sql`UPDATE dbo.DestinyVendors
+                                            SET ItemHashes = ${JSON.stringify(selling_items)}
+                                            WHERE VendorHash = ${vendorHash}`)
+                    }
+                })
                 resolve()
             }
         )
@@ -534,6 +554,7 @@ export function updateMSVendors(): Promise<void> {
 export async function setupBungieAPI() {
     console.log("STEP 1")
     await refreshTokens()
+    await updateMSVendors()
     setInterval(() => {
         refreshTokens()
             .then(() => {

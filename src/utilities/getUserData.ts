@@ -3,6 +3,31 @@ import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {CrashBotUser} from "../misc/UserManager.js";
 
+export enum SPEECH_MODES {
+    NORMAL,
+    BABY_SPEAK,
+    SIMPLETON,
+    SMART_ASS,
+    COLOURFUL,
+    LISP,
+    FURRY,
+    KIWI,
+    LINUX_CHAD,
+    SWIFTIE,
+    DRUNK,
+    WHITE_TRASH_BREAD,
+    GERMAN_CHEESE,
+    PEANUT_NUTTER,
+    ALCOHOLIC_BUTTER,
+    BREAD,
+    CHEESE,
+    PEANUT_BUTTER,
+    BUTTER,
+    SHAGGY,
+    JAM,
+    KEESH
+}
+
 export async function getUserData(member: GuildMember | string): Promise<{
     id: number,
     player_name: string,
@@ -28,7 +53,8 @@ export async function getUserData(member: GuildMember | string): Promise<{
     D2_MembershipId: number,
     D2_AccessTokenExpiry: Date,
     D2_MembershipType: number,
-    simpleton_experiment: boolean
+    simpleton_experiment: boolean,
+    speech_mode: SPEECH_MODES
 }> {
     let id = typeof member === "string" ? member : member.id
     let req = await SafeQuery(`SELECT *

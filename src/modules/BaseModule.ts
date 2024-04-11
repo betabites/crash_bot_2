@@ -34,14 +34,15 @@ export abstract class BaseModule {
 }
 
 // DECORATORS
-export function OnClientEvent<Event extends keyof ClientEvents>(clientEvent: Event) {
+export function OnClientEvent<Event extends keyof ClientEvents>(clientEvent: Event, thisArg?: any) {
     function decorator(originalMethod: (...args: ClientEvents[Event]) => any, context: ClassMethodDecoratorContext<BaseModule>) {
         function replacementMethod(this: BaseModule, ...args: ClientEvents[Event]) {
-            return originalMethod.call(this, ...args)
+            // console.log(thisArg)
+            return originalMethod.call(thisArg || this, ...args)
         }
 
         context.addInitializer(function init(this: BaseModule) {
-            this.client.on(clientEvent, replacementMethod)
+            this.client.on(clientEvent, (...args) => replacementMethod.call(this, ...args))
         })
 
         return replacementMethod

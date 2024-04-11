@@ -23,7 +23,11 @@ export const client = new Client({
     ], partials: [Discord.Partials.Channel]
 })
 
-export async function sendImpersonateMessage(channel: TextChannel, member: GuildMember, message: string) {
+export async function sendImpersonateMessage(channel: TextChannel, member: GuildMember, message: string |
+    Discord.MessagePayload |
+    Discord.BaseMessageOptions |
+    Discord.WebhookMessageCreateOptions
+) {
     SafeQuery("SELECT * FROM dbo.Webhook WHERE channel_id = @channelid AND user_id = @userid", [
         {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
         {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
@@ -51,7 +55,15 @@ export async function sendImpersonateMessage(channel: TextChannel, member: Guild
                 })
             })
                 .then((webhook: Webhook) => {
-                    webhook.send(message)
+                    webhook.send(typeof message === "string" ? {
+                        content: message,
+                        allowedMentions: {
+                            parse: [],
+                            users: [],
+                            roles: [],
+                            repliedUser: false
+                        },
+                    }: message)
                     return SafeQuery("INSERT INTO dbo.Webhook (user_id, channel_id, webhook_id, token) VALUES (@userid, @channelid, @webhookid, @token)", [
                         {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
                         {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},

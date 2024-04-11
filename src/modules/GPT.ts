@@ -16,7 +16,7 @@ import {
     SlashCommandUserOption
 } from "@discordjs/builders";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
-import ChatGPT from "../services/ChatGPT.js";
+import openai, {AIConversation} from "../services/ChatGPT.js";
 import {removeAllMentions} from "../utilities/removeAllMentions.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
@@ -24,6 +24,9 @@ import {ShuffleArray} from "../misc/Common.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {TWAGGER_POST_CHANNEL} from "../misc/sendTwaggerPost.js";
+import OpenAI from "openai";
+import ChatCompletionMessageParam = OpenAI.ChatCompletionMessageParam;
+import {PointsModule} from "./Points.js";
 
 export class GPTModule extends BaseModule {
     commands = [
@@ -49,15 +52,6 @@ export class GPTModule extends BaseModule {
                     .setRequired(false)
             ),
         new SlashCommandBuilder()
-            .setName("ask-gpt")
-            .setDescription("Ask ChatGPT a question")
-            .addStringOption(
-                new SlashCommandStringOption()
-                    .setName("message")
-                    .setDescription("What would you like to ask ChatGPT?")
-                    .setRequired(true)
-            ),
-        new SlashCommandBuilder()
             .setName("tldr")
             .setDescription("Too long, didn't read")
             .addNumberOption(
@@ -67,30 +61,71 @@ export class GPTModule extends BaseModule {
                     .setRequired(false)
             )
     ]
+    activeConversations = new Map<string, AIConversation>()
 
     constructor(client: Client) {
         super(client);
-        console.log("Bound client")
     }
 
     @OnClientEvent("messageCreate")
-    onMessage(msg: Message) {
-        if (msg.author.bot) return
+    async onMessage(msg: Message) {
+        if (msg.author.bot || !this.client.user) return
         else if (msg.channel.type === ChannelType.DM) {
             askGPTQuestion(msg.author.username + " said: " + msg.content, msg.channel)
         }
         else if (msg.channel.type === ChannelType.PublicThread && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
             askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
         }
-    }
+        else if (msg.mentions.has(this.client.user.id) || this.activeConversations.has(msg.channelId)) {
+            let conversation = this.activeConversations.get(msg.channelId)
+            if (!conversation) {
+                let level = await PointsModule.getPoints(msg.author.id)
+                if (level.level < 7) {
+                    msg.reply(`Sorry, starting AI conversations is unlocked at level 7. You are currently level ${level.level}`)
+                    return
+                }
 
-    @InteractionChatCommandResponse("ask-gpt")
-    onAskGPT(interaction: ChatInputCommandInteraction) {
-        if (!interaction.channel) {
-            interaction.reply("Oops! Plase try again in a different channel")
-            return
+                conversation = AIConversation.new([])
+                this.activeConversations.set(msg.channelId, conversation)
+                conversation.on("onAIResponse", (message: ChatCompletionMessageParam) => {
+                    let ai_res = message.content?.toString()
+                    if (!ai_res) return
+                    msg.channel.send({
+                        content: ai_res,
+                        allowedMentions: {
+                            parse: [],
+                            users: [],
+                            roles: [],
+                            repliedUser: false
+                        },
+                    })
+                })
+                await conversation.saveMessage({
+                    role: "system",
+                    content: "You are a bot by the name of `Crash Bot`. You act Gangsta and help people out within a Discord server."
+                })
+
+                setTimeout(async () => {
+                    if (!conversation) return
+                    await conversation.saveMessage({
+                        role: "system",
+                        content: "Your conversation has expired. Please say goodbye"
+                    })
+                    try {
+                        await conversation.sendToAI()
+                    } catch(e) {console.error(e)}
+                    this.activeConversations.delete(msg.channelId)
+                    conversation.reset()
+                }, 300000)
+            }
+
+            await conversation.saveMessage({
+                role: "user",
+                name: msg.author.displayName,
+                content: msg.content
+            })
+            conversation.delayedSendToAI()
         }
-        askGPTQuestion(interaction.user.username + " said: " + (interaction.options.getString("message") || ""), interaction.channel, interaction)
     }
 
     @InteractionChatCommandResponse("tldr")
@@ -126,7 +161,7 @@ export class GPTModule extends BaseModule {
             tldr.push(message[1].content)
         }
         tldr = tldr.reverse().slice(0, 180)
-        let gpt_response = await ChatGPT.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
+        let gpt_response = await openai.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
         // @ts-ignore
         interaction.editReply(removeAllMentions(gpt_response.text, interaction.channel))
     }
@@ -226,7 +261,7 @@ export class GPTModule extends BaseModule {
                 })
                 let prompt = "Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before and how unique it is compared to all uses from all people."
                 if (interaction.options.getString("theme")) prompt += "\nThe catchphrase must be based around this theme:" + interaction.options.getString("theme")
-                ChatGPT.sendMessage(
+                openai.sendMessage(
                     prompt + "\n\n" +
                     top.map(i => `${i.word} (${i.count}, uniqueness: ${i.percentage * 100})`).join(", ")
                 )

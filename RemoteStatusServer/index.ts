@@ -55,6 +55,7 @@ interface OutgoingMessage {
 interface OutgoingCommand {
     type: "message"
     data: string
+    silent: boolean
 }
 
 interface IncomingAdvancementMessage extends IncomingMessage {
@@ -102,12 +103,17 @@ export default class RemoteStatusServer extends EventEmitter {
         }
 
         this.io.on("connection", client => {
+            let timeout = setTimeout(() => {
+                client.disconnect()
+            }, 300)
             client.on("verify_connection", data => {
                 try {
                     let key = this.decrypt(data)
                     if (this.server_connections[key] && !this.server_connections[key].server.connected) {
                         // Attach this connection to the correct ServerConnection object.
+                        console.log("Client connected with key; " + key)
                         this.server_connections[key].attachClient(client)
+                        clearTimeout(timeout)
                     }
                 } catch (e) {
                     console.error(e)
@@ -137,15 +143,14 @@ export default class RemoteStatusServer extends EventEmitter {
         return iv.toString("base64") + ":" + encrypted.toString("base64")
     }
 
-    public broadcastCommand(command: string) {
+    public broadcastCommand(command: string, silent = false) {
         let object: OutgoingCommand = {
             type: "message",
-            data: command
+            data: command,
+            silent
         }
 
         let _message = this.encrypt(JSON.stringify(object))
-        console.log(_message)
-
         this.io.emit("sendCommand", _message)
     }
 
@@ -167,6 +172,8 @@ interface IServerConnectionEvents  {
     playerDeath: [Player],
     playerRespawn: [Player],
     playerConnect: [Player],
+    serverConnect: [],
+    serverDisconnect: [],
     playerAdvancementEarn: [{id: string, display: {title: string}}, Player],
     playerDataUpdate: [Player],
 }
@@ -217,9 +224,6 @@ class ServerConnection extends EventEmitter {
     }
 
     private attachIOClient(client: Socket) {
-        console.log("Attached client")
-        this._requestPlayerList(client)
-
         client.on("message", data => {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingChatMessage
@@ -233,7 +237,6 @@ class ServerConnection extends EventEmitter {
                 } else {
                     // Broadcast event
                     let trigger_event = !player.isTyping
-                    console.log("HERE!")
                     player.setTyping(object.data.message)
                     if (trigger_event) this.emit("typing_start", player)
                 }
@@ -247,7 +250,6 @@ class ServerConnection extends EventEmitter {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLoginMessage
 
                 let player = this.getPlayer(object.data, client)
-                console.log(object)
             } catch (e) {
                 console.log(e)
             }
@@ -257,11 +259,9 @@ class ServerConnection extends EventEmitter {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingLogoutMessage
 
-                console.log(object)
                 let player = this._players[object.data.id]
                 this.emit("playerDisconnect", player.player)
                 delete this._players[object.data.id]
-                console.log(this._players)
             } catch (e) {
                 console.log(e)
             }
@@ -342,7 +342,6 @@ class ServerConnection extends EventEmitter {
         client.on("playerList", data => {
             try {
                 let object = JSON.parse(this.decrypt(data)) as IncomingMessagePlayerList
-                console.log(object)
 
                 for (let _player of object.data) {
                     let player = this.getPlayer(_player, client)
@@ -357,6 +356,8 @@ class ServerConnection extends EventEmitter {
                 let object = JSON.parse(this.decrypt(data)) as IncomingAdvancementMessage
 
                 let player = this.getPlayer(object.data.player, client)
+                if (player.lastAchievementID === object.data.advancement.id) return
+                player.lastAchievementID = object.data.advancement.id
                 if (!player) throw new Error("Player not found")
                 this.emit("playerAdvancementEarn", object.data.advancement, player)
             } catch (e) {
@@ -367,15 +368,19 @@ class ServerConnection extends EventEmitter {
         client.on("disconnect", () => {
             // Broadcast disconnect event for all players
             for (let player of Object.keys(this._players)) this.emit("playerDisconnect", this._players[player].player)
+            this._players = {}
 
             // Remove the client from the connection list
             this.io_clients.splice(this.io_clients.indexOf(client), 1)
+            this.emit("serverDisconnect")
         })
+        this.emit("serverConnect")
 
         this.io_clients.push(client)
+        this._requestPlayerList()
     }
 
-    private _requestPlayerList(client: Socket) {
+    private _requestPlayerList() {
         this.broadcast("requestPlayerList")
     }
 
@@ -387,7 +392,7 @@ class ServerConnection extends EventEmitter {
                     count -= 1
                     if (count === 0) {resolve(this.players)}
                 })
-                this._requestPlayerList(client);
+                this._requestPlayerList();
             }
         })
     }
@@ -421,15 +426,14 @@ class ServerConnection extends EventEmitter {
 
     // PUBLIC METHODS
 
-    public broadcastCommand(command: string) {
+    public broadcastCommand(command: string, silent = false) {
         let object: OutgoingCommand = {
             type: "message",
-            data: command
+            data: command,
+            silent
         }
 
         let _message = this.encrypt(JSON.stringify(object))
-        console.log(_message)
-
         this.broadcast("sendCommand", _message)
     }
 
@@ -443,8 +447,6 @@ class ServerConnection extends EventEmitter {
         }
 
         let _message = this.encrypt(JSON.stringify(object))
-        console.log(_message)
-
         this.broadcast("sendMessage", _message)
     }
 }
@@ -453,6 +455,7 @@ class Player {
     readonly id: string
     readonly username: string
     readonly parent: ServerConnection
+    lastAchievementID: string
     private _typing_message: string | null | undefined
     private _typing_timeout: NodeJS.Timeout | undefined
 

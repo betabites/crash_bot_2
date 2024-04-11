@@ -6,8 +6,8 @@ import fileUpload, {UploadedFile} from "express-fileupload"
 import fs from "fs"
 import * as path from "path";
 import {client, getToken,} from "./src/services/Discord.js";
-import ChatGPT from "./src/services/ChatGPT.js";
-import SafeQuery from "./src/services/SQL.js";
+import openai from "./src/services/ChatGPT.js";
+import SafeQuery, {sql} from "./src/services/SQL.js";
 import {buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
 import {CrashBotUser} from "./src/misc/UserManager.js";
 import Discord, {
@@ -52,6 +52,9 @@ import dotenv from "dotenv"
 import {ACHIEVEMENTS_ROUTER} from "./src/modules/GameAchievements.js";
 import {MEMORIES_ROUTER} from "./src/modules/Memories.js";
 import {PACK_ROUTER} from "./src/routes/packs.js";
+import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
+import {SpeechModule} from "./src/modules/Speech.js";
+import {PointsModule} from "./src/modules/Points.js";
 
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
 const moduleClasses = [
@@ -63,7 +66,9 @@ const moduleClasses = [
     MinecraftModule,
     MiscModule,
     ResourcePackManagerModule,
-    VoiceControlModule
+    VoiceControlModule,
+    SpeechModule,
+    PointsModule
 ]
 
 dotenv.config()
@@ -94,12 +99,16 @@ app.use(fileUpload({
     limits: {fileSize: 50 * 1024 * 1024}
 }));
 
+app.use(express.static("web"))
+
 app.get("/home/:key", async (req, res) => {
     let html
     if (await CrashBotUser.CheckKey(req.params.key)) {
         let user = new CrashBotUser(req.params.key)
         await user.get()
-        html = fs.readFileSync(path.resolve("./") + "/assets/html/index.html").toString().replace(/:keyhere:/g, req.params.key).replace(/\[owned]/g, JSON.stringify(await user.getOwned())).replace(/:username:/g, user.data["player_name"])
+        html = fs.readFileSync(
+            path.resolve("./") + "/assets/html/index.html"
+        ).toString()
     }
     else {
         html = "Invalid key"
@@ -504,6 +513,7 @@ app.use("/packs", PACK_ROUTER)
 app.use("/destiny", D2_ROUTER)
 app.use("/achievements", ACHIEVEMENTS_ROUTER)
 app.use("/memories", MEMORIES_ROUTER)
+app.use("/discord/auth", DISCORD_AUTH_ROUTER)
 
 let wss = new WSS(httpServer, httpsServer)
 
@@ -553,6 +563,8 @@ client.on("userUpdate", (oldUser, newUser) => {
 })
 
 client.on("interactionCreate", async (interaction): Promise<void> => {
+    interaction.type
+
     if (interaction.isChatInputCommand()) {
         interaction
         // Process module slash commands
@@ -623,10 +635,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
     }
     if ((msg.channel.id === "910649212264386583" || msg.channel.id === "892518396166569994") && msg.content.replace(/[^"“”‘’]/g, "").length >= 2) {
         // Assume this message is a quote
-        await SafeQuery("INSERT INTO dbo.Quotes (msg_id, quote) VALUES (@msg,@quote)", [
-            {name: "msg", type: mssql.TYPES.VarChar(100), data: msg.id},
-            {name: "quote", type: mssql.TYPES.VarChar(100), data: msg.content}
-        ])
+        await SafeQuery(sql`INSERT INTO dbo.Quotes (msg_id, quote) VALUES (${msg.id},${msg.content})`)
         msg.react("🫃")
 
         // Check to see if all users have 'quoteresponseai' enabled
@@ -652,7 +661,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
 
         if (ai) {
             console.log("AI responding...")
-            let AIres = await ChatGPT.sendMessage(
+            let AIres = await openai.sendMessage(
                 "respond to this quote in a funny way:\n\n" +
                 msg.content
             )
@@ -661,7 +670,7 @@ client.on("messageCreate", async (msg): Promise<void> => {
             msg.reply({embeds: [embed]})
         }
     }
-    else if (msg.channel.id !== "892518159167393823" && (Math.random() <= 0.01 || msg.content.toLowerCase() === "i need inspiring")) {
+    else if (msg.channel.id !== "892518159167393823" && (Math.random() <= 0.01 || msg.content.toLowerCase() === "i need inspiring") && !msg.author.bot) {
         quoteReply(msg.channel)
     }
     else if (msg.channel.id === "999848214691852308") {

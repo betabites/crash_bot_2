@@ -2,7 +2,7 @@ import sqlite3 from "sqlite3";
 import {getDestinyManifest} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {BasicBungieClient} from "bungie-net-core/lib/client.js";
 import {
-    DestinyActivityDefinition,
+    DestinyActivityDefinition, DestinyDestinationDefinition,
     DestinyInventoryItemDefinition,
     DestinyStatDefinition,
     DestinyVendorDefinition
@@ -247,5 +247,13 @@ export const MANIFEST_SEARCH = {
                                                                                  FROM "DestinyStatDefinition"
                                                                                  WHERE json_extract(json, "$.hash") IN ${hash}`)
         }
-    }
+    },
+
+    destinations: {
+        byHash(hash: number[]) {
+            return MANIFEST_SEARCH.customParseJSON<DestinyDestinationDefinition>(sqlite`SELECT *
+                                                                                          FROM "DestinyDestinationDefinition"
+                                                                                          WHERE json_extract(json, "$.hash") IN ${hash}`)
+        }
+    },
 }

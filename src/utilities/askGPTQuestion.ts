@@ -2,7 +2,7 @@ import {ChatInputCommandInteraction, EmbedBuilder, TextBasedChannel} from "disco
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {removeAllMentions} from "./removeAllMentions.js";
-import ChatGPT from "../services/ChatGPT.js";
+import openai from "../services/ChatGPT.js";
 import {splitMessage} from "./splitMessage.js";
 
 export async function askGPTQuestion(message: string, channel: TextBasedChannel, interaction?: ChatInputCommandInteraction) {
@@ -20,7 +20,7 @@ export async function askGPTQuestion(message: string, channel: TextBasedChannel,
         result_message = "There is no conversation to reset"
     }
     else if (gpt_channel_search.recordset.length === 0) {
-        let gpt_message = await ChatGPT.sendMessage(message)
+        let gpt_message = await openai.sendMessage(message)
         console.log(gpt_message)
         await SafeQuery("INSERT INTO CrashBot.dbo.GPTChannels (channelid, conversationid, lastmessageid) VALUES (@channelid, @conversationid, @messageid);", [
             {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
@@ -36,7 +36,7 @@ export async function askGPTQuestion(message: string, channel: TextBasedChannel,
         result_message = "This conversation has been reset"
     }
     else {
-        let gpt_message = await ChatGPT.sendMessage(message, {
+        let gpt_message = await openai.sendMessage(message, {
             parentMessageId: gpt_channel_search.recordset[0].lastmessageid
         })
         await SafeQuery("UPDATE dbo.GPTChannels SET lastmessageid=@messageid WHERE channelid = @channelid", [
