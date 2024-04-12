@@ -55,6 +55,7 @@ import {PACK_ROUTER} from "./src/routes/packs.js";
 import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
 import {SpeechModule} from "./src/modules/Speech.js";
 import {PointsModule} from "./src/modules/Points.js";
+import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
 
 const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
 const moduleClasses = [
@@ -564,13 +565,14 @@ client.on("userUpdate", (oldUser, newUser) => {
 
 client.on("interactionCreate", async (interaction): Promise<void> => {
     interaction.type
+    const tracker = await InteractionTracker.create(interaction)
 
     if (interaction.isChatInputCommand()) {
         interaction
         // Process module slash commands
         for (let module of modules) {
             for (let command of module.subscribedSlashCommands.filter(i => i[0] === interaction.commandName)) {
-                command[1].call(module, interaction)
+                tracker.newHandler(() => command[1].call(module, interaction))
             }
         }
     }
@@ -586,7 +588,10 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                             return i[0] === interaction.customId
                     }
                 })) {
-                command[1](interaction)
+                tracker.newHandler(
+                    command[1].name,
+                    () => command[1](interaction)
+                )
             }
         }
     }
@@ -602,7 +607,10 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                             return i[0] === interaction.customId
                     }
                 })) {
-                command[1].call(module, interaction)
+                tracker.newHandler(
+                    command[1].name,
+                    () => command[1].call(module, interaction)
+                )
             }
         }
     }
@@ -619,7 +627,10 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                             return i[0] === interaction.commandName
                     }
                 })) {
-                command[1].call(module, interaction)
+                tracker.newHandler(
+                    command[1].name,
+                    () => command[1].call(module, interaction)
+                )
             }
         }
     }
