@@ -78,6 +78,11 @@ export class PointsModule extends BaseModule {
         new SlashCommandBuilder()
             .setName("level")
             .setDescription("Display your current Crash Bot level")
+            .addUserOption((usr) => usr
+                .setName("user")
+                .setDescription("The user who's level you'd like to check")
+                .setRequired(false)
+            )
     ]
     // KEY: Voice channel id
     activeVoiceChannels = new Map<string, string[]>()
@@ -105,7 +110,7 @@ export class PointsModule extends BaseModule {
                     })
                 }
             }
-        }, 300000)
+        }, 600000)
 
         // Reset capped points at midnight every day
         schedule.scheduleJob("0 0 0 * * *", () => {
@@ -165,7 +170,7 @@ export class PointsModule extends BaseModule {
             }>
             (sql`UPDATE Users
                  SET points=points + ${options.points}, cappedPoints=cappedPoints + ${options.points}
-                 WHERE discord_id = ${options.userDiscordId} AND cappedPoints < 60;
+                 WHERE discord_id = ${options.userDiscordId} AND cappedPoints < 40;
             SELECT points, level
             FROM Users
             WHERE discord_id = ${options.userDiscordId} AND level >= ${options.levelGate || 0}`)
@@ -187,7 +192,7 @@ export class PointsModule extends BaseModule {
 
         let user = res.recordset[0]
         if (!user) return null
-        if (user.points >= calculateLevelGate(user.level + 1)) {
+        if (user.points >= PointsModule.calculateLevelGate(user.level + 1)) {
             await SafeQuery(sql`UPDATE Users
                                 SET points=0,
                                     level=level + 1
@@ -276,7 +281,8 @@ export class PointsModule extends BaseModule {
 
     @InteractionChatCommandResponse("level")
     async onLevelCommand(interaction: ChatInputCommandInteraction) {
-        const userPointsData = await PointsModule.getPoints(interaction.user.id)
+        let user = interaction.options.getUser("user") ?? interaction.user
+        const userPointsData = await PointsModule.getPoints(user.id)
 
         const width = 500
         const height = 10
@@ -286,7 +292,7 @@ export class PointsModule extends BaseModule {
         const barColor = 0x0000FFFF; // Blue progress bar
 
         // Draw bar
-        const pointsRequiredForNextLevel = calculateLevelGate(userPointsData.level + 1)
+        const pointsRequiredForNextLevel = PointsModule.calculateLevelGate(userPointsData.level + 1)
         const progressWidth = Math.round(
             (userPointsData.points / pointsRequiredForNextLevel) * width
         )
@@ -298,7 +304,7 @@ export class PointsModule extends BaseModule {
         })
 
         const embed = new EmbedBuilder()
-        embed.setThumbnail(interaction.user.avatarURL())
+        embed.setThumbnail(user.avatarURL())
         embed.setTitle("🔎 Crash Bot Points progress")
         embed.setDescription(`You're currently level ${userPointsData.level}
 You've earned ${userPointsData.points}/${pointsRequiredForNextLevel} points`)
@@ -325,9 +331,8 @@ You've earned ${userPointsData.points}/${pointsRequiredForNextLevel} points`)
         console.log(members)
         this.activeVoiceChannels.set(channel.id, members)
     }
-}
 
-
-function calculateLevelGate(targetLevel: number) {
-    return Math.round(targetLevel ** 2.05) + 20
+    static calculateLevelGate(targetLevel: number) {
+        return Math.round(targetLevel ** 2.05) + 20
+    }
 }

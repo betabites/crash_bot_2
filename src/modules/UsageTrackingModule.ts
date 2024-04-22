@@ -14,10 +14,16 @@ export class InteractionTracker {
     readonly id: string;
     static async create(interaction: Interaction) {
         let id = crypto.randomUUID()
-        let interactionJSON = interaction.toJSON()
-        await SafeQuery(sql`INSERT INTO InteractionTracker (id, incomingJSON) VALUES (${id}, ${
-            typeof interaction === "string" ? interactionJSON as string: "no json available"
-        })`)
+        let interactionObj: {
+            user?: string,
+            member?: string
+        } = interaction.toJSON() as any
+        delete interactionObj.user
+        delete interactionObj.member
+        let jsonValue = JSON.stringify(interactionObj, (key, value) => typeof value === 'bigint' ? value.toString() : value)
+        console.log(jsonValue, jsonValue.length)
+
+        await SafeQuery(sql`INSERT INTO InteractionTracker (id, incomingJSON) VALUES (${id}, ${jsonValue})`)
         return new InteractionTracker(id, interaction)
     }
     private constructor(id: string, interaction: Interaction) {
@@ -33,15 +39,16 @@ export class InteractionTracker {
         let errored = false
         let result: string | null = null
         let handlerId = crypto.randomUUID()
+        console.log(handlerId, this.id, funcName)
 
         SafeQuery(
             sql`
-INSERT INTO InteracionHandler (id, interactionId, funcName, result, discordUserID)
-VALUES (${handlerId}, ${this.id}, ${funcName}, "in progress", ${this.interaction.user.id})`
+INSERT INTO InteractionHandler (id, interactionId, funcName, result)
+VALUES (${handlerId}, ${this.id}, ${funcName}, 'in progress')`
         )
 
         try {
-            result = await func()
+            result = await func() ?? "no result returned (undefined)"
         } catch (e) {
             if (e instanceof Error && e.stack) result = e.stack
             else result = `${e}`
@@ -49,7 +56,7 @@ VALUES (${handlerId}, ${this.id}, ${funcName}, "in progress", ${this.interaction
         }
 
         SafeQuery(
-            sql`UPDATE InteracionHandler SET result=${result}, errored=${errored} WHERE id = ${handlerId}`
+            sql`UPDATE InteractionHandler SET result=${result}, errored=${errored ? 1 : 0} WHERE id = ${handlerId}`
         )
 
     }

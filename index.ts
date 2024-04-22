@@ -43,9 +43,9 @@ import {getUserData} from "./src/utilities/getUserData.js";
 import {ResourcePackManagerModule} from "./src/modules/ResourcePackManagerModule.js";
 import {ImagesModule} from "./src/modules/ImagesModule.js";
 import {ExperimentsModule} from "./src/modules/ExperimentsModule.js";
-import {MinecraftModule} from "./src/modules/MinecraftModule.js";
+import {MinecraftModule} from "./src/modules/Minecraft/MinecraftModule.js";
 import {MiscModule} from "./src/modules/MiscModule.js";
-import {VoiceControlModule} from "./src/modules/VoiceControlModule.js";
+import {VOICE_ROUTER, VoiceControlModule} from "./src/modules/VoiceControlModule.js";
 import {quoteReply} from "./src/utilities/quoteReply.js";
 import {sendNotifications} from "./src/modules/D2/SetupNotifications.js";
 import dotenv from "dotenv"
@@ -515,6 +515,7 @@ app.use("/destiny", D2_ROUTER)
 app.use("/achievements", ACHIEVEMENTS_ROUTER)
 app.use("/memories", MEMORIES_ROUTER)
 app.use("/discord/auth", DISCORD_AUTH_ROUTER)
+app.use("/voice", VOICE_ROUTER)
 
 let wss = new WSS(httpServer, httpsServer)
 
@@ -572,7 +573,10 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
         // Process module slash commands
         for (let module of modules) {
             for (let command of module.subscribedSlashCommands.filter(i => i[0] === interaction.commandName)) {
-                tracker.newHandler(() => command[1].call(module, interaction))
+                tracker.newHandler(
+                    command[1].name,
+                    () => command[1].call(module, interaction)
+                )
             }
         }
     }

@@ -857,7 +857,7 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
 
 
 function getNextRaidSessions() {
-    const defaultTime = [6, 0, 0, 0]
+    const defaultTime = [7, 0, 0, 0]
     const now = new Date()
     now.setHours(defaultTime[0])
     now.setMinutes(defaultTime[1])

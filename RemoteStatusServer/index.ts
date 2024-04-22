@@ -12,7 +12,8 @@ interface MinecraftPlayerData {
     },
     position: [number, number, number],
     dimension: string,
-    dead: boolean
+    dead: boolean,
+    voiceConnectionGroup?: string
 }
 
 interface IncomingMessage {
@@ -105,8 +106,10 @@ export default class RemoteStatusServer extends EventEmitter {
         this.io.on("connection", client => {
             let timeout = setTimeout(() => {
                 client.disconnect()
-            }, 300)
+            }, 3000)
+            console.log("CLIENT SERVER CONNECTED")
             client.on("verify_connection", data => {
+                console.log("CLIENT SERVER ATTEMPTING AUTH")
                 try {
                     let key = this.decrypt(data)
                     if (this.server_connections[key] && !this.server_connections[key].server.connected) {
@@ -472,6 +475,8 @@ class Player {
             this.updatePlayerInfo(data)
         })
     }
+
+    get voiceConnectionGroup() {return this._data.voiceConnectionGroup}
 
     private updatePlayerInfo(data: MinecraftPlayerData) {
         this._data = data

@@ -25,8 +25,9 @@ import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {TWAGGER_POST_CHANNEL} from "../misc/sendTwaggerPost.js";
 import OpenAI from "openai";
-import ChatCompletionMessageParam = OpenAI.ChatCompletionMessageParam;
 import {PointsModule} from "./Points.js";
+import {ChatCompletionMessageParam} from "openai/resources/index";
+import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 
 export class GPTModule extends BaseModule {
     commands = [
@@ -67,16 +68,44 @@ export class GPTModule extends BaseModule {
         super(client);
     }
 
+    private generateChatGPTFunctions(msg: Message): RunnableToolFunction<any>[] {
+        return [
+            {
+                type: "function",
+                function: {
+                    name: "get_points",
+                    description: "Get the level and points of the current user/player",
+                    parse: JSON.parse,
+                    function: async ({}) => {
+                        let points = await PointsModule.getPoints(msg.author.id);
+                        return `Level: ${points.level}, Points: ${points.points}/${PointsModule.calculateLevelGate(points.level + 1)}`
+                    },
+                    parameters: {
+                        type: "object",
+                        properties: {}
+                    }
+                }
+            }
+        ]
+    }
+
     @OnClientEvent("messageCreate")
     async onMessage(msg: Message) {
         if (msg.author.bot || !this.client.user) return
         else if (msg.channel.type === ChannelType.DM) {
-            askGPTQuestion(msg.author.username + " said: " + msg.content, msg.channel)
+            let conversation = await AIConversation.fromSaved(msg.channelId, this.generateChatGPTFunctions(msg))
+            await conversation.saveMessage({
+                role: "user",
+                content: msg.content,
+                name: msg.author.displayName
+            })
+            let res = await conversation.sendToAI()
+            if (res.content) msg.channel.send(res.content as string)
         }
         else if (msg.channel.type === ChannelType.PublicThread && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
             askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
         }
-        else if (msg.mentions.has(this.client.user.id) || this.activeConversations.has(msg.channelId)) {
+        else if (msg.mentions.users.has(this.client.user.id) || this.activeConversations.has(msg.channelId)) {
             let conversation = this.activeConversations.get(msg.channelId)
             if (!conversation) {
                 let level = await PointsModule.getPoints(msg.author.id)

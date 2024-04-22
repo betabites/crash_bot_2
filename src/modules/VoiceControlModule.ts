@@ -3,12 +3,15 @@ import {SlashCommandBuilder, SlashCommandNumberOption, SlashCommandSubcommandBui
 import {ButtonInteraction, ChatInputCommandInteraction, GuildMember, Message} from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {CrashBotUser} from "../misc/UserManager.js";
-import SafeQuery from "../services/SQL.js";
+import SafeQuery, {sql} from "../services/SQL.js";
 import mssql from "mssql";
 import ffmpeg from "fluent-ffmpeg";
 import {PassThrough} from "stream";
 import path from "path";
 import {VoiceConnectionManager} from "../services/VoiceManager/VoiceManager.js";
+import {Duplex, Readable} from "stream";
+import express from "express"
+import crypto from "crypto";
 
 export class VoiceControlModule extends BaseModule {
     commands = [
@@ -45,7 +48,7 @@ export class VoiceControlModule extends BaseModule {
 
         let user = new CrashBotUser(shortcode)
         if (com === "last") {
-            let minutes = interaction.options.getInteger("minutes") || 5
+            let minutes = interaction.options.getNumber("minutes") || 5
 
             let recordings = await SafeQuery("SELECT filename, start FROM dbo.VoiceRecordings WHERE user_id = @userid AND start >= DATEADD(MINUTE, @minutes, GETDATE())", [
                 {
@@ -118,6 +121,7 @@ export class VoiceControlModule extends BaseModule {
                         file: "HERE.mp3"
                     }]
                 }).catch(e => {
+                    console.error(e)
                     interaction.user.send({
                         content: "Oh no! Your audio may have been too large to send! Please try again."
                     })
@@ -187,4 +191,103 @@ export class VoiceControlModule extends BaseModule {
             interaction.reply("Challenge mode has been disabled.")
         }
     }
+}
+
+export const VOICE_ROUTER = express.Router()
+VOICE_ROUTER.get("/record/:userId/:fromTime/:toTime/*.mp3", async (req, res) => {
+    let fromTime = new Date(req.params.fromTime)
+    let toTime = new Date(req.params.toTime)
+
+    let recordings = await SafeQuery<{ filename: string, start: Date }>(sql`SELECT filename, start
+                                                           FROM dbo.VoiceRecordings
+                                                           WHERE user_id = ${req.params.userId}
+                                                             AND start >= ${fromTime}
+                                                             AND start <= ${toTime}
+    `)
+
+    if (recordings.recordset.length === 0) {
+        res.status(404)
+        return
+    }
+
+    res.json(await createMergeJob(recordings.recordset))
+})
+
+async function createMergeJob(recordings: { filename: string, start: Date }[]) {
+    const subJobFactory = (recordings: { filename: string | Readable, start: Date }[]) => {
+        return new Promise<{start: Date, filename: string}>((resolve, reject) => {
+            const filename = crypto.randomUUID() + ".mp3"
+
+            const command = ffmpeg()
+            let filters = []
+            let first_track_start = recordings[0].start.getTime()
+            let i = 0
+            for (let recording of recordings) {
+                let seek = (recording.start.getTime() - first_track_start)
+                if (recording.filename instanceof Readable) {
+                    command
+                        .input(recording.filename)
+                        .inputFormat("mp3")
+                }
+                else {
+                    command.input(path.join(path.resolve("./"), "voice_recordings", recording.filename))
+                }
+
+
+                if (i !== 0) {
+                    filters.push({
+                        filter: "adelay",
+                        options: seek + "|" + seek,
+                        inputs: i.toString(),
+                        outputs: `[a${i}]`
+                    })
+                }
+                else {
+                    filters.push({
+                        filter: "adelay",
+                        options: "0|0",
+                        inputs: i.toString(),
+                        outputs: `[a${i}]`
+                    })
+                }
+                i++
+            }
+
+            // command.format("mp3")
+            command.complexFilter([
+                ...filters,
+                {
+                    filter: "amix",
+                    options: "inputs=" + filters.length,
+                    inputs: filters.map(i => i.outputs),
+                    outputs: "[b]"
+                }
+            ])
+            command.outputOption("-map", "[b]")
+            command.format("mp3")
+            command.output(filename)
+            // command.stream(res)
+            // command.output(write_stream, {end: true})
+            command.on("end", () => {
+                resolve({start: recordings[0].start, filename})
+            })
+            command.on("error", (e) => {
+                console.error(e)
+                reject(e)
+            })
+            command.run()
+        })
+    }
+    let subJobs: Promise<{start: Date, filename: string}> [] = []
+
+    while (recordings.length !== 0) {
+        let _recordings = recordings.splice(0, recordings.length > 100 ? 100 : recordings.length)
+        subJobs.push(subJobFactory(_recordings))
+    }
+
+    let results = await Promise.all(subJobs)
+
+    return await subJobFactory(results)
+
+
 }
