@@ -195,6 +195,9 @@ export class D2Module extends BaseModule {
                     msg.reply(message)
                 })
         }
+        else if (msg.content.toLowerCase().includes("shut up")) {
+             msg.reply("Never")
+        }
 
         // Check if the message references any items and/or vendors
 
