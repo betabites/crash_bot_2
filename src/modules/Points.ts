@@ -27,6 +27,90 @@ const levelUpgradeMessages = [
     null,
     null
 ]
+type IWeaponClass = {
+    className: string,
+    hiddenMultipliers: {
+        damage: [number, number] // MIN, MAX
+        recovery: [number, number] // MIN, MAX
+        resistance: [number, number] // MIN, MAX
+        uses: [number, number] // MIN, MAX
+    }
+}
+const WEAPON_CLASSES = [
+    {
+        className: "defense",
+        hiddenMultipliers: {
+            damage: [.5,.5],
+            recovery: [.5,.5],
+            resistance: [1,1],
+            uses: [.5,.5]
+        }
+    },
+    {
+        className: "medical",
+        hiddenMultipliers: {
+            damage: [.5,.5],
+            recovery: [1,1],
+            resistance: [.5,.5],
+            uses: [.5,.5]
+        }
+    },
+    {
+        className: "offensive",
+        hiddenMultipliers: {
+            damage: [1,1],
+            recovery: [.5,.5],
+            resistance: [.5,.5],
+            uses: [.5,.5]
+        }
+    },
+    {
+        className: "sturdy",
+        hiddenMultipliers: {
+            damage: [.5,.5],
+            recovery: [.5,.5],
+            resistance: [.5,.5],
+            uses: [1,1]
+        }
+    },
+    {
+        className: "a bit shit",
+        hiddenMultipliers: {
+            damage: [0,.5],
+            recovery: [0,.5],
+            resistance: [0,.5],
+            uses: [0,.5]
+        }
+    },
+    {
+        className: "influencer",
+        hiddenMultipliers: {
+            damage: [.25,.5],
+            recovery: [.25,.5],
+            resistance: [.25,.5],
+            uses: [0,2]
+        }
+    },
+    {
+        className: "godly",
+        hiddenMultipliers: {
+            damage: [1,3],
+            recovery: [1,3],
+            resistance: [1,3],
+            uses: [0,.2]
+        }
+    },
+    {
+        className: "defaultness",
+        hiddenMultipliers: {
+            damage: [.1,.2],
+            recovery: [.1,.2],
+            resistance: [.1,.2],
+            uses: [.1,.2]
+        }
+    },
+] as const satisfies IWeaponClass[]
+
 const weaponTypes = [
     "blade", "shovel", "spoon",
     "sword", "spoon", "trident",
@@ -34,14 +118,78 @@ const weaponTypes = [
     "staff", "bath", "school",
     "cookie", "spellbook", "pot"
 ]
+
+type IWeaponDescriptor = {
+    name: string,
+    class: typeof WEAPON_CLASSES[number]["className"]
+}
+
 const weaponDescriptors = [
-    "grass", "concrete", "dirt",
-    "adultry", "Minecraft", "YouTube",
-    "Greek Gods", "brick", "wood",
-    "cotton", "Ryan", "nuclear waste",
-    "Destiny 2", "cookies", "stationary",
-    "chocolate chips", "greed"
-]
+    {
+        name: "grass",
+        class: "a bit shit"
+    },
+    {
+        name: "dirt",
+        class: "a bit shit"
+    },
+    {
+        name: "adultry",
+        class: "influencer"
+    },
+    {
+        name: "Minecraft",
+        class: "influencer"
+    },
+    {
+        name: "YouTube",
+        class: "influencer"
+    },
+    {
+        name: "Greek Gods",
+        class: "godly"
+    },
+    {
+        name: "brick",
+        class: "defense"
+    },
+    {
+        name: "wood",
+        class: "sturdy"
+    },
+    {
+        name: "cotton",
+        class: "medical"
+    },
+    {
+        name: "Ryan",
+        class: "influencer"
+    },
+    {
+        name: "nuclear waste",
+        class: "offensive"
+    },
+    {
+        name: "Destiny 2",
+        class: "influencer"
+    },
+    {
+        name: "cookies",
+        class: "medical"
+    },
+    {
+        name: "stationary",
+        class: "medical"
+    },
+    {
+        name: "chocolate chips",
+        class: "medical"
+    },
+    {
+        name: "greed",
+        class: "a bit shit"
+    }
+] as const satisfies IWeaponDescriptor[]
 
 function randomFromArray<T>(array: T[]) {
     return array[Math.floor(Math.random() * array.length)]
@@ -53,8 +201,10 @@ function toTitleCase(str: string) {
     }).join(' ');
 }
 
-function randomStatRoll(maxRoll: number) {
-    return Math.floor(Math.random() * maxRoll) + 1
+function randomStatRoll(minRoll: number, maxRoll: number): number
+function randomStatRoll(minRoll: number, maxRoll: number) {
+    const actualMax = maxRoll - minRoll
+    return minRoll + Math.floor(Math.random() * actualMax) + 1
 }
 
 export class PointsModule extends BaseModule {
@@ -124,12 +274,28 @@ export class PointsModule extends BaseModule {
         if (msg.channelId === "892518396166569994" && msg.content === "new_weapon") {
             const level = await PointsModule.getPoints(msg.author.id)
             const max_points = 10 + (level.level * 5)
+            const descriptor = randomFromArray(weaponDescriptors);
+            const descriptorClass = WEAPON_CLASSES.find((i) => i.className === descriptor.class)
+            if (!descriptorClass) throw new Error("Weapon descriptor has an invalid class")
+
             const weapon = {
                 name: toTitleCase(`${randomFromArray(weaponTypes)} of ${randomFromArray(weaponDescriptors)}`),
-                damage: randomStatRoll(max_points),
-                recovery: randomStatRoll(max_points),
-                resistance: randomStatRoll(max_points),
-                uses: randomStatRoll(Math.floor(max_points / 3))
+                damage: randomStatRoll(
+                    max_points * descriptorClass.hiddenMultipliers.damage[0],
+                    max_points * descriptorClass.hiddenMultipliers.damage[1]
+                ),
+                recovery: randomStatRoll(
+                    max_points * descriptorClass.hiddenMultipliers.recovery[0],
+                    max_points * descriptorClass.hiddenMultipliers.recovery[1]
+                ),
+                resistance: randomStatRoll(
+                    max_points * descriptorClass.hiddenMultipliers.resistance[0],
+                    max_points * descriptorClass.hiddenMultipliers.resistance[1]
+                ),
+                uses: randomStatRoll(
+                    Math.floor(max_points / 3) * descriptorClass.hiddenMultipliers.uses[0],
+                    Math.floor(max_points / 3) * descriptorClass.hiddenMultipliers.uses[1]
+                )
             }
             console.log(weapon)
             const ai_conversation = AIConversation.new()
