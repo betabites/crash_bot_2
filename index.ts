@@ -57,7 +57,7 @@ import {SpeechModule} from "./src/modules/Speech.js";
 import {PointsModule} from "./src/modules/Points.js";
 import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
 
-const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916"]
+const imageCaptureChannels = ["892518159167393824", "928215083190984745", "931297441448345660", "966665613101654017", "933949561934852127", "1002003265506000916", "1180614418858512464"]
 const moduleClasses = [
     D2Module,
     ExperimentsModule,
