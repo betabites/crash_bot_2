@@ -38,7 +38,7 @@ export class ResourcePackManagerModule extends BaseModule {
 
         if (req.recordset.length !== 0) {
             interaction.reply({
-                content: `Your website access link is: https://joemamadf7.jd-data.com:8050/home/${req.recordset[0].shortcode}.`,
+                content: `Your website access link is: https://crashbot.unholyandtwisted.com/home/${req.recordset[0].shortcode}.`,
                 ephemeral: true
             })
         }

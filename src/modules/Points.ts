@@ -42,46 +42,46 @@ const WEAPON_CLASSES = [
     {
         className: "defense",
         hiddenMultipliers: {
-            damage: [.5,.5],
-            recovery: [.5,.5],
-            resistance: [1,1],
-            uses: [.5,.5]
+            damage: [.25,.75],
+            recovery: [.25,.75],
+            resistance: [.5,1],
+            uses: [.25,.75]
         }
     },
     {
         className: "medical",
         hiddenMultipliers: {
-            damage: [.5,.5],
-            recovery: [1,1],
-            resistance: [.5,.5],
-            uses: [.5,.5]
+            damage: [.25,.25],
+            recovery: [.5,1],
+            resistance: [.25,.25],
+            uses: [.25,.25]
         }
     },
     {
         className: "offensive",
         hiddenMultipliers: {
-            damage: [1,1],
-            recovery: [.5,.5],
-            resistance: [.5,.5],
-            uses: [.5,.5]
+            damage: [.5,1],
+            recovery: [.25,.75],
+            resistance: [.25,.75],
+            uses: [.25,.75]
         }
     },
     {
         className: "sturdy",
         hiddenMultipliers: {
-            damage: [.5,.5],
-            recovery: [.5,.5],
-            resistance: [.5,.5],
-            uses: [1,1]
+            damage: [.25,.75],
+            recovery: [.25,.75],
+            resistance: [.25,.75],
+            uses: [.5,1]
         }
     },
     {
         className: "a bit shit",
         hiddenMultipliers: {
-            damage: [0,.5],
-            recovery: [0,.5],
-            resistance: [0,.5],
-            uses: [0,.5]
+            damage: [0,.25],
+            recovery: [0,.25],
+            resistance: [0,.25],
+            uses: [0,.25]
         }
     },
     {
@@ -206,7 +206,7 @@ function toTitleCase(str: string) {
 function randomStatRoll(minRoll: number, maxRoll: number): number
 function randomStatRoll(minRoll: number, maxRoll: number) {
     const actualMax = maxRoll - minRoll
-    return minRoll + Math.floor(Math.random() * actualMax) + 1
+    return Math.ceil(minRoll) + Math.floor(Math.random() * actualMax) + 1
 }
 
 interface GrantPointsOptions {
@@ -370,7 +370,7 @@ export class PointsModule extends BaseModule {
             if (!descriptorClass) throw new Error("Weapon descriptor has an invalid class")
 
             const weapon = {
-                name: toTitleCase(`${randomFromArray(weaponTypes)} of ${randomFromArray(weaponDescriptors)}`),
+                name: toTitleCase(`${randomFromArray(weaponTypes)} of ${descriptor.name}`),
                 damage: randomStatRoll(
                     max_points * descriptorClass.hiddenMultipliers.damage[0],
                     max_points * descriptorClass.hiddenMultipliers.damage[1]
@@ -398,6 +398,7 @@ export class PointsModule extends BaseModule {
 <Damage>${weapon.damage}</Damage>
 <Recovery>${weapon.recovery}</Recovery>
 <Resistance>${weapon.resistance}</Resistance>
+<Class>${descriptor.class}</Class>
 </Stats>`
             })
             let prompt = (await ai_conversation.sendToAI()).content as string
@@ -417,7 +418,8 @@ export class PointsModule extends BaseModule {
                 {name: "⚔️ Damage", value: weapon.damage.toString() + "/" + max_points, inline: true},
                 {name: "❤️‍🩹 Recovery", value: weapon.recovery.toString() + "/" + max_points, inline: true},
                 {name: "🛡️ Resistance", value: weapon.resistance.toString() + "/" + max_points, inline: true},
-                {name: "↪️ Uses", value: weapon.uses.toString() + "/" + Math.floor(max_points / 3), inline: true}
+                {name: "↪️ Uses", value: weapon.uses.toString() + "/" + Math.floor(max_points / 3), inline: true},
+                {name: "Class", value: descriptor.class, inline: true}
             ])
             embed.setThumbnail("attachment://thumbnail.png")
             embed.setFooter({

@@ -1,4 +1,4 @@
-import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandUserOption} from "@discordjs/builders";
 import {
     ActionRowBuilder,
@@ -41,6 +41,13 @@ export class ImagesModule extends BaseModule {
             .setName("random_capture")
             .setDescription("Receive the blessing (or curse) of a random screenshot.")
     ]
+
+    @OnClientEvent("messageCreate")
+    onMessage(msg: Message) {
+        if (msg.channel.id !== "892518159167393823" && (Math.random() <= 0.01 || msg.content.toLowerCase() === "i need inspiring") && !msg.author.bot) {
+            quoteReply(msg.channel)
+        }
+    }
 
     @InteractionChatCommandResponse("throw")
     onThrow(interaction: ChatInputCommandInteraction) {

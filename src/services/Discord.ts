@@ -19,7 +19,8 @@ export const client = new Client({
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessageTyping,
-        GatewayIntentBits.GuildMessageTyping
+        GatewayIntentBits.GuildMessageTyping,
+        GatewayIntentBits.GuildMembers
     ], partials: [Discord.Partials.Channel]
 })
 
@@ -88,6 +89,7 @@ export function downloadDiscordAttachmentWithInfo(msg_id: string, channel_id: st
         }
         let msg = _msg as Message
 
+        console.log(url, extension, stream)
         let file = await downloadDiscordAttachment(url, extension, stream)
         let font_big = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
         let font_small = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE)

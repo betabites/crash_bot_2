@@ -8,7 +8,7 @@ import {D2_ROUTER, syncD2Achievements} from "../modules/D2.js";
 
 export const DISCORD_AUTH_ROUTER = express.Router()
 
-const REDIRECT_URI = "https://joemamadf7.jd-data.com:8050/discord/auth/authorised"
+const REDIRECT_URI = "https://crashbot.unholyandtwisted.com/discord/auth/authorised"
 
 DISCORD_AUTH_ROUTER.get("/login", async (req, res, next) => {
     try {
