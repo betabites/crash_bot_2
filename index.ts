@@ -643,18 +643,6 @@ process.on("unhandledRejection", (e) => {
     console.error(e)
 })
 
-client.on("messageDelete", msg => {
-    for (let attachment of msg.attachments) {
-        SafeQuery(`DELETE
-                   FROM dbo.Banners
-                   WHERE url = @url`, [{
-            name: "url",
-            type: mssql.TYPES.VarChar(200),
-            data: attachment[1].url
-        }])
-    }
-})
-
 
 // Setup
 async function setup() {
