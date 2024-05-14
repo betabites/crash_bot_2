@@ -142,7 +142,9 @@ export class GPTModule extends BaseModule {
                     })
                     try {
                         await conversation.sendToAI()
-                    } catch(e) {console.error(e)}
+                    } catch (e) {
+                        console.error(e)
+                    }
                     this.activeConversations.delete(msg.channelId)
                     conversation.reset()
                 }, 300000)
@@ -211,6 +213,37 @@ export class GPTModule extends BaseModule {
                 if (sample_size < 1 || sample_size > 1000) sample_size = 50
                 await interaction.deferReply()
                 let res = await SafeQuery(`
+                    WITH WordMaxSpeaker AS (SELECT word,
+                                                   discord_id,
+                                                   count,
+                                                   last_appeared,
+                                                   ROW_NUMBER() OVER (PARTITION BY word ORDER BY count DESC) AS RowNum
+                                            FROM CrashBot.dbo.WordsExperiment),
+
+                         WordTotalCount AS (SELECT word,
+                                                   SUM(count) AS TotalCount
+                                            FROM CrashBot.dbo.WordsExperiment
+                                            GROUP BY word)
+
+                    SELECT TOP ${(Math.floor(sample_size * 1.5))} WMS.word                                                     AS 'word',
+                                                                  WMS.count                                                    AS 'count',
+                                                                  WTC.TotalCount                                               AS 'totalCount',
+                                                                  CAST(WMS.count AS DECIMAL(10, 2)) / NULLIF(WTC.TotalCount, 0) AS percentage
+                    FROM WordMaxSpeaker AS WMS
+                             JOIN WordTotalCount AS WTC ON WMS.word = WTC.word
+                    WHERE RowNum <= 3
+                      AND discord_id = @discordid
+                      AND last_appeared >= DATEADD(MONTH, -3, GETDATE())
+                      AND WTC.TotalCount >= @totalcountcap
+                    ORDER BY Percentage DESC`, [
+                    {name: "discordid", type: mssql.TYPES.VarChar(100), data: (member.id || "")},
+                    {name: "totalcountcap", type: mssql.TYPES.Int(), data: 20}
+                ])
+                const max = sample_size < 50 ? sample_size : 50
+                for (let i = 0; i < 4; i++) {
+                    console.log(i, res.recordset.length)
+                    if (res.recordset.length >= max) break
+                    res = await SafeQuery(`
                         WITH WordMaxSpeaker AS (SELECT word,
                                                        discord_id,
                                                        count,
@@ -228,39 +261,10 @@ export class GPTModule extends BaseModule {
                                                                       CAST(WMS.count AS DECIMAL(5, 2)) / NULLIF(WTC.TotalCount, 0) AS percentage
                         FROM WordMaxSpeaker AS WMS
                                  JOIN WordTotalCount AS WTC ON WMS.word = WTC.word
-                        WHERE RowNum = 1
+                        WHERE RowNum <= 3
                           AND discord_id = @discordid
                           AND WTC.TotalCount >= @totalcountcap
                         ORDER BY Percentage DESC`, [
-                    {name: "discordid", type: mssql.TYPES.VarChar(100), data: (member.id || "")},
-                    {name: "totalcountcap", type: mssql.TYPES.Int(), data: 20}
-                ])
-                const max = sample_size < 50 ? sample_size : 50
-                for (let i = 0; i < 4; i++) {
-                    console.log(i, res.recordset.length)
-                    if (res.recordset.length >= max) break
-                    res = await SafeQuery(`
-                            WITH WordMaxSpeaker AS (SELECT word,
-                                                           discord_id,
-                                                           count,
-                                                           ROW_NUMBER() OVER (PARTITION BY word ORDER BY count DESC) AS RowNum
-                                                    FROM CrashBot.dbo.WordsExperiment),
-
-                                 WordTotalCount AS (SELECT word,
-                                                           SUM(count) AS TotalCount
-                                                    FROM CrashBot.dbo.WordsExperiment
-                                                    GROUP BY word)
-
-                            SELECT TOP ${(Math.floor(sample_size * 1.5))} WMS.word                                                     AS 'word',
-                                                                          WMS.count                                                    AS 'count',
-                                                                          WTC.TotalCount                                               AS 'totalCount',
-                                                                          CAST(WMS.count AS DECIMAL(5, 2)) / NULLIF(WTC.TotalCount, 0) AS percentage
-                            FROM WordMaxSpeaker AS WMS
-                                     JOIN WordTotalCount AS WTC ON WMS.word = WTC.word
-                            WHERE RowNum = 1
-                              AND discord_id = @discordid
-                              AND WTC.TotalCount >= @totalcountcap
-                            ORDER BY Percentage DESC`, [
                         {name: "discordid", type: mssql.TYPES.VarChar(100), data: (member.id || "")},
                         {name: "totalcountcap", type: mssql.TYPES.Int(), data: (3 - i) * 5}
                     ])
