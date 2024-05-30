@@ -214,7 +214,12 @@ export class SpeechModule extends BaseModule {
             })
         }
         void msg.delete()
-        void PointsModule.grantPoints(msg.member.id, 1, msg.channel, this.client)
+        void PointsModule.grantPointsWithInChannelResponse({
+            userDiscordId: msg.member.id,
+            points: 1,
+            responseChannel: msg.channel,
+            discordClient: this.client
+        })
     }
 
     private async alterMessage(msg: string, author: GuildMember): Promise<[string, null | Character]> {

@@ -54,6 +54,7 @@ import {getProfile} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {AchievementProgress, GAME_IDS} from "./GameAchievements.js";
 import mssql from "mssql";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
+import {mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing
@@ -74,6 +75,7 @@ const AUTO_MESSAGE_RESPONSE_EXCLUDE_TYPES = [
     DestinyItemType.Emote,
     DestinyItemType.Mod
 ]
+const MOBALYTICS_REGEX = /https:\/\/mobalytics\.gg\/destiny-2\/builds\/([^\/]+)\/[^\/]+\/([^\/]+)/g
 
 export const D2_ROUTER = express.Router()
 
@@ -179,6 +181,41 @@ export class D2Module extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async messageAutoResponses(msg: Message) {
+        let match
+        while (match = MOBALYTICS_REGEX.exec(msg.content)) {
+            try {
+                console.log(match)
+                let req = await fetch("https://mobalytics.gg/api-dst/v2/graphql/query", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        "operationName": "Destiny2BuildPageQuery",
+                        "variables": {"id": match[2], "class": match[1]},
+                        "query": "query Destiny2BuildPageQuery($id: ID!, $class: ID!) {\n  destiny {\n    page {\n      buildPage {\n        __typename\n        ... on DestinyBuildPage {\n          header\n          metadata {\n            ...PageMetaFragment\n            __typename\n          }\n          __typename\n        }\n      }\n      __typename\n    }\n    game {\n      builds(filter: {ids: [$id], classes: [$class], isArchived: true}) {\n        __typename\n        ... on DestinyBuildPagination {\n          __typename\n          builds {\n            name\n            screenshot\n            class {\n              __typename\n              ... on DestinyClass {\n                id\n                name\n                __typename\n              }\n            }\n            damageType {\n              __typename\n              ... on DestinyDamageType {\n                id\n                name\n                iconUrl\n                __typename\n              }\n            }\n            buildType {\n              __typename\n              ... on DestinyBuildType {\n                name\n                __typename\n              }\n            }\n            author {\n              __typename\n              ... on DestinyAuthor {\n                name\n                iconUrl\n                description\n                socialLinks {\n                  __typename\n                  ... on DestinyAuthorSocialLink {\n                    __typename\n                    link\n                    type {\n                      name\n                      id\n                      __typename\n                    }\n                  }\n                }\n                __typename\n              }\n            }\n            superItems {\n              __typename\n              ...BuildItemFragment\n            }\n            abilityItems {\n              __typename\n              ...BuildItemFragment\n            }\n            aspectItems {\n              __typename\n              ...BuildItemFragment\n            }\n            fragmentItems {\n              __typename\n              ...BuildItemFragment\n            }\n            headMods {\n              __typename\n              ...BuildItemFragment\n            }\n            armMods {\n              __typename\n              ...BuildItemFragment\n            }\n            chestMods {\n              __typename\n              ...BuildItemFragment\n            }\n            legsMods {\n              __typename\n              ...BuildItemFragment\n            }\n            classItems {\n              __typename\n              ...BuildItemFragment\n            }\n            artifactItems {\n              __typename\n              ...BuildItemFragment\n            }\n            statsPriority {\n              __typename\n              ... on DestinyPrioritizedStat {\n                priority\n                stat {\n                  __typename\n                  ... on DestinyStat {\n                    iconUrl\n                    __typename\n                  }\n                }\n                __typename\n              }\n            }\n            weapons {\n              __typename\n              ... on DestinyDescribedItem {\n                item {\n                  __typename\n                  ...ItemFragment\n                  ... on DestinyItem {\n                    itemTypeAndTierDisplayName\n                    __typename\n                  }\n                }\n                description\n                __typename\n              }\n            }\n            armor {\n              __typename\n              ...ItemFragment\n              ... on DestinyItem {\n                itemTypeAndTierDisplayName\n                __typename\n              }\n            }\n            armorDescription\n            howItWorksDescription\n            gameplayLoopDescription\n            video\n            __typename\n          }\n        }\n      }\n      __typename\n    }\n    __typename\n  }\n}\n\nfragment PageMetaFragment on DestinySeoMetaData {\n  title\n  ogImage\n  description\n  keywords\n  __typename\n}\n\nfragment BuildItemFragment on DestinyItem {\n  __typename\n  id\n  name\n  iconUrl\n}\n\nfragment ItemFragment on DestinyItem {\n  __typename\n  id\n  name\n  iconUrl\n  iconWatermarkUrl\n  rarity {\n    __typename\n    ... on DestinyRarity {\n      id\n      name\n      __typename\n    }\n  }\n}\n"
+                    })
+                })
+                let res = await req.json()
+                console.log(res.data.destiny.game.builds.builds)
+                let dimBuild = mobaltyicsToDIMLoadout(res.data.destiny.game.builds.builds[0])
+                msg.reply({
+                    content: "",
+                    embeds: [
+                        new EmbedBuilder()
+                            .setDescription(`[Open this loadout in DIM (BETA)](https://app.destinyitemmanager.com/4611686018512362465/d2/loadouts?loadout=${
+                                encodeURIComponent(JSON.stringify(dimBuild))
+                            })`)
+                    ]
+                }).then(msg => msg.removeAttachments())
+            } catch (e) {
+                console.error(e)
+            }
+        }
+        if (msg.content === "test") {
+            msg.reply(JSON.stringify(mobaltyicsToDIMLoadout()))
+            return
+        }
         if (!AUTO_RESPOND_CHANNELS.includes(msg.channelId)) return
 
         console.log(msg.content)
@@ -320,7 +357,7 @@ export class D2Module extends BaseModule {
                                 new ButtonBuilder()
                                     .setLabel("Login")
                                     .setStyle(ButtonStyle.Link)
-                                    .setURL("https://joemamadf7.jd-data.com:8050/destiny/login?discord_id=" + interaction.user.id)
+                                    .setURL("https://crashbot.unholyandtwisted.com/destiny/login?discord_id=" + interaction.user.id)
                             )
                     ]
                 })
@@ -380,14 +417,14 @@ export class D2Module extends BaseModule {
                     {
                         name: "Raid votes",
                         value: raids
-                            .sort((a, b) => {
-                                return (a.votes || 0) > (b.votes || 0) ? -1 : 1
-                            })
-                            .slice(0, 3)
-                            .map((raid, index) => {
-                                return (index + 1) + ". " + raid.originalDisplayProperties.name + " " + (raid.votes || 0) + "/" + totalVotes
-                            })
-                            .join("\n") +
+                                .sort((a, b) => {
+                                    return (a.votes || 0) > (b.votes || 0) ? -1 : 1
+                                })
+                                .slice(0, 3)
+                                .map((raid, index) => {
+                                    return (index + 1) + ". " + raid.originalDisplayProperties.name + " " + (raid.votes || 0) + "/" + totalVotes
+                                })
+                                .join("\n") +
                             "\n..."
                     }
                 ]),
@@ -648,10 +685,12 @@ export class D2Module extends BaseModule {
                 console.error(e)
                 interaction.editReply({
                     content: "oops! We couldn't find an item with that name."
-                }).catch(e => {})
+                }).catch(e => {
+                })
                 interaction.reply({
                     content: "oops! We couldn't find an item with that name."
-                }).catch(e => {})
+                }).catch(e => {
+                })
             })
     }
 
@@ -799,8 +838,9 @@ D2_ROUTER.get("/login", async (req, res, next) => {
 
         const params = new URLSearchParams()
         params.set("client_id", "44873")
-        params.set("redirect_uri", "https://joemamadf7.jd-data.com/destiny/authorised?" + redirect_params.toString())
+        params.set("redirect_uri", "https://crashbot.unholyandtwisted.com/destiny/authorised?" + redirect_params.toString())
         params.set("response_type", "code")
+        console.log(`https://www.bungie.net/en/OAuth/Authorize?${params.toString()}`)
         res.redirect(`https://www.bungie.net/en/OAuth/Authorize?${params.toString()}`)
     } catch (e) {
         next(e)
@@ -817,10 +857,11 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
         const params = new URLSearchParams()
         params.set("grant_type", "authorization_code")
         params.set("code", code)
-        params.set("redirect_uri", req.url)
+        params.set("redirect_uri", `https://crashbot.unholyandtwisted.com${req.baseUrl}${req.url.split("?")[0]}`)
         // params.set("client_id", "44873")
-        // params.set("client_secret", BUNGIENET_SECRET)
-        console.log(token_url)
+        params.set("client_id", "44873")
+        params.set("client_secret", process.env.BUNGIE_CLIENT_SECRET ?? "")
+        console.log(token_url, `https://crashbot.unholyandtwisted.com${req.baseUrl}${req.url.split("?")[0]}`)
         const response = await fetch(token_url, {
             method: "post",
             headers: {
@@ -860,7 +901,7 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
 
 
 function getNextRaidSessions() {
-    const defaultTime = [6, 0, 0, 0]
+    const defaultTime = [7, 0, 0, 0]
     const now = new Date()
     now.setHours(defaultTime[0])
     now.setMinutes(defaultTime[1])

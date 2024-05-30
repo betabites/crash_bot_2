@@ -1,4 +1,4 @@
-import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "../BaseModule.js";
 import {
     SlashCommandBooleanOption,
     SlashCommandBuilder,
@@ -19,18 +19,21 @@ import {
     MessageActionRowComponentBuilder,
     TextChannel
 } from "discord.js";
-import {getUserData} from "../utilities/getUserData.js";
-import SafeQuery, {sql} from "../services/SQL.js";
-import {updateScoreboard} from "../misc/updateScoreboard.js";
+import {getUserData} from "../../utilities/getUserData.js";
+import SafeQuery, {sql} from "../../services/SQL.js";
+import {updateScoreboard} from "../../misc/updateScoreboard.js";
 import mssql from "mssql";
-import RemoteStatusServer, {Connection as ServerConnection} from "./../misc/RemoteStatusServer.js";
-import {sendImpersonateMessage} from "../services/Discord.js";
+import RemoteStatusServer, {Connection as ServerConnection} from "../../misc/RemoteStatusServer.js";
+import {sendImpersonateMessage} from "../../services/Discord.js";
+import {PointsModule} from "../Points.js";
+import deathMessages from "./deathMessages.json" assert {type: "json"}
 
 RemoteStatusServer.io.on("connection", () => {
     console.log("Client connected")
 })
 
-const MC_CHAT_CHANNEL = "968298113427206195"
+// const MC_CHAT_CHANNEL = "968298113427206195"
+const MC_CHAT_CHANNEL = "892518396166569994"
 
 export class MinecraftModule extends BaseModule {
     commands = [
@@ -66,9 +69,11 @@ export class MinecraftModule extends BaseModule {
                     .setRequired(true)
             )
     ]
+    deathMessages: string[] = [...deathMessages]
 
     constructor(client: Client) {
         super(client);
+        this.configurePoints()
 
         client.channels.fetch(MC_CHAT_CHANNEL)
             .then(_channel => {
@@ -199,18 +204,27 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerDataUpdate", async player => {
-                    await SafeQuery(`UPDATE dbo.Users
-                                     SET mc_x   = @mcx,
-                                         mc_y   = @mcy,
-                                         mc_z   = @mcz,
-                                         mc_dim = @mcdim
-                                     WHERE mc_id = @mcid`, [
-                        {name: "mcx", type: mssql.TYPES.BigInt(), data: player.position[0]},
-                        {name: "mcy", type: mssql.TYPES.BigInt(), data: player.position[1]},
-                        {name: "mcz", type: mssql.TYPES.BigInt(), data: player.position[2]},
-                        {name: "mcdim", type: mssql.TYPES.VarChar(100), data: player.dimension},
-                        {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id},
-                    ])
+                    await SafeQuery(sql`UPDATE dbo.Users
+                                        SET mc_x                    = ${player.position[0]},
+                                            mc_y                    = ${player.position[1]},
+                                            mc_z                    = ${player.position[2]},
+                                            mc_dim                  = ${player.dimension},
+                                            mc_id                   = ${player.id},
+                                            mc_voiceConnectionGroup = ${player.voiceConnectionGroup || null}
+                                        WHERE mc_id = ${player.id}
+                    `)
+                    // await SafeQuery(`UPDATE dbo.Users
+                    //                  SET mc_x   = @mcx,
+                    //                      mc_y   = @mcy,
+                    //                      mc_z   = @mcz,
+                    //                      mc_dim = @mcdim
+                    //                  WHERE mc_id = @mcid`, [
+                    //     {name: "mcx", type: mssql.TYPES.BigInt(), data: player.position[0]},
+                    //     {name: "mcy", type: mssql.TYPES.BigInt(), data: player.position[1]},
+                    //     {name: "mcz", type: mssql.TYPES.BigInt(), data: player.position[2]},
+                    //     {name: "mcdim", type: mssql.TYPES.VarChar(100), data: player.dimension},
+                    //     {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id},
+                    // ])
                     await updateScoreboard()
 
                     // Update active terrotories
@@ -238,7 +252,7 @@ export class MinecraftModule extends BaseModule {
                                MT.ex,
                                MT.ey,
                                MT.ez,
-                               MT.[kill] AS 'kill',
+                               MT.[kill]        AS 'kill',
                                LOG.isInvasion
                         FROM MCTerritoriesLog AS LOG
                                  JOIN dbo.MCTerritories MT on LOG.territory_id = MT.id
@@ -307,7 +321,8 @@ export class MinecraftModule extends BaseModule {
                                     whitelist_entries.recordset.length === 0 && territory.blacklist_mode
                                 await SafeQuery(`INSERT INTO dbo.MCTerritoriesLog (territory_id, mc_id, x, y, z, isInvasion)
                                                  VALUES (${territory.id}, '${player.id}', ${player.position[0]},
-                                                         ${player.position[1]}, ${player.position[2]}, ${isFriendly ? 1 : 0});`, [])
+                                                         ${player.position[1]}, ${player.position[2]},
+                                                         ${isFriendly ? 1 : 0});`, [])
 
                                 if (isFriendly) {
                                     ServerConnection.broadcastCommand(`title ${player.username} actionbar ${JSON.stringify({
@@ -382,9 +397,34 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerDeath", (player) => {
-                    channel.send(player.username + " died (rip)")
+                    channel.send(player.username + " " + this.getRandomDeathMessage())
                 })
             })
+    }
+
+    getRandomDeathMessage() {
+        let index = Math.floor(Math.random() * this.deathMessages.length)
+        let message = this.deathMessages.splice(index, 1)[0]
+        if (this.deathMessages.length === 0) this.deathMessages = [...deathMessages]
+        return message
+    }
+
+    configurePoints() {
+        setInterval(async () => {
+            let allPlayersInACall = await SafeQuery<{ discord_id: string }>(sql`
+                SELECT discord_id
+                FROM Users
+                WHERE mc_voiceConnectionGroup IS NOT NULL AND mc_connected = TRUE
+                GROUP BY mc_voiceConnectionGroup
+                HAVING COUNT(*) >= 2`)
+            for (let player of allPlayersInACall.recordset) {
+                PointsModule.grantPointsWithDMResponse({
+                    discordClient: this.client,
+                    userDiscordId: player.discord_id,
+                    points: 1,
+                })
+            }
+        }, 300_000)
     }
 
     @OnClientEvent("messageCreate")
