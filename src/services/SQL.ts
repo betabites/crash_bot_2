@@ -4,7 +4,7 @@ import {deepStrictEqual} from "assert"
 import {surfaceFlatten} from "../utilities/surfaceFlatten.js";
 import dotenv from "dotenv";
 
-const {PreparedStatement, ConnectionPool, connect} = pkg;
+const {connect} = pkg;
 dotenv.config()
 const sql_config: config = {
     user: process.env["MSSQL_USERNAME"] ?? '',
