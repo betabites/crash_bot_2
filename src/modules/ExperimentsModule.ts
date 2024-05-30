@@ -21,6 +21,10 @@ import {client} from "../services/Discord.js";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 
+/**
+ * Class representing the ExperimentsModule.
+ * @extends BaseModule
+ */
 export class ExperimentsModule extends BaseModule {
     commands = [
         new SlashCommandBuilder()

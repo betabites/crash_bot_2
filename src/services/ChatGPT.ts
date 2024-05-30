@@ -24,12 +24,25 @@ type ConversationEvents = {
     onAIResponse: [ChatCompletionMessageParam]
 }
 
+/**
+ * Represents a conversation with an AI assistant.
+ * @extends EventEmitter
+ */
 export class AIConversation extends EventEmitter {
     private messages: ChatCompletionMessageParam[] = []
     private functions: RunnableToolFunction<any>[] = []
     readonly id: string
     private delayedSendTimer: NodeJS.Timeout | null = null
 
+    /**
+     * Creates an AIConversation instance using saved conversation data.
+     *
+     * @param {string} id - The ID of the conversation.
+     * @param {RunnableToolFunction<any>[]} [functions=[]] - An array of runnable tool functions to be used in the conversation.
+     * @param {string} [systemPrompt] - The system prompt to be added as the first message in the conversation.
+     *
+     * @returns {Promise<AIConversation>} - A Promise that resolves to an AIConversation instance.
+     */
     static async fromSaved(id: string, functions: RunnableToolFunction<any>[] = [], systemPrompt?: string) {
         let messages = await SafeQuery<{content: string}>(sql`SELECT content FROM AiConversationHistory WHERE conversation_id = ${id}`);
         let messages_parsed: ChatCompletionMessageParam[] = messages.recordset.map(record => JSON.parse(record.content))
@@ -46,6 +59,12 @@ export class AIConversation extends EventEmitter {
 
     get isNew() {return this.messages.length === 0}
 
+    /**
+     * Creates a new instance of AIConversation.
+     *
+     * @param {RunnableToolFunction[]} [functions=[]] - The list of functions to be executed.
+     * @returns {AIConversation} - The newly created instance of AIConversation.
+     */
     static new(functions: RunnableToolFunction<any>[] = []) {
         return new AIConversation([], functions, crypto.randomUUID())
     }

@@ -79,6 +79,9 @@ const MOBALYTICS_REGEX = /https:\/\/mobalytics\.gg\/destiny-2\/builds\/([^\/]+)\
 
 export const D2_ROUTER = express.Router()
 
+/**
+ * Represents a module for handling Destiny 2 related commands and functionality.
+ */
 export class D2Module extends BaseModule {
     readonly liveScheduleChannelID = "1049104983586517092"
     readonly liveScheduleID = "1188381813048094732"

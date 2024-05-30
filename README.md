@@ -4,6 +4,38 @@ Welcome to the Crash Bot source code!
 
 `Crash Bot` is Discord Bot software built with [discord.js](https://discord.js.org).
 
+## Setting up your dev enviroment
+
+To develop Crash Bot modules, you'll first need to setup an enviroment.
+
+1. First, create a folder on your machine and download the code from this repository into it.
+2. Once you've downloaded everything, you'll need to setup your enviroment variables. Create a file named `.env` in your
+   project's root directory, and paste the following template text into it:
+    ```dotenv
+    BUNGIE_API_KEY="NULL"
+
+    BUNGIE_CLIENT_ID="NULL"
+    BUNGIE_CLIENT_SECRET="NULL"
+
+    DISCORD_SECRET="NULL"
+    DISCORD_CLIENT_ID="NULL"
+
+    SPOTIFY_CLIENT_ID="NULL"
+    SPOTIFY_CLEINT_SECRET="NULL"
+
+    STEAM_API_KEY="NULL"
+    OPENAI_API_KEY="NULL"
+    ```
+
+3. You'll need to replace the values for `DISCORD_SECRET` and `DISCORD_CLIENT_ID` with actual values. The rest you can
+   leave as they are.
+    1. You can follow [this guide](https://www.writebots.com/discord-bot-token/) for instructions on how to create a
+       Discord bot account and obtain these.
+    2. Some services might throw errors until you enter an API key for them,
+4. Next, run `npm install` to install all dependencies.
+5. Now you're ready to go! Run `node index.js` to start up the Crash Bot framework!
+    1. You'll need to stop and re-run this command each time you make changes.
+
 ## Crash Bot Modules
 
 The different services that Crash Bot provides are spilt into modules. Each service that Crash Bot provides is split
@@ -13,8 +45,8 @@ Some modules do have some overlap. Such as the `Roleplay` and `GPT` modules, whe
 GPT services.
 
 Modules are built by first extending the BaseModule class.
-The base module class comes with decorators (@). You can use these decorators to listen to given Discord client events.
-These decorators are type-safe.
+This is because the BaseModule class comes with some utilities embedded in it, which are required for Crash Bot to
+function.
 
 ```typescript
 // MyFirstClass.ts
