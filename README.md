@@ -36,6 +36,26 @@ To develop Crash Bot modules, you'll first need to setup an enviroment.
 5. Now you're ready to go! Run `node index.js` to start up the Crash Bot framework!
     1. You'll need to stop and re-run this command each time you make changes.
 
+## Directories
+
+Each directory serves a unique(ish) purpose. Please note that contents of the assets directory are quite old and haven't
+been re-organised in awhile. These contents may be messy, and/or have files in the wrong locations.
+
+| Directory                | Purpose                                                                                            |
+|--------------------------|----------------------------------------------------------------------------------------------------|
+| /src                     | Contains all source code for Crash Bot                                                             |
+| /src/modules             | Contains the source code for Crash Bot modules. May also contain HTTP routes.                      |
+| /src/routes              | Contains the source code for Crash Bot HTTP routes, that aren't directly associated with a module. |
+| /src/services            | Contains services such as SQL and GPT that are used by other parts of the code                     |
+| /src/utilities           | Contains utility functions/scripts                                                                 |
+| /assets                  | Holds static assets that do not change, or change infrequently                                     |
+| /assets/destiny          | Contains static data about Destiny 2                                                               |
+| /assets/json             | Contains static JSON data                                                                          |
+| /assets/pack             | Contains assets relating to the Minecraft resource pack creator                                    |
+| /assets/ssl (deprecated) | Contains SSL and other web configuration                                                           |
+| /assets/throw            | Contains assets relating to the Crash Bot `throw` module                                           |
+
+
 ## Crash Bot Modules
 
 The different services that Crash Bot provides are spilt into modules. Each service that Crash Bot provides is split
