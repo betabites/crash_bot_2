@@ -33,8 +33,9 @@ To develop Crash Bot modules, you'll first need to setup an enviroment.
        Discord bot account and obtain these.
     2. Some services might throw errors until you enter an API key for them,
 4. Next, run `npm install` to install all dependencies.
-5. Now you're ready to go! Run `node index.js` to start up the Crash Bot framework!
-    1. You'll need to stop and re-run this command each time you make changes.
+5. Now you're ready to go! Run `npm run start-dev` to startup Crash Bot!
+    1. You'll need to re-run this each time you make a change. This command will perform any transpiling required, and
+       then run it.
 
 ## Directories
 
@@ -54,7 +55,6 @@ been re-organised in awhile. These contents may be messy, and/or have files in t
 | /assets/pack             | Contains assets relating to the Minecraft resource pack creator                                    |
 | /assets/ssl (deprecated) | Contains SSL and other web configuration                                                           |
 | /assets/throw            | Contains assets relating to the Crash Bot `throw` module                                           |
-
 
 ## Crash Bot Modules
 
