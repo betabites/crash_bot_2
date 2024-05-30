@@ -1,6 +1,6 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {ChatInputCommandInteraction, ClientEvents, GuildMember, Message, TextChannel, User} from "discord.js";
+import {Base, ChatInputCommandInteraction, ClientEvents, GuildMember, Message, TextChannel, User} from "discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
@@ -39,6 +39,10 @@ const SPEECH_ALT_CHARACTERS = {
     keesh: {
         name: "Keesh",
         avatar: "https://images.squarespace-cdn.com/content/v1/60477f6253b7b439babec327/aaf9b622-9ecc-47dd-825b-3b3287f17488/Lakewood+Advocate+Keesh+photo.jpeg"
+    },
+    taniks: {
+        name: "Taniks",
+        avatar: "https://wowvendor.com/app/uploads/2021/09/buy-taniks-boss-kill-boost-carry-service.jpg"
     }
 }
 const SPEECH_LEVEL_GATES: {
@@ -55,12 +59,14 @@ const SPEECH_LEVEL_GATES: {
     [SPEECH_MODES.GERMAN_CHEESE]: 10,
     [SPEECH_MODES.WHITE_TRASH_BREAD]: 13,
     [SPEECH_MODES.PEANUT_NUTTER]: 16,
-    [SPEECH_MODES.ALCOHOLIC_BUTTER]: 16
+    [SPEECH_MODES.ALCOHOLIC_BUTTER]: 16,
+    [SPEECH_MODES.TANIKS]: 16,
+    [SPEECH_MODES.SMART_TANIKS]: 18
 }
 
-type Character = {name: string, avatar: string}
+export type Character = {name: string, avatar: string}
 type SpeechListener = (originalEvent: ClientEvents["messageCreate"], replacementMessage: string, character: Character | null) => any
-const SpeechListeners = new Set<SpeechListener>()
+const SpeechListeners = new Map<BaseModule, SpeechListener[]>()
 
 export class SpeechModule extends BaseModule {
     commands = [
@@ -163,6 +169,14 @@ export class SpeechModule extends BaseModule {
                             {
                                 name: "Alcoholic Butter (Requires level 16)",
                                 value: SPEECH_MODES.ALCOHOLIC_BUTTER
+                            },
+                            {
+                                name: "Taniks (Requires level 16)",
+                                value: SPEECH_MODES.TANIKS
+                            },
+                            {
+                                name: "Smart Taniks (Requires level 18)",
+                                value: SPEECH_MODES.SMART_TANIKS
                             }
                         )
                         return opt
@@ -179,7 +193,11 @@ export class SpeechModule extends BaseModule {
             message = `> Replied to: https://discord.com/channels/${msg.reference.guildId}/${msg.reference.channelId}/${msg.reference.messageId}\n` + message
         }
         let [alteredMessage, character] = await this.alterMessage(message, msg.member)
-        if (alteredMessage.length === 0) return
+
+        if (!alteredMessage) {
+            this.emitAlteredMessageEvent(msg, msg.content, character)
+            return
+        }
 
         let channel = msg.channel as TextChannel
         if (character) {
@@ -220,6 +238,7 @@ export class SpeechModule extends BaseModule {
             responseChannel: msg.channel,
             discordClient: this.client
         })
+        this.emitAlteredMessageEvent(msg, alteredMessage, character)
     }
 
     private async alterMessage(msg: string, author: GuildMember): Promise<[string, null | Character]> {
@@ -447,6 +466,30 @@ export class SpeechModule extends BaseModule {
                     .join("")
                 character = SPEECH_ALT_CHARACTERS.keesh
                 break
+            case SPEECH_MODES.TANIKS:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage = msg
+                    .split(" ")
+                    .map((text, index) => index % 2 ? "taniks" : text)
+                    .join(" ")
+                character = SPEECH_ALT_CHARACTERS.taniks
+                break
+            case SPEECH_MODES.SMART_TANIKS:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound like a smart-arse: ${msg
+                        .split(" ")
+                        .map((text, index) => index % 2 ? "taniks" : text)
+                        .join(" ")}`)
+                ).text
+                character = SPEECH_ALT_CHARACTERS.taniks
+                break
             default:
                 return ["", null]
         }
@@ -461,12 +504,15 @@ export class SpeechModule extends BaseModule {
     }
 
     private emitAlteredMessageEvent(msg: Message, newMsg: string, character: Character | null) {
+        console.log("HERE!", SpeechListeners)
         for (let item of SpeechListeners) {
-            try {
-                item([msg], newMsg, character)
-            }
-            catch (e) {
-                console.error(e)
+            for (let listener of item[1]) {
+                try {
+                    listener.call(item[0], [msg], newMsg, character)
+                }
+                catch (e) {
+                    console.error(e)
+                }
             }
         }
     }
@@ -499,15 +545,20 @@ export class SpeechModule extends BaseModule {
     }
 }
 
-export function OnSpeechAdjustmentCompletion(thisArg?: BaseModule) {
+export function OnSpeechModeAdjustmentComplete(thisArg?: BaseModule) {
     function decorator(originalMethod: SpeechListener, context: ClassMethodDecoratorContext<BaseModule>) {
-        function replacementMethod(originalEvent: ClientEvents["messageCreate"], replacementMessage: string, character: Character | null) {
-            // console.log(thisArg)
-            return originalMethod.call(thisArg, originalEvent, replacementMessage, character)
-        }
-        SpeechListeners.add(replacementMethod)
+        context.addInitializer(function init(this: BaseModule) {
+            console.log("Binding element", this)
 
-        return replacementMethod
+            let existingListeners = SpeechListeners.get(this)
+            if (existingListeners) {
+                SpeechListeners.set(this, [...existingListeners, originalMethod])
+            } else {
+                SpeechListeners.set(this, [originalMethod])
+            }
+        })
+
+        return originalMethod
     }
 
     return decorator

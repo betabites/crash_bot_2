@@ -25,7 +25,9 @@ export enum SPEECH_MODES {
     BUTTER,
     SHAGGY,
     JAM,
-    KEESH
+    KEESH,
+    TANIKS,
+    SMART_TANIKS
 }
 
 export async function getUserData(member: GuildMember | string): Promise<{

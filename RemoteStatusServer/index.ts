@@ -1,7 +1,8 @@
 import * as http from "http";
-import {Server, Socket} from "socket.io";
+import {Namespace, Server, Socket} from "socket.io";
 import {EventEmitter} from 'node:events';
 import * as crypto from "crypto";
+import {IO} from "../src/misc/getHttpServer.js";
 
 interface MinecraftPlayerData {
     username: string,
@@ -74,16 +75,15 @@ interface IncomingAdvancementMessage extends IncomingMessage {
 }
 
 export default class RemoteStatusServer extends EventEmitter {
-    readonly server
-    readonly io
+    readonly io: Namespace | Server
     private readonly aesKey
     private server_connections: any = {}
 
-    constructor(encryptionKey: string, verification_keys: string[], port: number = 6028) {
+    constructor(encryptionKey: string, verification_keys: string[]) {
         super()
 
-        this.server = http.createServer()
-        this.io = new Server(this.server)
+        this.io = IO.of('/remote-status-server')
+        // this.io = IO
         this.aesKey = Buffer.from(encryptionKey, "base64")
 
         this.encrypt.bind(this)
@@ -123,8 +123,6 @@ export default class RemoteStatusServer extends EventEmitter {
                 }
             })
         })
-
-        this.server.listen(port)
     }
 
     private decrypt(string: string) {

@@ -31,6 +31,7 @@
     "sqlite3": "^5.1.6",
     "steamapi": "^3.0.8",
     "typescript": "^5.3.2",
+    "uuid": "^9.0.1",
     "ws": "^8.14.2",
     "youtube-dl-exec": "^2.4.17",
     "yt-search": "^2.10.4",
@@ -48,6 +49,7 @@
   "main": "index.js",
   "autorestart": false,
   "devDependencies": {
+    "@destinyitemmanager/dim-api-types": "^1.31.0",
     "@types/archiver": "^5.3.4",
     "@types/cookie-parser": "^1.4.6",
     "@types/express-fileupload": "^1.4.4",
@@ -55,6 +57,7 @@
     "@types/ftp": "^0.3.36",
     "@types/mssql": "^8.1.2",
     "@types/node-schedule": "^2.1.7",
+    "@types/uuid": "^9.0.8",
     "@types/yt-search": "^2.10.3"
   }
 }

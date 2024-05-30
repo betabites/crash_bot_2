@@ -3,7 +3,7 @@ import {getDestinyManifest} from "bungie-net-core/lib/endpoints/Destiny2/index.j
 import {BasicBungieClient} from "bungie-net-core/lib/client.js";
 import {
     DestinyActivityDefinition, DestinyDestinationDefinition,
-    DestinyInventoryItemDefinition,
+    DestinyInventoryItemDefinition, DestinySocketTypeDefinition,
     DestinyStatDefinition,
     DestinyVendorDefinition
 } from "bungie-net-core/lib/models/index.js";
@@ -65,13 +65,14 @@ type SQLParameter = string | number | Date | null | boolean
 type SQLParameterWithArray = SQLParameter | SQLParameterWithArray[]
 type SQLQueryObject = { query: string, params: SQLParameter[] }
 
-function parseArgument(arg: SQLParameterWithArray): {values: SQLParameter[], string: string} {
+function parseArgument(arg: SQLParameterWithArray): { values: SQLParameter[], string: string } {
     if (Array.isArray(arg)) {
         let items = arg.map(i => parseArgument(i))
         let values = surfaceFlatten(items.map(i => i.values))
         let string = "(" + values.map(i => "?").join(", ") + ")"
         return {values, string}
-    } else {
+    }
+    else {
         return {
             values: [arg],
             string: "?"
@@ -156,6 +157,13 @@ export const MANIFEST_SEARCH = {
             return MANIFEST_SEARCH.customParseJSON<DestinyInventoryItemDefinition>(sqlite`SELECT *
                                                                                           FROM "DestinyInventoryItemDefinition"
                                                                                           WHERE json_extract(json, "$.hash") IN ${hash}`)
+        },
+        bySocketType(hash: number[]) {
+            return MANIFEST_SEARCH.customParseJSON<DestinyInventoryItemDefinition>(sqlite`SELECT *
+                                                                                       FROM DestinyInventoryItemDefinition,
+                                                                                            json_each(json_extract(DestinyInventoryItemDefinition.json, '$.sockets.socketEntries')) as json_data
+                                                                                       WHERE json_extract(json_data.value, '$.socketTypeHash') IN ${hash}
+            `)
         }
     },
 
@@ -249,11 +257,27 @@ export const MANIFEST_SEARCH = {
         }
     },
 
+    socketTypeDefintions: {
+        byHash(hash: number[]) {
+            return MANIFEST_SEARCH.customParseJSON<DestinySocketTypeDefinition>(sqlite`SELECT json
+                                                                                       FROM DestinySocketTypeDefinition
+                                                                                       WHERE json_extract(json, '$.hash') IN ${hash}
+            `)
+        },
+        byPlugWhitelist(hash: number[]) {
+            return MANIFEST_SEARCH.customParseJSON<DestinySocketTypeDefinition>(sqlite`SELECT DestinySocketTypeDefinition.json
+                                                                                       FROM DestinySocketTypeDefinition,
+                                                                                            json_each(json_extract(DestinySocketTypeDefinition.json, '$.plugWhitelist')) as json_data
+                                                                                       WHERE json_extract(json_data.value, '$.categoryHash') IN ${hash}
+            `)
+        }
+    },
+
     destinations: {
         byHash(hash: number[]) {
             return MANIFEST_SEARCH.customParseJSON<DestinyDestinationDefinition>(sqlite`SELECT *
-                                                                                          FROM "DestinyDestinationDefinition"
-                                                                                          WHERE json_extract(json, "$.hash") IN ${hash}`)
+                                                                                        FROM "DestinyDestinationDefinition"
+                                                                                        WHERE json_extract(json, "$.hash") IN ${hash}`)
         }
     },
 }

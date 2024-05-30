@@ -54,7 +54,7 @@ import {getProfile} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {AchievementProgress, GAME_IDS} from "./GameAchievements.js";
 import mssql from "mssql";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
-import {mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
+import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing
@@ -198,7 +198,8 @@ export class D2Module extends BaseModule {
                 })
                 let res = await req.json()
                 console.log(res.data.destiny.game.builds.builds)
-                let dimBuild = mobaltyicsToDIMLoadout(res.data.destiny.game.builds.builds[0])
+                let build = DESTINY_BUILD_SCHEMA.parse(res.data.destiny.game.builds.builds[0])
+                let dimBuild = await mobaltyicsToDIMLoadout(build)
                 msg.reply({
                     content: "",
                     embeds: [
@@ -212,10 +213,10 @@ export class D2Module extends BaseModule {
                 console.error(e)
             }
         }
-        if (msg.content === "test") {
-            msg.reply(JSON.stringify(mobaltyicsToDIMLoadout()))
-            return
-        }
+        // if (msg.content === "test") {
+        //     msg.reply(JSON.stringify(mobaltyicsToDIMLoadout()))
+        //     return
+        // }
         if (!AUTO_RESPOND_CHANNELS.includes(msg.channelId)) return
 
         console.log(msg.content)

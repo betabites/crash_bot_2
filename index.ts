@@ -56,6 +56,8 @@ import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
 import {SpeechModule} from "./src/modules/Speech.js";
 import {PointsModule} from "./src/modules/Points.js";
 import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
+import RemoteStatusServer from "./src/misc/RemoteStatusServer.js";
+import {EXPRESS_APP, HTTP_SERVER, HTTPS_SERVER, IO} from "./src/misc/getHttpServer.js";
 
 const moduleClasses = [
     D2Module,
@@ -85,23 +87,18 @@ setInterval(async () => {
     }
     await SafeQuery("DELETE FROM dbo.Webhook WHERE timeout < GETDATE()", [])
 }, 60000)
+let wss: any = {}
 
-let app = express()
-let httpServer = http.createServer(app).listen(8051)
-let httpsServer = https.createServer({
-    key: fs.readFileSync(path.resolve("./") + "/assets/ssl/privkey.pem"),
-    cert: fs.readFileSync(path.resolve("./") + "/assets/ssl/fullchain.pem")
-}, app).listen(8050)
 // enable files upload
-app.use(fileUpload({
+EXPRESS_APP.use(fileUpload({
     createParentPath: true,
     useTempFiles: true,
     limits: {fileSize: 50 * 1024 * 1024}
 }));
 
-app.use(express.static("web"))
+EXPRESS_APP.use(express.static("web"))
 
-app.get("/home/:key", async (req, res) => {
+EXPRESS_APP.get("/home/:key", async (req, res) => {
     let html
     if (await CrashBotUser.CheckKey(req.params.key)) {
         let user = new CrashBotUser(req.params.key)
@@ -117,7 +114,7 @@ app.get("/home/:key", async (req, res) => {
     res.send(html)
 })
 
-app.post("/", async (req, res) => {
+EXPRESS_APP.post("/", async (req, res) => {
     // console.log("picked up a post")
     // console.log(req.files)
     console.log("Broadcasting change...")
@@ -261,7 +258,7 @@ app.post("/", async (req, res) => {
     }
 })
 
-app.post("/reset", async (req, res) => {
+EXPRESS_APP.post("/reset", async (req, res) => {
     // console.log("picked up a post")
     // console.log(req.files)
 
@@ -319,7 +316,7 @@ app.post("/reset", async (req, res) => {
     res.send("OK!")
 })
 
-app.post("/newthrow", async (req, res) => {
+EXPRESS_APP.post("/newthrow", async (req, res) => {
     try {
         let player = new CrashBotUser(req.body.key)
         await player.get()
@@ -376,14 +373,14 @@ app.post("/newthrow", async (req, res) => {
     }
 })
 
-app.get("/list", (req, res) => {
+EXPRESS_APP.get("/list", (req, res) => {
     res.set({
         'Content-Type': 'application/json'
     });
     res.send(JSON.stringify(dirTree(path.resolve("./") + "/assets/pack")))
 })
 
-app.get("/assets/search", (req, res) => {
+EXPRESS_APP.get("/assets/search", (req, res) => {
     res.set({
         'Content-Type': 'application/json'
     });
@@ -394,7 +391,7 @@ app.get("/assets/search", (req, res) => {
     ))
 })
 
-app.get("/lol.zip", async (req, res) => {
+EXPRESS_APP.get("/lol.zip", async (req, res) => {
     let name = Math.floor(Math.random() * 100000000).toString() + "_lol.zip"
     console.log(name)
     await buildPack(name, res)
@@ -408,7 +405,7 @@ app.get("/lol.zip", async (req, res) => {
     // })
 })
 
-app.get("/assets/*", (req, res) => {
+EXPRESS_APP.get("/assets/*", (req, res) => {
     if (req.url.endsWith(".mp3")) {
         console.log("Live converting mp3...")
         console.log(req.headers)
@@ -493,7 +490,7 @@ app.get("/assets/*", (req, res) => {
     }
 })
 
-app.get("/web_assets/*", (req, res) => {
+EXPRESS_APP.get("/web_assets/*", (req, res) => {
     try {
         res.sendFile(path.resolve("./") + "/assets/html/web_assets" + req.url.replace("/web_assets", ""))
     } catch (e) {
@@ -501,22 +498,20 @@ app.get("/web_assets/*", (req, res) => {
     }
 })
 
-app.get("/favicon.ico", (req, res) => {
+EXPRESS_APP.get("/favicon.ico", (req, res) => {
     res.sendFile(path.resolve("./") + "/assets/favicon.ico")
 })
 
-app.post("/vote/:id", (req, res) => {
+EXPRESS_APP.post("/vote/:id", (req, res) => {
 
 })
 
-app.use("/packs", PACK_ROUTER)
-app.use("/destiny", D2_ROUTER)
-app.use("/achievements", ACHIEVEMENTS_ROUTER)
-app.use("/memories", MEMORIES_ROUTER)
-app.use("/discord/auth", DISCORD_AUTH_ROUTER)
-app.use("/voice", VOICE_ROUTER)
-
-let wss = new WSS(httpServer, httpsServer)
+EXPRESS_APP.use("/packs", PACK_ROUTER)
+EXPRESS_APP.use("/destiny", D2_ROUTER)
+EXPRESS_APP.use("/achievements", ACHIEVEMENTS_ROUTER)
+EXPRESS_APP.use("/memories", MEMORIES_ROUTER)
+EXPRESS_APP.use("/discord/auth", DISCORD_AUTH_ROUTER)
+EXPRESS_APP.use("/voice", VOICE_ROUTER)
 
 client.on("ready", async () => {
     if (!client.application) throw new Error("Client does not have an associated application object. This is required.")

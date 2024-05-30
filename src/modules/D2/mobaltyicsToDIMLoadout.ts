@@ -1,3 +1,8 @@
+import {z} from "zod";
+import {MANIFEST_SEARCH, sqlite} from "./DestinyManifestDatabase.js";
+import { type Loadout as DIMLoadout } from "@destinyitemmanager/dim-api-types"
+import { v4 as uuidv4 } from "uuid"
+
 const test = {
     "data": {
         "destiny": {
@@ -368,16 +373,6 @@ const test = {
     }
 }
 
-interface DIMLoadout {
-    clearSpace: boolean,
-    unequipped: [],
-    id?: string,
-    name: string,
-    classType: number,
-    parameters: DIMLoadoutParameters
-    equipped: DIMLoadoutEquipped[]
-}
-
 interface DIMLoadoutParameters {
     artifactUnlocks: {
         unlockedItemHashes: string[]
@@ -396,49 +391,171 @@ interface DIMLoadoutEquipped {
 
 const classes = ["titan", "hunter", "warlock", "unknown"]
 
-export function mobaltyicsToDIMLoadout(build = test.data.destiny.game.builds.builds[0]) {
+// Links known supers (such as Well of Radiance) to their respective subclass
+const KNOWN_SUBCLASSES = {
+
+}
+
+const DESTINY_ITEM_SCHEMA = z.object({
+    id: z.string(),
+    name: z.string(),
+    iconUrl: z.string(),
+    iconWatermarkUrl: z.string().optional(),
+    rarity: z.object({
+        id: z.string(),
+        name: z.string()
+    }).optional(),
+    itemTypeAndTierDisplayName: z.string().optional()
+})
+export const DESTINY_BUILD_SCHEMA = z.object({
+    name: z.string(),
+    screenshot: z.string(),
+    class: z.object({
+        id: z.enum(["warlock", "titan", "hunter"]),
+        name: z.enum(["Warlock", "Titan", "Hunter"])
+    }),
+    damageType: z.object({
+        id: z.string(),
+        name: z.string(),
+        iconUrl: z.string()
+    }),
+    buildType: z.object({
+        name: z.string()
+    }),
+    author: z.object({
+        name: z.string(),
+        iconUrl: z.string(),
+        description: z.string(),
+        socialLinks: z.array(z.object({
+            link: z.string(),
+            type: z.object({
+                name: z.string(),
+                id: z.string()
+            })
+        }))
+    }),
+    superItems: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    abilityItems: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    aspectItems: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    fragmentItems: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    headMods: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    armMods: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    chestMods: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    legsMods: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    classItems: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    artifactItems: z.array(DESTINY_ITEM_SCHEMA).nullable(),
+    statsPriority: z.array(z.object({
+        priority: z.number(),
+        stat: z.object({
+            iconUrl: z.string()
+        })
+    })),
+    weapons: z.array(z.object({
+        item: z.object({
+            id: z.string(),
+            name: z.string(),
+            iconUrl: z.string(),
+            iconWatermarkUrl: z.string(),
+            rarity: z.object({
+                id: z.string(),
+                name: z.string()
+            }),
+            itemTypeAndTierDisplayName: z.string()
+        }),
+        description: z.string()
+    })),
+    armor: DESTINY_ITEM_SCHEMA,
+    armorDescription: z.string(),
+    howItWorksDescription: z.string(),
+    gameplayLoopDescription: z.string(),
+    video: z.string()
+})
+
+async function fetchSubClassFromSuper(superItemHashID: number) {
+    let [superItemData] = await MANIFEST_SEARCH.items.byHash([superItemHashID])
+    if (!superItemData.plug) return null
+    let [socketTypeDefinition] = await MANIFEST_SEARCH.socketTypeDefintions.byPlugWhitelist([
+        superItemData.plug.plugCategoryHash
+    ])
+    let [subclassData] = await MANIFEST_SEARCH.items.bySocketType([socketTypeDefinition.hash])
+    return subclassData
+    // Read and search for the plug
+}
+
+export async function mobaltyicsToDIMLoadout(build: z.infer<typeof DESTINY_BUILD_SCHEMA>) {
+    console.log(build.class.id)
     const dimLoadoutTemplate: DIMLoadout = {
+        id: uuidv4(),
         "clearSpace": false,
         "unequipped": [],
         "name": `Loadout:+${build.name}`,
         "classType": classes.indexOf(build.class.id),
         "parameters": {
             "artifactUnlocks": {
+                seasonNumber: 23,
                 "unlockedItemHashes": [
-                    ...build.artifactItems.map(i => extractItemID(i.id))
+                    ...build.artifactItems?.map(i => extractItemID(i.id)) ?? []
                 ]
             },
             "autoStatMods": true,
             "mods": [
-                ...build.headMods.map(i => extractItemID(i.id)),
-                ...build.armMods.map(i => extractItemID(i.id)),
-                ...build.chestMods.map(i => extractItemID(i.id)),
-                ...build.legsMods.map(i => extractItemID(i.id)),
-                ...build.classItems.map(i => extractItemID(i.id)),
+                ...build.headMods?.map(i => extractItemID(i.id)) ?? [],
+                ...build.armMods?.map(i => extractItemID(i.id)) ?? [],
+                ...build.chestMods?.map(i => extractItemID(i.id)) ?? [],
+                ...build.legsMods?.map(i => extractItemID(i.id)) ?? [],
+                ...build.classItems?.map(i => extractItemID(i.id)) ?? [],
             ]
         },
         "equipped": [
             ...build.weapons.map(i => ({
                 hash: extractItemID(i.item.id)
             })), // WEAPONS
-            ...build.superItems.map(i => ({
-                hash: extractItemID(i.id),
-                socketOverrides: [
-                    ...build.abilityItems,
-                    ...build.fragmentItems,
-                    ...build.abilityItems
-                ].reduce((acc, curr, index) => {
-                    return {...acc, [index]: extractItemID(curr.id)}
-                }, {})
-            })), // SUPER
             {
                 hash: extractItemID(build.armor.id)
             },
         ]
     }
+    if (build.superItems) {
+        for (let item of build.superItems) {
+            let superData = await fetchSubClassFromSuper(parseInt(build.superItems[0].id))
+            if (!superData) continue
+
+            let socketOverridesRaw = await MANIFEST_SEARCH.items.byHash([
+                ...build.abilityItems ?? [],
+                item,
+                ...build.fragmentItems ?? [],
+                ...build.abilityItems ?? []
+            ].map(i => extractItemID(i.id)))
+
+            let sockets = superData.sockets?.socketEntries ?? []
+            let socketOverrides: {[key: string]: number} = {}
+
+            let socketTypes = await MANIFEST_SEARCH.socketTypeDefintions.byHash(sockets.map(socket => socket.socketTypeHash))
+
+            for (let i in sockets) {
+                let socketType = socketTypes.find(
+                    t => t.hash === sockets[i].socketTypeHash
+                )
+                if (!socketType) continue
+
+                let suitableItem = socketOverridesRaw.find(item =>
+                    socketType.plugWhitelist.find(plug => item.plug?.plugCategoryHash === plug.categoryHash)
+                )
+                if (!suitableItem) continue
+
+                socketOverrides[i] = suitableItem.hash
+                socketOverridesRaw.splice(socketOverridesRaw.indexOf(suitableItem), 1)
+            }
+
+            dimLoadoutTemplate.equipped.push({
+                hash: extractItemID(superData.hash.toString()),
+                socketOverrides
+            })
+        }
+    }
     return dimLoadoutTemplate
 }
 
 function extractItemID(id: string) {
-    return id.replace(/[^0-9]/g, "")
+    return parseInt(id.replace(/[^0-9]/g, ""))
 }

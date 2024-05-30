@@ -27,13 +27,14 @@ import RemoteStatusServer, {Connection as ServerConnection} from "../../misc/Rem
 import {sendImpersonateMessage} from "../../services/Discord.js";
 import {PointsModule} from "../Points.js";
 import deathMessages from "./deathMessages.json" assert {type: "json"}
+import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.js";
 
 RemoteStatusServer.io.on("connection", () => {
     console.log("Client connected")
 })
 
 // const MC_CHAT_CHANNEL = "968298113427206195"
-const MC_CHAT_CHANNEL = "892518396166569994"
+const MC_CHAT_CHANNEL = "968298113427206195"
 
 export class MinecraftModule extends BaseModule {
     commands = [
@@ -381,7 +382,6 @@ export class MinecraftModule extends BaseModule {
                                     .setLabel("This is me. Link my account.")
                                     .setStyle(ButtonStyle.Secondary)
                             )
-
                         channel.send({content: ' ', embeds: [embed], components: [row]})
                     }
                     else {
@@ -392,12 +392,47 @@ export class MinecraftModule extends BaseModule {
                             name: `${player.username} just earned [${advancement.display.title}]`,
                             iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32}) || ""
                         })
+                        PointsModule.grantPoints({
+                            userDiscordId: member.id,
+                            points: 1,
+                        })
                         channel.send({content: ' ', embeds: [embed]})
                     }
                 })
 
-                ServerConnection.on("playerDeath", (player) => {
-                    channel.send(player.username + " " + this.getRandomDeathMessage())
+                ServerConnection.on("playerDeath", async (player) => {
+                    let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
+                        {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
+                    ])
+                    SafeQuery(`UPDATE dbo.Users
+                               SET mc_connected = 0
+                               WHERE mc_id = @mcid`, [
+                        {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
+                    ])
+
+                    if (data.recordset.length === 0) {
+                        channel.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setAuthor({
+                                        name: player.username + " " + this.getRandomDeathMessage(),
+                                    })
+                            ]
+                        })
+                    }
+                    else {
+                        let member = await channel.guild.members.fetch(data.recordset[0].discord_id)
+
+                        channel.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setAuthor({
+                                        name: player.username + " " + this.getRandomDeathMessage(),
+                                        iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32}) || ""
+                                    })
+                            ]
+                        })
+                    }
                 })
             })
     }
@@ -414,7 +449,7 @@ export class MinecraftModule extends BaseModule {
             let allPlayersInACall = await SafeQuery<{ discord_id: string }>(sql`
                 SELECT discord_id
                 FROM Users
-                WHERE mc_voiceConnectionGroup IS NOT NULL AND mc_connected = TRUE
+                WHERE mc_voiceConnectionGroup IS NOT NULL AND mc_connected = 1
                 GROUP BY mc_voiceConnectionGroup
                 HAVING COUNT(*) >= 2`)
             for (let player of allPlayersInACall.recordset) {
@@ -427,34 +462,9 @@ export class MinecraftModule extends BaseModule {
         }, 300_000)
     }
 
-    @OnClientEvent("messageCreate")
-    onDiscordMessage(msg: Message) {
-        // if (msg.channel.id === MC_CHAT_CHANNEL && msg.author.bot === false) {
-        //     let content: any[] = ["", {
-        //         text: "["
-        //     }, {
-        //         text: msg.member?.user.username || "Unknown user",
-        //         color: msg.member?.displayHexColor || "#fff"
-        //     }, {
-        //         text: "] (via Discord) " + msg.content
-        //     }]
-        //     if (msg.attachments.size > 0) {
-        //         for (let attachment of msg.attachments) {
-        //             content.push({
-        //                 text: " - " + attachment[1].name,
-        //                 color: "blue",
-        //                 clickEvent: {
-        //                     action: "open_url",
-        //                     value: attachment[1].url
-        //                 }
-        //             })
-        //             attachment[1].name
-        //         }
-        //     }
-        //     // mcServer.sendCommand("tellraw @a " + JSON.stringify(content))
-        // }
-
-        if (msg.channel.id === MC_CHAT_CHANNEL && !msg.author.bot) {
+    @OnSpeechModeAdjustmentComplete()
+    onDiscordMessage([msg]: [Message], messageContent: string, character: Character | null) {
+        if (msg.channel.id === MC_CHAT_CHANNEL && msg.content && !msg.webhookId) {
             let guild = msg.guild as Guild
             if (!guild) throw "Unknown Guild"
             let message = msg.content
@@ -487,7 +497,12 @@ export class MinecraftModule extends BaseModule {
                 })
                 .replaceAll("@", "")
                 .replaceAll("\"", "\\\"")
-            RemoteStatusServer.broadcastCommand(`tellraw @a ["",{"text":"[${msg.member?.nickname || msg.member?.user.username} via Discord]","color":"${msg.member?.displayHexColor}"},{"text":" ${message}"}]`)
+            let postfix = character ? "as " + character.name : "via Discord"
+            RemoteStatusServer.broadcastCommand(`tellraw @a ${JSON.stringify([
+                "",
+                {text: `[${msg.member?.nickname || msg.member?.user.username} ${postfix}]`, color: msg.member?.displayHexColor},
+                {text: " " + messageContent}
+            ])}`)
         }
     }
 

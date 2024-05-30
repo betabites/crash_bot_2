@@ -10,7 +10,7 @@ import Discord, {
     TextChannel
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
-import SafeQuery from "../services/SQL.js";
+import SafeQuery, {sql} from "../services/SQL.js";
 import mssql from "mssql";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {ShuffleArray} from "../misc/Common.js";
@@ -174,6 +174,14 @@ export class ExperimentsModule extends BaseModule {
                             }
                         })
                 })
+        }
+        else if (msg.content.toLowerCase() === "how many words have i spoken?") {
+            let words = await SafeQuery<{word_count: number}>(sql`SELECT COUNT(word) AS 'word_count' FROM WordsExperiment WHERE discord_id=${msg.author.id}`)
+            let embed = new EmbedBuilder()
+            embed.setTitle("You've said...")
+            embed.setDescription(`While having the words experiment enabled, and being in this server, you've said \`${words.recordset[0].word_count}\` words`)
+            embed.setFooter({text: "Crash Bot words experiment"})
+            msg.reply({content: " ", embeds: [embed]})
         }
         else if (msg.content.toLowerCase().replace(/[^a-z]/g, '') === "whatisourserverscatchphrase") {
             getUserData(msg.member as GuildMember)
