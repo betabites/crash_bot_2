@@ -1,6 +1,6 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {ChatInputCommandInteraction, GuildMember, Message, TextChannel} from "discord.js";
+import {ChatInputCommandInteraction, ClientEvents, GuildMember, Message, TextChannel, User} from "discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
@@ -8,6 +8,7 @@ import openai from "../services/ChatGPT.js";
 import bad_baby_words from "../../badwords.json" assert {type: "json"};
 import {sendImpersonateMessage} from "../services/Discord.js";
 import {PointsModule} from "./Points.js";
+import * as repl from "node:repl";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 const SPEECH_ALT_CHARACTERS = {
@@ -56,6 +57,10 @@ const SPEECH_LEVEL_GATES: {
     [SPEECH_MODES.PEANUT_NUTTER]: 16,
     [SPEECH_MODES.ALCOHOLIC_BUTTER]: 16
 }
+
+type Character = {name: string, avatar: string}
+type SpeechListener = (originalEvent: ClientEvents["messageCreate"], replacementMessage: string, character: Character | null) => any
+const SpeechListeners = new Set<SpeechListener>()
 
 export class SpeechModule extends BaseModule {
     commands = [
@@ -166,247 +171,16 @@ export class SpeechModule extends BaseModule {
     ]
 
     @OnClientEvent("messageCreate")
-    async onMessage(msg: Message) {
+    private async onMessage(msg: Message) {
         if (!msg.member || msg.author.bot) return
-        if (msg.content.startsWith("b - ")) return
-
-        const userData = await getUserData(msg.member as GuildMember)
-        const speechMode = userData.speech_mode;
-        let character:
-            null |
-            {
-                name: string,
-                avatar: string
-            }
-            = null
-        let alteredMessage = ""
+        let message = msg.content
 
         if (msg.reference) {
-            alteredMessage += `> Replied to: https://discord.com/channels/${msg.reference.guildId}/${msg.reference.channelId}/${msg.reference.messageId}\n`
+            message = `> Replied to: https://discord.com/channels/${msg.reference.guildId}/${msg.reference.channelId}/${msg.reference.messageId}\n` + message
         }
+        let [alteredMessage, character] = await this.alterMessage(message, msg.member)
+        if (alteredMessage.length === 0) return
 
-        console.log(speechMode)
-        switch (speechMode) {
-            case SPEECH_MODES.NORMAL:
-                return
-            case SPEECH_MODES.BABY_SPEAK:
-                // Talk like a 5-year-old
-
-                let _words = msg.content.split(" ")
-
-                for (let i in _words) {
-                    if (_words[i].startsWith("http") || _words[i].startsWith("<") || _words[i].startsWith(">") || _words[i].startsWith("`")) continue
-                    if (_words[i] in bad_baby_words.words) _words[i] = "dumb"
-                    // @ts-ignore
-                    if (Math.random() < .1) _words[i] = randomWords(1)[0]
-
-                    let letters = _words[i].split("")
-                    for (let r in letters) {
-                        if (Math.random() < .1) letters[r] = baby_alphabet[Math.floor(Math.random() * baby_alphabet.length)]
-                    }
-                    _words[i] = letters.join("")
-                    console.log(_words[i])
-                }
-
-                if (Math.random() < .1) {
-                    _words = ([] as string[]).concat(_words.map(word => word.toUpperCase()), ["\n", "sorry.", "I", "left", "caps", "lock", "on"])
-                }
-                alteredMessage += _words.join(' ')
-                break
-            case SPEECH_MODES.SIMPLETON:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (await openai.sendMessage(`Simplify this message so that it uses as few words as possible. Make it as simple and short as possible and avoid long words at all costs. Even if removing detail. Text speech and emojis may be used: ${msg.content}`)).text
-                break
-            case SPEECH_MODES.SMART_ASS:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like a smart-arse: ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.COLOURFUL:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound more colourful: ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.LISP:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like I have a lisp: ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.FURRY:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like a furry: ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.KIWI:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message using Kiwi slang. Make sure to excessively use 'yeah nah': ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.LINUX_CHAD:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that everything I say overly communicates how much I love Linux, and hate everything else: ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.SWIFTIE:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that i sound like a hardcore Taylor Swift fan (swifitie): ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.DRUNK:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound drunk. Make sure to slur my sentences: ${msg.content}`)
-                ).text
-                break
-            case SPEECH_MODES.GERMAN_CHEESE:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like I'm a talking block of cheese with a german accent: ${msg.content}`)
-                ).text
-                character = SPEECH_ALT_CHARACTERS.cheese
-                break
-            case SPEECH_MODES.WHITE_TRASH_BREAD:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like white trash: ${msg.content}`)
-                ).text
-                character = SPEECH_ALT_CHARACTERS.bread
-                break
-            case SPEECH_MODES.PEANUT_NUTTER:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`paraphrase this so that I sound like a doped-up teenager with extreme hormones: ${msg.content}`)
-                ).text
-                character = SPEECH_ALT_CHARACTERS.bread
-                break
-            case SPEECH_MODES.BREAD:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg.content
-                character = SPEECH_ALT_CHARACTERS.bread
-                break
-            case SPEECH_MODES.CHEESE:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg.content
-                character = SPEECH_ALT_CHARACTERS.cheese
-                break
-            case SPEECH_MODES.PEANUT_BUTTER:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg.content
-                character = SPEECH_ALT_CHARACTERS.peanutbutter
-                break
-            case SPEECH_MODES.BUTTER:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg.content
-                character = SPEECH_ALT_CHARACTERS.butter
-                break
-            case SPEECH_MODES.SHAGGY:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`paraphrase this so that I sound like Shaggy: ${msg.content}`)
-                ).text
-                character = SPEECH_ALT_CHARACTERS.shaggy
-                break
-            case SPEECH_MODES.JAM:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg.content
-                character = SPEECH_ALT_CHARACTERS.jam
-                break
-            case SPEECH_MODES.ALCOHOLIC_BUTTER:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`paraphrase this so that I sound like a talking stick of butter who is incredibly drunk and sluring their words: ${msg.content}`)
-                ).text
-                character = SPEECH_ALT_CHARACTERS.bread
-                break
-            case SPEECH_MODES.KEESH:
-                if (msg.content.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += "keesh"
-                    .split("")
-                    .map(char => {
-                        let random = Math.random()
-                        return random > .5 ? char.toUpperCase() : char
-                    })
-                    .join("")
-                character = SPEECH_ALT_CHARACTERS.keesh
-                break
-            default:
-                return
-        }
-
-        // if (msg.attachments.size !== 0) {
-        //     alteredMessage += "\n\n" + msg.attachments.map((item) => {
-        //         return item.url
-        //     }).join("\n");
-        // }
-
-        if (!alteredMessage) return
         let channel = msg.channel as TextChannel
         if (character) {
             const webhooks = await channel.fetchWebhooks()
@@ -443,6 +217,255 @@ export class SpeechModule extends BaseModule {
         void PointsModule.grantPoints(msg.member.id, 1, msg.channel, this.client)
     }
 
+    private async alterMessage(msg: string, author: GuildMember): Promise<[string, null | Character]> {
+        if (msg.startsWith("b - ")) return ["", null]
+
+        const userData = await getUserData(author)
+        const speechMode = userData.speech_mode;
+        let character:
+            null |
+            {
+                name: string,
+                avatar: string
+            }
+            = null
+        let alteredMessage = ""
+
+        console.log(speechMode)
+        switch (speechMode) {
+            case SPEECH_MODES.NORMAL:
+                return ["", null]
+            case SPEECH_MODES.BABY_SPEAK:
+                // Talk like a 5-year-old
+
+                let _words = msg.split(" ")
+
+                for (let i in _words) {
+                    if (_words[i].startsWith("http") || _words[i].startsWith("<") || _words[i].startsWith(">") || _words[i].startsWith("`")) continue
+                    if (_words[i] in bad_baby_words.words) _words[i] = "dumb"
+                    // @ts-ignore
+                    if (Math.random() < .1) _words[i] = randomWords(1)[0]
+
+                    let letters = _words[i].split("")
+                    for (let r in letters) {
+                        if (Math.random() < .1) letters[r] = baby_alphabet[Math.floor(Math.random() * baby_alphabet.length)]
+                    }
+                    _words[i] = letters.join("")
+                    console.log(_words[i])
+                }
+
+                if (Math.random() < .1) {
+                    _words = ([] as string[]).concat(_words.map(word => word.toUpperCase()), ["\n", "sorry.", "I", "left", "caps", "lock", "on"])
+                }
+                alteredMessage += _words.join(' ')
+                break
+            case SPEECH_MODES.SIMPLETON:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (await openai.sendMessage(`Simplify this message so that it uses as few words as possible. Make it as simple and short as possible and avoid long words at all costs. Even if removing detail. Text speech and emojis may be used: ${msg}`)).text
+                break
+            case SPEECH_MODES.SMART_ASS:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound like a smart-arse: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.COLOURFUL:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound more colourful: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.LISP:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound like I have a lisp: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.FURRY:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound like a furry: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.KIWI:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message using Kiwi slang. Make sure to excessively use 'yeah nah': ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.LINUX_CHAD:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that everything I say overly communicates how much I love Linux, and hate everything else: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.SWIFTIE:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that i sound like a hardcore Taylor Swift fan (swifitie): ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.DRUNK:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound drunk. Make sure to slur my sentences: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.GERMAN_CHEESE:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound like I'm a talking block of cheese with a german accent: ${msg}`)
+                ).text
+                character = SPEECH_ALT_CHARACTERS.cheese
+                break
+            case SPEECH_MODES.WHITE_TRASH_BREAD:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Paraphrase this message so that I sound like white trash: ${msg}`)
+                ).text
+                character = SPEECH_ALT_CHARACTERS.bread
+                break
+            case SPEECH_MODES.PEANUT_NUTTER:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`paraphrase this so that I sound like a doped-up teenager with extreme hormones: ${msg}`)
+                ).text
+                character = SPEECH_ALT_CHARACTERS.bread
+                break
+            case SPEECH_MODES.BREAD:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += msg
+                character = SPEECH_ALT_CHARACTERS.bread
+                break
+            case SPEECH_MODES.CHEESE:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += msg
+                character = SPEECH_ALT_CHARACTERS.cheese
+                break
+            case SPEECH_MODES.PEANUT_BUTTER:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += msg
+                character = SPEECH_ALT_CHARACTERS.peanutbutter
+                break
+            case SPEECH_MODES.BUTTER:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += msg
+                character = SPEECH_ALT_CHARACTERS.butter
+                break
+            case SPEECH_MODES.SHAGGY:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`paraphrase this so that I sound like Shaggy: ${msg}`)
+                ).text
+                character = SPEECH_ALT_CHARACTERS.shaggy
+                break
+            case SPEECH_MODES.JAM:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += msg
+                character = SPEECH_ALT_CHARACTERS.jam
+                break
+            case SPEECH_MODES.ALCOHOLIC_BUTTER:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`paraphrase this so that I sound like a talking stick of butter who is incredibly drunk and sluring their words: ${msg}`)
+                ).text
+                character = SPEECH_ALT_CHARACTERS.bread
+                break
+            case SPEECH_MODES.KEESH:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += "keesh"
+                    .split("")
+                    .map(char => {
+                        let random = Math.random()
+                        return random > .5 ? char.toUpperCase() : char
+                    })
+                    .join("")
+                character = SPEECH_ALT_CHARACTERS.keesh
+                break
+            default:
+                return ["", null]
+        }
+
+        // if (msg.attachments.size !== 0) {
+        //     alteredMessage += "\n\n" + msg.attachments.map((item) => {
+        //         return item.url
+        //     }).join("\n");
+        // }
+
+        return [alteredMessage, character]
+    }
+
+    private emitAlteredMessageEvent(msg: Message, newMsg: string, character: Character | null) {
+        for (let item of SpeechListeners) {
+            try {
+                item([msg], newMsg, character)
+            }
+            catch (e) {
+                console.error(e)
+            }
+        }
+    }
+
     @InteractionChatCommandResponse("speech")
     async onSpeechCommand(interaction: ChatInputCommandInteraction) {
         const mode = interaction.options.getInteger("mode", true) as SPEECH_MODES;
@@ -470,3 +493,18 @@ export class SpeechModule extends BaseModule {
         })
     }
 }
+
+export function OnSpeechAdjustmentCompletion(thisArg?: BaseModule) {
+    function decorator(originalMethod: SpeechListener, context: ClassMethodDecoratorContext<BaseModule>) {
+        function replacementMethod(originalEvent: ClientEvents["messageCreate"], replacementMessage: string, character: Character | null) {
+            // console.log(thisArg)
+            return originalMethod.call(thisArg, originalEvent, replacementMessage, character)
+        }
+        SpeechListeners.add(replacementMethod)
+
+        return replacementMethod
+    }
+
+    return decorator
+}
+

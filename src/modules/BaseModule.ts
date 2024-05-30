@@ -11,6 +11,7 @@ import {client} from "../services/Discord.js";
 export abstract class BaseModule {
     readonly client: Client
     readonly commands: any[] = []
+
     subscribedSlashCommands: [string, (interaction: ChatInputCommandInteraction) => void][] = []
     subscribedButtonInteractions: [string | ((id: string) => boolean), (interaction: ButtonInteraction) => void][] = []
     subscribedSelectMenuInteractions: [string | ((id: string) => boolean), (interaction: SelectMenuInteraction) => void][] = []
