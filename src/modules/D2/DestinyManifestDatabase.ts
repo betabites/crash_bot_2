@@ -2,8 +2,10 @@ import sqlite3 from "sqlite3";
 import {getDestinyManifest} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {BasicBungieClient} from "bungie-net-core/lib/client.js";
 import {
-    DestinyActivityDefinition, DestinyDestinationDefinition,
-    DestinyInventoryItemDefinition, DestinySocketTypeDefinition,
+    DestinyActivityDefinition,
+    DestinyDestinationDefinition,
+    DestinyInventoryItemDefinition,
+    DestinySocketTypeDefinition,
     DestinyStatDefinition,
     DestinyVendorDefinition
 } from "bungie-net-core/lib/models/index.js";

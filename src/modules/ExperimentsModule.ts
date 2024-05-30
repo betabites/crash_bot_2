@@ -6,8 +6,7 @@ import Discord, {
     EmbedBuilder,
     GuildMember,
     Message,
-    TextBasedChannel,
-    TextChannel
+    TextBasedChannel
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import SafeQuery, {sql} from "../services/SQL.js";
@@ -15,8 +14,6 @@ import mssql from "mssql";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {ShuffleArray} from "../misc/Common.js";
 import openai from "../services/ChatGPT.js";
-import bad_baby_words from "../../badwords.json" assert {type: "json"};
-import randomWords from "random-words";
 import {client} from "../services/Discord.js";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"

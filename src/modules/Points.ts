@@ -7,9 +7,10 @@ import {
     EmbedBuilder,
     Message,
     TextBasedChannel,
-    TextChannel, VoiceBasedChannel, VoiceState
+    VoiceBasedChannel,
+    VoiceState
 } from "discord.js";
-import SafeQuery, {SafeTransaction, sql} from "../services/SQL.js";
+import SafeQuery, {sql} from "../services/SQL.js";
 import {SlashCommandBuilder} from "@discordjs/builders";
 import Jimp from "jimp";
 import {AIConversation, generateAIThumbnail} from "../services/ChatGPT.js";

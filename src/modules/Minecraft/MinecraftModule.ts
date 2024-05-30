@@ -1,4 +1,4 @@
-import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "../BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "../BaseModule.js";
 import {
     SlashCommandBooleanOption,
     SlashCommandBuilder,
@@ -11,7 +11,8 @@ import {
     ButtonInteraction,
     ButtonStyle,
     ChatInputCommandInteraction,
-    Client, Colors,
+    Client,
+    Colors,
     EmbedBuilder,
     Guild,
     GuildMember,

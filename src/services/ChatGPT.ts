@@ -1,11 +1,11 @@
 import {ChatGPTAPI} from "chatgpt";
 import OpenAI from "openai"
-import {Chat, ChatCompletionAssistantMessageParam, FunctionDefinition} from "openai/resources/index";
-import ChatCompletionMessageParam = Chat.ChatCompletionMessageParam;
+import {Chat, ChatCompletionAssistantMessageParam} from "openai/resources/index";
 import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 import crypto from "crypto";
 import SafeQuery, {sql} from "./SQL.js";
 import {EventEmitter} from "node:events";
+import ChatCompletionMessageParam = Chat.ChatCompletionMessageParam;
 
 const ChatGPT = new ChatGPTAPI({
     apiKey: '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',

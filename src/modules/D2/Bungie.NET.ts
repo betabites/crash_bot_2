@@ -10,10 +10,13 @@ import mssql from "mssql";
 import fetch from "node-fetch"
 import {
     DestinyActivityDefinition,
-    DestinyClass, DestinyComponentType, DestinyDestinationDefinition,
+    DestinyClass,
+    DestinyComponentType,
+    DestinyDestinationDefinition,
     DestinyInventoryItemDefinition,
     DestinyItemType,
-    DestinyVendorDefinition, DestinyVendorSaleItemComponent, DestinyVendorsResponse
+    DestinyVendorDefinition,
+    DestinyVendorsResponse
 } from "bungie-net-core/lib/models/index.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
 import {API_KEY, BungieAPIResponse} from "../../services/Bungie.NET.js";

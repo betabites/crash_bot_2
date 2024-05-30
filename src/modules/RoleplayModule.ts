@@ -1,7 +1,6 @@
 import {BaseModule, InteractionAutocompleteResponse, InteractionChatCommandResponse} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {AutocompleteInteraction, ChatInputCommandInteraction, Client, TextChannel} from "discord.js";
-import {removeAllMentions} from "../utilities/removeAllMentions.js";
 import * as path from "path";
 import Jimp from "jimp";
 import crypto from "crypto";

@@ -1,5 +1,3 @@
-import {AIConversation} from "../../services/ChatGPT.js";
-
 export interface CharacterData {
     id: number,
     owner_discord_id: string,

@@ -1,4 +1,4 @@
-import {BaseModule, OnClientEvent} from "./BaseModule.js";
+import {BaseModule} from "./BaseModule.js";
 import {Client, Interaction} from "discord.js";
 import SafeQuery, {sql} from "../services/SQL.js";
 import crypto from "crypto";

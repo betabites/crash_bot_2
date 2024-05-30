@@ -1,13 +1,12 @@
-import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.js";
 import Discord, {
-    AttachmentBuilder,
     ChannelType,
     ChatInputCommandInteraction,
     Client,
     Colors,
     EmbedBuilder,
     GuildMember,
-    Message, MessagePayload,
+    Message,
     User
 } from "discord.js";
 import {
@@ -25,7 +24,6 @@ import {ShuffleArray} from "../misc/Common.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {TWAGGER_POST_CHANNEL} from "../misc/sendTwaggerPost.js";
-import OpenAI from "openai";
 import {PointsModule} from "./Points.js";
 import {ChatCompletionMessageParam} from "openai/resources/index";
 import {RunnableToolFunction} from "openai/lib/RunnableFunction";

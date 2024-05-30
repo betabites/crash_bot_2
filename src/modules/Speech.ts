@@ -1,6 +1,6 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {Base, ChatInputCommandInteraction, ClientEvents, GuildMember, Message, TextChannel, User} from "discord.js";
+import {ChatInputCommandInteraction, ClientEvents, GuildMember, Message, TextChannel} from "discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
@@ -8,7 +8,6 @@ import openai from "../services/ChatGPT.js";
 import bad_baby_words from "../../badwords.json" assert {type: "json"};
 import {sendImpersonateMessage} from "../services/Discord.js";
 import {PointsModule} from "./Points.js";
-import * as repl from "node:repl";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 const SPEECH_ALT_CHARACTERS = {

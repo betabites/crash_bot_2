@@ -1,10 +1,6 @@
 import express from "express";
-import SafeQuery, {sql} from "../services/SQL.js";
-import cookieParser from "cookie-parser";
 import console from "console";
 import fetch from "node-fetch";
-import {getMembershipDataForCurrentUser} from "bungie-net-core/lib/endpoints/User/index.js";
-import {D2_ROUTER, syncD2Achievements} from "../modules/D2.js";
 
 export const DISCORD_AUTH_ROUTER = express.Router()
 

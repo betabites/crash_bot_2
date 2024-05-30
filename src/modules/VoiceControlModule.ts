@@ -5,12 +5,11 @@ import {getUserData} from "../utilities/getUserData.js";
 import {CrashBotUser} from "../misc/UserManager.js";
 import SafeQuery, {sql} from "../services/SQL.js";
 import mssql from "mssql";
-import ffmpeg, {FfmpegCommand, FfprobeData} from "fluent-ffmpeg";
+import ffmpeg, {FfprobeData} from "fluent-ffmpeg";
 import path from "path";
 import {VoiceConnectionManager} from "../services/VoiceManager/VoiceManager.js";
-import {PassThrough, Readable} from "stream";
+import {PassThrough} from "stream";
 import express from "express"
-import crypto from "crypto";
 import * as fs from "fs";
 import archiver from "archiver";
 

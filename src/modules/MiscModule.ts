@@ -2,10 +2,6 @@ import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseM
 import {SlashCommandBuilder, SlashCommandRoleOption, SlashCommandStringOption} from "@discordjs/builders";
 import {AttachmentBuilder, ChatInputCommandInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
 import {sendTwaggerPost} from "../misc/sendTwaggerPost.js";
-import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
-import SafeQuery from "../services/SQL.js";
-import mssql from "mssql";
-import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
 import fs from "fs";
 import path from "path";
 import {INSULTS} from "./Insults.js";
