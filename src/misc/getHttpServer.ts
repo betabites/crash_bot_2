@@ -12,4 +12,6 @@ export const HTTPS_SERVER = https.createServer({
     cert: fs.readFileSync(path.resolve("./") + "/assets/ssl/fullchain.pem")
 }, EXPRESS_APP).listen(8050)
 
-export const IO = new Server(HTTP_SERVER)
+export const IO = new Server(HTTP_SERVER, {
+    pingInterval: 120000
+})

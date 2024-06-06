@@ -22,7 +22,7 @@
     "fluent-ffmpeg": "^2.1.2",
     "ftp": "^0.3.10",
     "inspirobot.js": "^1.0.1",
-    "jimp": "^0.22.10",
+    "jimp": "^0.22.12",
     "libsodium-wrappers": "^0.7.13",
     "mssql": "^10.0.1",
     "node-schedule": "^2.1.1",

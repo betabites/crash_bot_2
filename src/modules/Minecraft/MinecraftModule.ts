@@ -36,6 +36,7 @@ RemoteStatusServer.io.on("connection", () => {
 
 // const MC_CHAT_CHANNEL = "968298113427206195"
 const MC_CHAT_CHANNEL = "968298113427206195"
+const COORDINATES_SHARE_REGEX = /\[name:(?<name>".*"), x:(?<x>[-0-9]*), y:(?<y>[-0-9]*), z:(?<z>[-0-9]*), dim:(?<dim>.*)]/g
 
 export class MinecraftModule extends BaseModule {
     commands = [
@@ -106,8 +107,27 @@ export class MinecraftModule extends BaseModule {
                     SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id},
                     ])
-                        .then(res => {
-                            if (res.recordset.length === 0) {
+                        .then(async res => {
+                            const coordinatesMatch = COORDINATES_SHARE_REGEX.exec(message)
+                            if (coordinatesMatch && res.recordset.length === 0) {
+                                let embed = new EmbedBuilder()
+                                    .setAuthor({
+                                        name: `${player.username} just shared a waypoint: \`${coordinatesMatch.groups?.name}\``
+                                    })
+                                    .setDescription(`Location: In \`${coordinatesMatch.groups?.dim}\` at \`X${coordinatesMatch.groups?.x} Y${coordinatesMatch.groups?.y} Z${coordinatesMatch.groups?.z}\``)
+                                channel.send({embeds: [embed]})
+                            }
+                            else if (coordinatesMatch) {
+                                console.log(coordinatesMatch, coordinatesMatch.groups)
+                                let embed = new EmbedBuilder()
+                                    .setAuthor({
+                                        name: `Shared a waypoint: \`${coordinatesMatch.groups?.name}\``
+                                    })
+                                    .setDescription(`Location: In \`${coordinatesMatch.groups?.dim}\` at \`X${coordinatesMatch.groups?.x} Y${coordinatesMatch.groups?.y} Z${coordinatesMatch.groups?.z}\``)
+                                let member = await channel.guild.members.fetch(res.recordset[0].discord_id)
+                                sendImpersonateMessage(channel, member, {embeds: [embed]})
+                            }
+                            else if (res.recordset.length === 0) {
                                 let me = channel.guild.members.me
                                 if (me) sendImpersonateMessage(channel, me, message)
                             }

@@ -8,7 +8,7 @@ import {EventEmitter} from "node:events";
 import ChatCompletionMessageParam = Chat.ChatCompletionMessageParam;
 
 const ChatGPT = new ChatGPTAPI({
-    apiKey: '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',
+    apiKey: process.env["OPENAI_API_KEY"] ?? '',
     completionParams: {
         model: "gpt-3.5-turbo-1106"
     }
