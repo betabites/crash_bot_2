@@ -73,6 +73,7 @@ export class MinecraftModule extends BaseModule {
             )
     ]
     deathMessages: string[] = [...deathMessages]
+    messagesEnabled = false
 
     constructor(client: Client) {
         super(client);
@@ -90,6 +91,7 @@ export class MinecraftModule extends BaseModule {
                 }, 1000)
 
                 ServerConnection.on("serverConnect", () => {
+                    if (!this.messagesEnabled) return
                     const embed = new EmbedBuilder()
                     embed.setDescription(`Connected to server`)
                     embed.setColor(Colors.Green)
@@ -97,6 +99,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("serverDisconnect", () => {
+                    if (!this.messagesEnabled) return
                     const embed = new EmbedBuilder()
                     embed.setDescription(`Server connection lost`)
                     embed.setColor(Colors.Red)
@@ -104,6 +107,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("message", async (message: string, player: any) => {
+                    if (!this.messagesEnabled) return
                     SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id},
                     ])
@@ -140,6 +144,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerConnect", async (player) => {
+                    if (!this.messagesEnabled) return
                     if (!player.username) return
 
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
@@ -184,6 +189,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerDisconnect", async player => {
+                    if (!this.messagesEnabled) return
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                     ])
@@ -226,6 +232,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerDataUpdate", async player => {
+                    if (!this.messagesEnabled) return
                     await SafeQuery(sql`UPDATE dbo.Users
                                         SET mc_x                    = ${player.position[0]},
                                             mc_y                    = ${player.position[1]},
@@ -378,6 +385,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerAdvancementEarn", async (advancement, player) => {
+                    if (!this.messagesEnabled) return
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                     ])
@@ -422,6 +430,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerDeath", async (player) => {
+                    if (!this.messagesEnabled) return
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                     ])
