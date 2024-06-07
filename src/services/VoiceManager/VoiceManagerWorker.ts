@@ -4,22 +4,18 @@ import {
     AudioPlayerStatus,
     createAudioPlayer,
     createAudioResource,
-    EndBehaviorType,
     joinVoiceChannel,
     NoSubscriberBehavior,
     PlayerSubscription,
     VoiceConnection
 } from "@discordjs/voice";
-import {opus} from "prism-media";
 import * as Discord from "discord.js";
 import {GuildMember} from "discord.js";
 import ytdl from "ytdl-core";
 import SafeQuery from "../SQL.js";
 import {makeid, QueueManager} from "../../misc/Common.js";
 import mssql from "mssql"
-import ffmpeg from "fluent-ffmpeg"
 import {client} from "../Discord.js";
-import * as path from "path";
 import * as stream from "stream";
 import {parentPort, workerData} from "worker_threads"
 import {
@@ -32,6 +28,7 @@ import {
     VOICE_MANAGER_MESSAGE_TYPES
 } from "./types.js";
 import crypto from "crypto";
+import {ActiveVoiceRecording} from "./VoiceRecording.js";
 
 client.login(workerData.discordClientToken)
 
@@ -113,10 +110,7 @@ export class AudioStreamManager extends EventEmitter {
     static connections = new Map<string, AudioStreamManager>()
     vc_connection: VoiceConnection
     channel: Discord.VoiceBasedChannel
-    recording_users: {
-        id: string,
-        recording: boolean
-    }[] = []
+    active_recordings = new Map<string, ActiveVoiceRecording>()
     session_id: string
     private connected_members = new Map<string, GuildMember>()
     private player: AudioPlayer;
@@ -187,8 +181,19 @@ export class AudioStreamManager extends EventEmitter {
         this.subscription = this.vc_connection.subscribe(this.player)
         this.session_id = session_id
 
-        this.vc_connection.receiver.speaking.on("start", (userId) => {
-            this.onMemberSpeak(userId)
+        this.vc_connection.receiver.speaking.on("start", async (userId) => {
+            let recording = this.active_recordings.get(userId)
+            if (!recording) {
+                recording = await ActiveVoiceRecording.new(this.channel, this.vc_connection, userId)
+                this.active_recordings.set(userId, recording)
+
+                SafeQuery("INSERT INTO dbo.VoiceRecordings (session_id, filename, user_id) VALUES (@sessionid, @filename, @userid);", [
+                    {name: "sessionid", type: mssql.TYPES.Char(20), data: this.session_id},
+                    {name: "filename", type: mssql.TYPES.Char(24), data: recording.id},
+                    {name: "userid", type: mssql.TYPES.VarChar(100), data: userId}
+                ])
+            }
+            recording.subscribe()
         })
         this.updateConnectedUsers()
 
@@ -199,7 +204,7 @@ export class AudioStreamManager extends EventEmitter {
 
     private async updateConnectedUsers() {
         this.connected_members.clear()
-        this.recording_users = []
+        this.active_recordings.clear()
 
         let channel = await this.channel.fetch()
         for (let user of channel.members) {
@@ -211,46 +216,7 @@ export class AudioStreamManager extends EventEmitter {
         }
     }
 
-    onMemberSpeak(userId: string) {
-        let recording_item = this.recording_users.find(i => i.id === userId)
-        if (!recording_item || recording_item.recording) return
-        recording_item.recording = true
-        console.log("Recording " + userId)
-
-        let filename = makeid(20)
-        const receiver = this.vc_connection.receiver.subscribe(userId, {
-            end: {
-                behavior: EndBehaviorType.AfterSilence,
-                duration: 10000
-            }
-        })
-        const decoder = new opus.Decoder({frameSize: 960, channels: 2, rate: 48000})
-        const in_stream = receiver.pipe(decoder)
-        in_stream.on("finish", () => {
-            // @ts-ignore
-            recording_item.recording = false
-            console.log("User stopped talking")
-        })
-
-        ffmpeg()
-            .input(in_stream)
-            .inputFormat('s16le')
-            .audioChannels(2)
-            .inputOptions([
-                '-ar 48000',
-                '-channel_layout stereo'
-            ])
-            .output(path.resolve("./") + "/voice_recordings/" + filename + ".mp3")
-            .noVideo()
-            .run()
-        SafeQuery("INSERT INTO dbo.VoiceRecordings (session_id, filename, user_id) VALUES (@sessionid, @filename, @userid);", [
-            {name: "sessionid", type: mssql.TYPES.Char(20), data: this.session_id},
-            {name: "filename", type: mssql.TYPES.Char(24), data: filename + ".mp3"},
-            {name: "userid", type: mssql.TYPES.VarChar(100), data: userId}
-        ])
-    }
-
-    private onMemberConnect(member: Discord.GuildMember | null, autoRecord = false) {
+    private async onMemberConnect(member: Discord.GuildMember | null, autoRecord = false) {
         console.log("Member connected: ", autoRecord)
         if (member && !member.user.bot) {
             if (this.connected_members.has(member.id)) return // User connection has already been processed
@@ -259,10 +225,7 @@ export class AudioStreamManager extends EventEmitter {
         }
         if (member && autoRecord) {
             console.log("Setting up auto recording for: " + member.id)
-            this.recording_users.push({
-                id: member.id,
-                recording: false
-            })
+            this.active_recordings.set(member.id, await ActiveVoiceRecording.new(this.channel, this.vc_connection, member.id))
         }
     }
 
@@ -271,6 +234,8 @@ export class AudioStreamManager extends EventEmitter {
         console.log("A member disconnected. Total number of connected users: ", this.connected_members)
 
         this.connected_members.delete(member.id)
+        if (this.active_recordings.get(member.id)) this.active_recordings.delete(member.id)
+
         if (this.connected_members.size === 0) {
             console.log("The voice call was abandoned. " + this.connected_members.size)
             this.stop()

@@ -27,7 +27,7 @@ import {
 } from "./types.js";
 import * as crypto from "crypto";
 
-let worker = new Worker("./src/misc/VoiceManager/VoiceManagerWorker.js", {
+let worker = new Worker("./src/services/VoiceManager/VoiceManagerWorker.js", {
     workerData: {
         discordClientToken: getToken()
     }
