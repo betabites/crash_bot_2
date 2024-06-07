@@ -66,15 +66,15 @@ export default async function SafeQuery<T = any>(query: SQLQueryObject | string,
     return res
 }
 
-type SafeTransactionFunc<T = unknown> = (sql: SQLQueryObject) => Promise<pkg.IResult<T>>
+export type SafeTransactionQueryFunc<T = unknown> = (sql: SQLQueryObject) => Promise<pkg.IResult<T>>
 type MaybePromise<T> = Promise<T> | T
 
-export async function SafeTransaction(handler: (queryFunc: SafeTransactionFunc) => MaybePromise<false | void>) {
+export async function SafeTransaction(handler: (queryFunc: SafeTransactionQueryFunc) => MaybePromise<false | void>) {
     let pool = await connect(sql_config)
     let transaction = pool.transaction()
     await transaction.begin()
 
-    const queryFunc: SafeTransactionFunc = <T = unknown>(query: SQLQueryObject): Promise<pkg.IResult<T>> => {
+    const queryFunc: SafeTransactionQueryFunc = <T = unknown>(query: SQLQueryObject): Promise<pkg.IResult<T>> => {
         let request = pool.request()
         for (let param of query.params) request.input(param.name, param.type, param.data)
         return request.query(query.query)
