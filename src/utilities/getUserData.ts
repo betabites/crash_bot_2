@@ -27,7 +27,8 @@ export enum SPEECH_MODES {
     JAM,
     KEESH,
     TANIKS,
-    SMART_TANIKS
+    SMART_TANIKS,
+    WOOD_PALLETS
 }
 
 export async function getUserData(member: GuildMember | string): Promise<{

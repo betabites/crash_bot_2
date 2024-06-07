@@ -60,10 +60,21 @@ const SPEECH_LEVEL_GATES: {
     [SPEECH_MODES.PEANUT_NUTTER]: 16,
     [SPEECH_MODES.ALCOHOLIC_BUTTER]: 16,
     [SPEECH_MODES.TANIKS]: 16,
-    [SPEECH_MODES.SMART_TANIKS]: 18
+    [SPEECH_MODES.SMART_TANIKS]: 18,
+    [SPEECH_MODES.WOOD_PALLETS]: 19
 }
 
-export type Character = {name: string, avatar: string}
+const WOOD_PALLET_MESSAGES = [
+    "Wood pallets",
+    "I fucking love wood pallets",
+    "Wood pallets are my life",
+    "If I got a wife, it'd be wood pallets",
+    "Fuck you, I'm eating wood pallets",
+    "I'm gonna make the next iPhone out of FUCKING wood pallets. Try to stop me.",
+    ""
+]
+
+export type Character = { name: string, avatar: string }
 type SpeechListener = (originalEvent: ClientEvents["messageCreate"], replacementMessage: string, character: Character | null) => any
 const SpeechListeners = new Map<BaseModule, SpeechListener[]>()
 
@@ -176,6 +187,10 @@ export class SpeechModule extends BaseModule {
                             {
                                 name: "Smart Taniks (Requires level 18)",
                                 value: SPEECH_MODES.SMART_TANIKS
+                            },
+                            {
+                                name: "Wood Pallets (Requires level 19)",
+                                value: SPEECH_MODES.WOOD_PALLETS
                             }
                         )
                         return opt
@@ -489,6 +504,15 @@ export class SpeechModule extends BaseModule {
                 ).text
                 character = SPEECH_ALT_CHARACTERS.taniks
                 break
+            case SPEECH_MODES.WOOD_PALLETS:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Repeat this message. However, replace bad grammar (if any) with 'wood pallets': ${msg}`)
+                ).text
+                break
             default:
                 return ["", null]
         }
@@ -503,13 +527,11 @@ export class SpeechModule extends BaseModule {
     }
 
     private emitAlteredMessageEvent(msg: Message, newMsg: string, character: Character | null) {
-        console.log("HERE!", SpeechListeners)
         for (let item of SpeechListeners) {
             for (let listener of item[1]) {
                 try {
                     listener.call(item[0], [msg], newMsg, character)
-                }
-                catch (e) {
+                } catch (e) {
                     console.error(e)
                 }
             }
@@ -547,12 +569,11 @@ export class SpeechModule extends BaseModule {
 export function OnSpeechModeAdjustmentComplete(thisArg?: BaseModule) {
     function decorator(originalMethod: SpeechListener, context: ClassMethodDecoratorContext<BaseModule>) {
         context.addInitializer(function init(this: BaseModule) {
-            console.log("Binding element", this)
-
             let existingListeners = SpeechListeners.get(this)
             if (existingListeners) {
                 SpeechListeners.set(this, [...existingListeners, originalMethod])
-            } else {
+            }
+            else {
                 SpeechListeners.set(this, [originalMethod])
             }
         })
