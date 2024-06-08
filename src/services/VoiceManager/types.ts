@@ -39,6 +39,7 @@ export interface StreamStartMessage {
 export enum VOICE_MANAGER_MESSAGE_TYPES {
     ACKNOWLEDGEMENT,
     PLAYER_IDLING,
+    RECORDING_STARTED
 }
 
 export interface messageToVoiceManager<T extends VOICE_MANAGER_MESSAGE_TYPES> {
@@ -50,6 +51,9 @@ export interface messageToVoiceManager<T extends VOICE_MANAGER_MESSAGE_TYPES> {
 interface VoiceManagerData {
     [VOICE_MANAGER_MESSAGE_TYPES.ACKNOWLEDGEMENT]: AcknowledgementMessage
     [VOICE_MANAGER_MESSAGE_TYPES.PLAYER_IDLING]: GuildID
+    [VOICE_MANAGER_MESSAGE_TYPES.RECORDING_STARTED]: {
+        userId: string
+    }
 }
 
 type GuildID = string

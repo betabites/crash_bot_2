@@ -46,7 +46,7 @@ type OpusRecordingFile = {
     id: string
 }
 
-const SAMPLE_RATE = 16_000
+const SAMPLE_RATE = 48_000
 const CHANNEL_COUNT = 2
 const BYTES_PER_ELEMENT = 2
 
@@ -74,12 +74,13 @@ export class VoiceRecording {
 
     static async fromSaved(id: string, userId: string) {
         let clips = await SafeQuery<{id: string, start: Date, end: Date}>(sql`SELECT id, start, "end" FROM VoiceRecordingClips WHERE recording_id = ${id}`)
-        return new VoiceRecording(id, userId, clips.recordset)
+        return new VoiceRecording(id, userId, clips.recordset.map(i => ({...i, id: i.id.toLowerCase()})))
     }
 
     protected constructor(id: string, userId: string, opusFiles: OpusRecordingFile[]) {
         this.userId = userId
         this.id = id
+        this.opusFiles = opusFiles
 
         // Check that the directory for this recording exists
         if (!existsSync(this.path)) {
@@ -91,9 +92,11 @@ export class VoiceRecording {
         return path.resolve(`./voice_recordings`, this.id)
     }
 
-    mergeOpusFiles(): Readable {
+    mergeOpusFiles(onMergeComplete: (path: string) => void = () => {}): Readable {
         if (this.opusFiles.length === 0) return Readable.from([])
-        else if (this.opusFiles.length === 1) return createReadStream(path.join(this.path, this.opusFiles[0].id))
+        else if (this.opusFiles.length === 1) {
+            return createReadStream(path.join(this.path, this.opusFiles[0].id))
+        }
 
         let streams: Readable[] = []
         let processedClipIds: string[] = []
@@ -122,6 +125,7 @@ export class VoiceRecording {
         }
         this.opusFiles = [newFile]
 
+        writeStream.on("error", (err) => console.error(err))
         writeStream.on("close", () => {
             void SafeTransaction(query => {
                 void query(sql`INSERT INTO VoiceRecordingClips (id, recording_id, start, "end") VALUES (${newFile.id}, ${this.id}, ${newFile.start}, ${newFile.end})`)
@@ -130,22 +134,29 @@ export class VoiceRecording {
                     deleteVoiceRecordingClipTransaction(file, path.join(this.path, file), query)
                 }
             })
+            onMergeComplete(path.resolve(this.path, id))
         })
 
         return pipe
     }
 
-    export() {
-        let inputStream = this.mergeOpusFiles()
-
-        ffmpeg(inputStream)
-            .inputOptions([
-                '-f s16le',
-                `-ar ${SAMPLE_RATE}`,
-                `-ac ${CHANNEL_COUNT}`
-            ])
-            .output(path.join(this.path, "output.mp3"))
-            .run()
+    export(stream: Writable) {
+        return new Promise<void>((resolve, reject) => {
+            ffmpeg(this.mergeOpusFiles())
+                .inputFormat("s16le")
+                .audioChannels(2)
+                .inputOptions([
+                    `-ar ${SAMPLE_RATE}`
+                ])
+                .on("start", (line) => console.log(line))
+                .on("error", (err) => reject(err))
+                .on("close", () => resolve())
+                .outputFormat("mp3")
+                // .output("TEST.mp3")
+                .output(stream)
+                .noVideo()
+                .run()
+        })
     }
 }
 

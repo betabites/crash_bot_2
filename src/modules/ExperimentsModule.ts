@@ -1,6 +1,7 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBooleanOption, SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import Discord, {
+import {
+    ChannelType,
     ChatInputCommandInteraction,
     Colors,
     EmbedBuilder,
@@ -128,7 +129,7 @@ export class ExperimentsModule extends BaseModule {
                 })
         }
         else if (msg.content.toLowerCase().includes("what are some barely spoken words")) {
-            if (msg.channel.type === Discord.ChannelType.DM) {
+            if (msg.channel.type === ChannelType.DM) {
                 msg.reply("Oops. You can't use this phrase in this channel")
                 return
             }
@@ -222,7 +223,7 @@ export class ExperimentsModule extends BaseModule {
                                     })
                                     .catch(e => {
                                         console.log(e)
-                                        let embed = new Discord.EmbedBuilder()
+                                        let embed = new EmbedBuilder()
                                         embed.setTitle("Service unavailable")
                                         embed.setDescription("This service is currently unavailable. Please try again later")
                                         embed.setColor(Colors.Red)

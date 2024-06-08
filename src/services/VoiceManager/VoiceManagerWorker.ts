@@ -10,9 +10,9 @@ import {
     VoiceConnection
 } from "@discordjs/voice";
 import * as Discord from "discord.js";
-import {GuildMember} from "discord.js";
+import {EmbedBuilder, GuildMember} from "discord.js";
 import ytdl from "ytdl-core";
-import SafeQuery from "../SQL.js";
+import SafeQuery, {sql} from "../SQL.js";
 import {makeid, QueueManager} from "../../misc/Common.js";
 import mssql from "mssql"
 import {client} from "../Discord.js";
@@ -29,8 +29,10 @@ import {
 } from "./types.js";
 import crypto from "crypto";
 import {ActiveVoiceRecording} from "./VoiceRecording.js";
+import dotenv from "dotenv";
 
 client.login(workerData.discordClientToken)
+dotenv.config()
 
 const awaitingWorkerMessages = new Map<string, [NodeJS.Timer, (value: unknown) => void, (error?: unknown) => void]>()
 parentPort?.on("message", async (message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES>) => {
@@ -91,7 +93,7 @@ parentPort?.on("message", async (message: messageToAudioManager<AUDIO_MANAGER_ME
     }
 })
 
-function sendParentMessageSync(message: messageToVoiceManager<VOICE_MANAGER_MESSAGE_TYPES>) {
+function sendParentMessageSync(message: Omit<messageToVoiceManager<VOICE_MANAGER_MESSAGE_TYPES>, "id"> & {id? : string}) {
     return new Promise((resolve, reject) => {
         let id = crypto.randomUUID()
         message.id = id
@@ -184,14 +186,10 @@ export class AudioStreamManager extends EventEmitter {
         this.vc_connection.receiver.speaking.on("start", async (userId) => {
             let recording = this.active_recordings.get(userId)
             if (!recording) {
-                recording = await ActiveVoiceRecording.new(this.channel, this.vc_connection, userId)
+                recording = await this.#newActiveVoiceRecording(userId)
                 this.active_recordings.set(userId, recording)
 
-                SafeQuery("INSERT INTO dbo.VoiceRecordings (session_id, filename, user_id) VALUES (@sessionid, @filename, @userid);", [
-                    {name: "sessionid", type: mssql.TYPES.Char(20), data: this.session_id},
-                    {name: "filename", type: mssql.TYPES.Char(24), data: recording.id},
-                    {name: "userid", type: mssql.TYPES.VarChar(100), data: userId}
-                ])
+                SafeQuery(sql`INSERT INTO dbo.VoiceRecordings (id, user_id) VALUES (${recording.id}, ${userId});`)
             }
             recording.subscribe()
         })
@@ -200,6 +198,23 @@ export class AudioStreamManager extends EventEmitter {
         // this.receiver = vc_connection.receiver.subscribe("404507305510699019", {end: {behavior: discord_voice.EndBehaviorType.AfterSilence, duration: 10000}})
         // const decoder = new opus.Decoder({ frameSize: 960, channels: 2, rate: 48000})
         // const stream = receiver.pipe(decoder).pipe(fs.createWriteStream(path.resolve("./") + "/test.pcm"))
+    }
+
+    async #newActiveVoiceRecording(userId: string) {
+        let recording = await ActiveVoiceRecording.new(this.channel, this.vc_connection, userId)
+        void sendParentMessageSync({
+            type: VOICE_MANAGER_MESSAGE_TYPES.RECORDING_STARTED,
+            data: {userId}
+        })
+        client.users.fetch(userId).then(user => user.send({
+            embeds: [new EmbedBuilder()
+                .setTitle("New recording started")
+                .setDescription(`A new recording of your voice has started. You can download this recording at any time from http://${
+                    process.env["DOMAIN"]
+                }/voice/download/${userId}/${recording.id}/recording.mp3`)
+            ]
+        }))
+        return recording
     }
 
     private async updateConnectedUsers() {
@@ -225,7 +240,7 @@ export class AudioStreamManager extends EventEmitter {
         }
         if (member && autoRecord) {
             console.log("Setting up auto recording for: " + member.id)
-            this.active_recordings.set(member.id, await ActiveVoiceRecording.new(this.channel, this.vc_connection, member.id))
+            this.active_recordings.set(member.id, await this.#newActiveVoiceRecording(member.id))
         }
     }
 
