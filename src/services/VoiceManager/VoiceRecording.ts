@@ -151,9 +151,12 @@ export class VoiceRecording {
                 .on("start", (line) => console.log(line))
                 .on("error", (err) => reject(err))
                 .on("close", () => resolve())
-                .outputFormat("mp3")
-                // .output("TEST.mp3")
-                .output(stream)
+                .on("progress", (progress) => {
+                    console.log(`${progress.percent}% done - Output: ${progress.targetSize}`)
+                })
+                // .outputFormat("mp3")
+                .output("output.mp3")
+                // .output(stream)
                 .noVideo()
                 .run()
         })
@@ -197,7 +200,9 @@ export class ActiveVoiceRecording extends VoiceRecording {
                 callback(null, encoder.decode(chunk))
             }
         })
-        const writeStream = createWriteStream(path.join(this.path, id))
+        const writeStream = createWriteStream(path.join(this.path, id), {
+            highWaterMark: 32,
+        })
         receiver.pipe(decoderStream)
         decoderStream.pipe(writeStream)
 

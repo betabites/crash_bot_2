@@ -35,7 +35,7 @@ RemoteStatusServer.io.on("connection", () => {
 })
 
 // const MC_CHAT_CHANNEL = "968298113427206195"
-const MC_CHAT_CHANNEL = "968298113427206195"
+const MC_CHAT_CHANNEL = "892518396166569994"
 const COORDINATES_SHARE_REGEX = /\[name:(?<name>".*"), x:(?<x>[-0-9]*), y:(?<y>[-0-9]*), z:(?<z>[-0-9]*), dim:(?<dim>.*)]/g
 
 export class MinecraftModule extends BaseModule {
@@ -73,7 +73,7 @@ export class MinecraftModule extends BaseModule {
             )
     ]
     deathMessages: string[] = [...deathMessages]
-    messagesEnabled = false
+    messagesEnabled = true
 
     constructor(client: Client) {
         super(client);
@@ -479,9 +479,12 @@ export class MinecraftModule extends BaseModule {
             let allPlayersInACall = await SafeQuery<{ discord_id: string }>(sql`
                 SELECT discord_id
                 FROM Users
-                WHERE mc_voiceConnectionGroup IS NOT NULL AND mc_connected = 1
-                GROUP BY mc_voiceConnectionGroup
-                HAVING COUNT(*) >= 2`)
+                WHERE mc_connected = 1
+                  AND mc_voiceConnectionGroup IN (SELECT mc_voiceConnectionGroup
+                                                  FROM Users
+                                                  GROUP BY mc_voiceConnectionGroup
+                                                  HAVING COUNT(*) >= 0)
+            `)
             for (let player of allPlayersInACall.recordset) {
                 PointsModule.grantPointsWithDMResponse({
                     discordClient: this.client,
@@ -530,7 +533,10 @@ export class MinecraftModule extends BaseModule {
             let postfix = character ? "as " + character.name : "via Discord"
             RemoteStatusServer.broadcastCommand(`tellraw @a ${JSON.stringify([
                 "",
-                {text: `[${msg.member?.nickname || msg.member?.user.username} ${postfix}]`, color: msg.member?.displayHexColor},
+                {
+                    text: `[${msg.member?.nickname || msg.member?.user.username} ${postfix}]`,
+                    color: msg.member?.displayHexColor
+                },
                 {text: " " + messageContent}
             ])}`)
         }

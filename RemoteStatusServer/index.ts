@@ -1,4 +1,3 @@
-import * as http from "http";
 import {Namespace, Server, Socket} from "socket.io";
 import {EventEmitter} from 'node:events';
 import * as crypto from "crypto";
@@ -105,9 +104,14 @@ export default class RemoteStatusServer extends EventEmitter {
 
         this.io.on("connection", client => {
             let timeout = setTimeout(() => {
+                console.log("Disconnecting due to authentication timeout")
                 client.disconnect()
             }, 3000)
             console.log("CLIENT SERVER CONNECTED")
+            client.on("ping", (socket) => {
+                console.log("PONG!")
+                socket.emit("pong")
+            })
             client.on("verify_connection", data => {
                 console.log("CLIENT SERVER ATTEMPTING AUTH")
                 try {

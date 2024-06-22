@@ -225,7 +225,7 @@ VOICE_ROUTER.get("/download/:userId/:recordingId/recording.mp3", AsyncEndpoint(a
     let recording = await VoiceRecording.fromSaved(req.params.recordingId.replaceAll("_", "-"), req.params.userId)
     console.log(recording)
     // res.setHeader("Content-Type", "audio/mpeg")
-    res.setHeader('Content-Disposition', 'attachment; filename="recording.mp3"');
+    if (req.query.download) res.setHeader('Content-Disposition', 'attachment; filename="recording.mp3"');
     await recording.export(res)
     console.log("DONE")
 }, false))

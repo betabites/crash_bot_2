@@ -12,7 +12,7 @@ import {
 import * as Discord from "discord.js";
 import {EmbedBuilder, GuildMember} from "discord.js";
 import ytdl from "ytdl-core";
-import SafeQuery, {sql} from "../SQL.js";
+import SafeQuery from "../SQL.js";
 import {makeid, QueueManager} from "../../misc/Common.js";
 import mssql from "mssql"
 import {client} from "../Discord.js";
@@ -185,11 +185,12 @@ export class AudioStreamManager extends EventEmitter {
 
         this.vc_connection.receiver.speaking.on("start", async (userId) => {
             let recording = this.active_recordings.get(userId)
+            if (!recording) return
             if (!recording) {
-                recording = await this.#newActiveVoiceRecording(userId)
-                this.active_recordings.set(userId, recording)
+                // recording = await this.#newActiveVoiceRecording(userId)
+                // this.active_recordings.set(userId, recording)
 
-                SafeQuery(sql`INSERT INTO dbo.VoiceRecordings (id, user_id) VALUES (${recording.id}, ${userId});`)
+                // SafeQuery(sql`INSERT INTO dbo.VoiceRecordings (id, user_id) VALUES (${recording.id}, ${userId});`)
             }
             recording.subscribe()
         })
