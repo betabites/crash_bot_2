@@ -575,7 +575,7 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                 })) {
                 tracker.newHandler(
                     command[1].name,
-                    () => command[1](interaction)
+                    () => command[1].call(module, interaction),
                 )
             }
         }

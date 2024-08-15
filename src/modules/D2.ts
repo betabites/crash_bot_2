@@ -1,5 +1,4 @@
 import {
-    BaseModule,
     InteractionAutocompleteResponse,
     InteractionButtonResponse,
     InteractionChatCommandResponse,
@@ -9,19 +8,21 @@ import {
 import {
     ActionRowBuilder,
     AutocompleteInteraction,
+    BaseGuildTextChannel,
     BaseMessageOptions,
     ButtonBuilder,
     ButtonInteraction,
     ButtonStyle,
+    ChannelType,
     ChatInputCommandInteraction,
     Client,
-    Colors,
     EmbedBuilder,
     Message,
     MessageActionRowComponentBuilder,
+    PermissionsBitField,
     SelectMenuInteraction,
     StringSelectMenuBuilder,
-    TextChannel
+    TextChannel,
 } from "discord.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {
@@ -31,8 +32,7 @@ import {
     buildTinyVendorEmbed,
     buildVendorMessage,
     getNextWeekday,
-    onlyVendorsThatSellStuff,
-    Weekdays
+    onlyVendorsThatSellStuff
 } from "./D2/Bungie.NET.js";
 import {surfaceFlatten} from "../utilities/surfaceFlatten.js";
 import {groupItemsWithMatchingNames} from "../utilities/groupItemsWithMatchingNames.js";
@@ -55,15 +55,18 @@ import {BasicBungieClient} from "bungie-net-core/lib/client.js";
 import fetch from "node-fetch";
 import {getProfile} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {AchievementProgress, GAME_IDS} from "./GameAchievements.js";
-import mssql from "mssql";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
 import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
+import {WeekdayNames, Weekdays} from "./D2/Weekdays.js";
+import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
+import schedule from "node-schedule";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing
     "935472869129990154", // #dungeon-main
     "1049104983586517092" // #raids-and-dungeon-chat
 ]
+const SESSION_THREAD_PARENT_ID = "1273524114614911067"
 
 interface SqlLiteItem {
     id: number,
@@ -85,7 +88,7 @@ export const D2_ROUTER = express.Router()
 /**
  * Represents a module for handling Destiny 2 related commands and functionality.
  */
-export class D2Module extends BaseModule {
+export class D2Module extends GameSessionModule {
     readonly liveScheduleChannelID = "1049104983586517092"
     readonly liveScheduleID = "1188381813048094732"
     readonly maxFireteamSize = 6
@@ -149,7 +152,7 @@ export class D2Module extends BaseModule {
     }
 
     constructor(client: Client) {
-        super(client);
+        super(client, 0);
         setTimeout(async () => {
             await this.updateScheduleMessages()
             void syncD2Achievements()
@@ -176,7 +179,74 @@ export class D2Module extends BaseModule {
                 this.primaryScheduleMessage = message
             })
         })
+        void this.updateSessions()
+        schedule.scheduleJob("0 0 0 * * *", () => {
+            void this.cleanUpSessions()
+            void this.updateSessions()
+        })
+
+        this.onUserJoinsSession = (async (session_id, user_id) => {
+            let session = await this.getGameSession(session_id)
+            if (!session) return
+
+            let channel: BaseGuildTextChannel
+            if (!session.hidden_discord_channel) {
+                // Create a Discord channel for this session
+                let guild = await this.client.guilds.fetch("892518158727008297")
+                channel = await guild.channels.create({
+                    name: session.start.toLocaleDateString().replaceAll("/", "-"),
+                    parent: "1273515817451130913",
+                    type: ChannelType.GuildText,
+                    permissionOverwrites: [
+                        {
+                            allow: [
+                                PermissionsBitField.Flags.ViewChannel,
+                            ],
+                            id: user_id
+                        },
+                        {
+                            deny: [PermissionsBitField.Flags.ViewChannel],
+                            id: guild.id // Deny access by default
+                        },
+                    ]
+                })
+                void this.attachDiscordChannelToSession(session_id, channel.id)
+                let msg = await channel.send({
+                    content: `Welcome to this game session channel! This channel will be automatically deleted up to 24 hours after the session.`
+                })
+                await msg.pin()
+            }
+            else {
+                let _channel = await this.client.channels.fetch(session.hidden_discord_channel)
+                channel = _channel as BaseGuildTextChannel
+                void channel.permissionOverwrites.create(user_id, {
+                    ViewChannel: true
+                })
+            }
+
+            channel.send(`<@${user_id}> joined this session`)
+        })
+        this.onUserLeavesSession = (async (session_id, user_id) => {
+            let session = await this.getGameSession(session_id)
+            if (!session) return
+
+            let channel: BaseGuildTextChannel
+            if (!session.hidden_discord_channel) return
+
+            let _channel = await this.client.channels.fetch(session.hidden_discord_channel)
+            channel = _channel as BaseGuildTextChannel
+            void channel.permissionOverwrites.delete(user_id)
+
+            channel.send(`<@${user_id}> left this session`)
+        })
     }
+
+    async updateSessions() {
+        for (let session of getNextRaidSessionTimes()) {
+            await this.getGameSession(session, true)
+        }
+    }
+
 
     async updateScheduleMessages() {
         let embed = await this.generateScheduleMessage()
@@ -240,7 +310,7 @@ export class D2Module extends BaseModule {
                 })
         }
         else if (msg.content.toLowerCase().includes("shut up")) {
-             msg.reply("Never")
+            msg.reply("Never")
         }
 
         // Check if the message references any items and/or vendors
@@ -396,69 +466,49 @@ export class D2Module extends BaseModule {
             date: Date
             people: string[]
         }[] = []
-        for (let item of getNextRaidSessions()) {
-            console.log(item)
-            let users = await SafeQuery<{
-                discord_id: string
-            }>("SELECT discord_id FROM dbo.userGameSessionsSchedule WHERE session_time = @date", [
-                {name: "date", type: mssql.TYPES.DateTime2(), data: item}
-            ])
+        for (let item of getNextRaidSessionTimes()) {
+            let session = await this.getGameSession(item)
+            let users = session ? await this.getUsersSubscribedToSession(session.id) : []
             let usernames: string[] = []
-            for (let user of users.recordset) {
-                const discordUser = await this.client.users.fetch(user.discord_id)
+            for (let user of users) {
+                const discordUser = await this.client.users.fetch(user)
                 if (!discordUser) continue
                 usernames.push(discordUser.username)
             }
             sessions.push({
                 date: item,
-                people: users.recordset.map(user => user.discord_id)
+                people: users
             })
         }
 
 
         return {
-            embeds: [new EmbedBuilder()
-                .setTitle("🗳️ Re-Flesh Raids Voting (BETA)")
-                .setDescription("Use the buttons below to vote for the next raid")
-                .addFields([
-                    {
-                        name: "Raid votes",
-                        value: raids
-                                .sort((a, b) => {
-                                    return (a.votes || 0) > (b.votes || 0) ? -1 : 1
-                                })
-                                .slice(0, 3)
-                                .map((raid, index) => {
-                                    return (index + 1) + ". " + raid.originalDisplayProperties.name + " " + (raid.votes || 0) + "/" + totalVotes
-                                })
-                                .join("\n") +
-                            "\n..."
-                    }
-                ]),
+            embeds: [
                 new EmbedBuilder()
                     .setTitle("🛡️ Re-Flesh Raids Sessions (BETA)")
-                    .setDescription("Below is a list of raiding sessions over the next 2 weeks. Use the buttons below to mark yourself as available for sessions of your choice.")
+                    // .setDescription("Below is a list of raiding sessions over the next 2 weeks. Use the buttons below to mark yourself as available for sessions of your choice.")
                     .addFields(sessions.map((session, index) => {
                         const atTime = session.date.getTime()
                         let displayText = ""
-                        if (atTime - Date.now() < (12 * (60 * (60 * 1000)))) displayText = "<t:" + Math.floor(atTime / 1000) + ":R>"
-                        else displayText = "<t:" + Math.floor(atTime / 1000) + ":F>"
+                        displayText =
+                            "<t:" + Math.floor(atTime / 1000) + ":d>"
 
                         return {
-                            name: "Session " + (index + 1) + ":\n" + displayText,
-                            value: session.people.length === 0 ? "*No current attendees*" : "<@" + session.people.join(">\n<@") + ">",
+                            name: displayText,
+                            value: `${WeekdayNames[session.date.getDay()]} (${session.people.length}/6)`,
                             inline: true
                         }
                     }))
+                    .setFooter({text: `Weekly raid: Deep Stone Crypt`})
             ],
             components: [
                 new ActionRowBuilder<MessageActionRowComponentBuilder>()
                     .addComponents(
-                        new ButtonBuilder()
-                            .setEmoji("🗳️")
-                            .setLabel("Add/Change Vote")
-                            .setCustomId("d2_raid_change_vote")
-                            .setStyle(ButtonStyle.Secondary),
+                        // new ButtonBuilder()
+                        //     .setEmoji("🗳️")
+                        //     .setLabel("Add/Change Vote")
+                        //     .setCustomId("d2_raid_change_vote")
+                        //     .setStyle(ButtonStyle.Secondary),
                         new ButtonBuilder()
                             .setEmoji("🤝")
                             .setLabel("Make yourself available")
@@ -509,27 +559,14 @@ export class D2Module extends BaseModule {
 
     @InteractionButtonResponse("d2_raid_make_available")
     async onMakeAvailableButtonClick(interaction: ButtonInteraction) {
-        const signedUpSessions = (await SafeQuery<{
-            session_time: Date,
-            discord_id: string
-        }>(sql`SELECT session_time, discord_id
-               FROM dbo.UserGameSessionsSchedule`))
-            .recordset
-        const sessions = getNextRaidSessions()
-            .map(session => {
-                const existingSignups = signedUpSessions.filter(item => session.getTime() === item.session_time.getTime())
-                const isSignedUp = !!signedUpSessions.find(item => session.getTime() === item.session_time.getTime() && interaction.user.id === item.discord_id)
-                return {date: session, existingSignups, isSignedUp}
-            })
-            .map((session, index) => {
-                const isFull = session.existingSignups.length >= this.maxFireteamSize && !session.isSignedUp
-                return {
-                    label: "Session " + (index + 1),
-                    description: (isFull ? "FULL " : "") + session.date.toLocaleDateString() + " UTC",
-                    value: session.date.getTime().toString(),
-                    default: session.isSignedUp,
-                }
-            })
+        const sessions = await this.getAllGameSessions();
+        let sessionsMapped: { users: string[], isSignedUp: boolean, session: GameSessionData }[] = []
+        for (let session of sessions) {
+            console.log(session)
+            let users = await this.getUsersSubscribedToSession(session.id)
+            const isSignedUp = !!users.find(user => user === interaction.user.id)
+            sessionsMapped.push({users, isSignedUp, session})
+        }
 
         if (sessions.length === 0) {
             interaction.reply({
@@ -549,7 +586,15 @@ export class D2Module extends BaseModule {
                             .setMinValues(0)
                             .setCustomId("d2_raid_set_available")
                             .addOptions(
-                                sessions
+                                sessionsMapped.map((session, index) => {
+                                    const isFull = session.users.length >= this.maxFireteamSize && !session.isSignedUp
+                                    return {
+                                        label: "Session " + (index + 1),
+                                        description: (isFull ? "FULL " : "") + session.session.start.toLocaleDateString() + " UTC",
+                                        value: session.session.id,
+                                        default: session.isSignedUp,
+                                    }
+                                })
                             )
                     )
             ]
@@ -558,38 +603,29 @@ export class D2Module extends BaseModule {
 
     @InteractionSelectMenuResponse("d2_raid_set_available")
     async onMakeAvailableSet(interaction: SelectMenuInteraction) {
-        let dates = interaction.values.map(value => parseInt(value)).filter(value => !isNaN(value))
-        await SafeQuery(sql`DELETE
-                            FROM dbo.UserGameSessionsSchedule
-                            WHERE discord_id = ${interaction.user.id}`)
+        let selected_session_ids = interaction.values
+        // NOTE. At the end of this function. The set below will contain ONLY sessions which the user needs to be unsubcribed from
+        let currently_subscribed_session_ids = new Set(await this.getUserSessionSubscriptions(interaction.user.id))
 
-        let fullSessions: Date[] = []
-        let almostFullSessions: Date[] = []
-        for (let date of dates) {
-            // Check that the session is not already full
-            const attendees = (await SafeQuery("SELECT discord_id FROM dbo.UserGameSessionsSchedule WHERE session_time = @date", [
-                {name: "date", type: mssql.TYPES.DateTime2(), data: new Date(date)}
-            ])).recordset
-            if (attendees.length >= this.maxFireteamSize) {
-                fullSessions.push(new Date(date))
+        for (let session_id of selected_session_ids) {
+            if (currently_subscribed_session_ids.has(session_id)) {
+                // User is already subscribed to this session, so ignore
+                currently_subscribed_session_ids.delete(session_id)
                 continue
             }
-            else if (attendees.length === 4) {
-                almostFullSessions.push(new Date(date))
-            }
 
-            await SafeQuery("INSERT INTO dbo.UserGameSessionsSchedule (session_time, game_id, discord_id) VALUES (@date, 0, @discordid)", [
-                {name: "date", type: mssql.TYPES.DateTime2(), data: new Date(date)},
-                {name: "discordid", type: mssql.TYPES.VarChar(100), data: interaction.user.id},
-            ])
+            // Check that the session is not already full
+            const attendees = await this.getUsersSubscribedToSession(session_id)
+            if (attendees.length >= this.maxFireteamSize) {
+                continue
+            }
+            await this.subscribeUserToSession(interaction.user.id, session_id)
         }
 
-        interaction.reply({
+        for (let session of currently_subscribed_session_ids) await this.unsubscribeUserFromSession(interaction.user.id, session)
+
+        void interaction.reply({
             content: "Awesome! We've recorded those dates",
-            embeds: fullSessions.map(fullSession => new EmbedBuilder()
-                .setColor(Colors.Red)
-                .setDescription(`Couldn't add you to this session: <t:${Math.floor(fullSession.getTime() / 1000)}:F>. This session is full`)
-            ),
             ephemeral: true
         })
 
@@ -907,7 +943,7 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
 })
 
 
-function getNextRaidSessions() {
+function getNextRaidSessionTimes() {
     const defaultTime = [7, 0, 0, 0]
     const now = new Date()
     now.setHours(defaultTime[0])

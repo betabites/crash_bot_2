@@ -21,6 +21,7 @@ import {
 } from "bungie-net-core/lib/models/index.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
 import {API_KEY, BungieAPIResponse} from "../../services/Bungie.NET.js";
+import {Weekdays} from "./Weekdays.js";
 
 const D2ClassEmojis = {
     [DestinyClass.Titan]: "1186537374247829505",
@@ -634,16 +635,6 @@ function getTimeOfNextReset(interval: number, offset = 0) {
     while (nextReset.getTime() < Date.now()) nextReset.setTime(nextReset.getTime() + interval)
 
     return nextReset;
-}
-
-export enum Weekdays {
-    SUNDAY,
-    MONDAY,
-    TUESDAY,
-    WEDNESDAY,
-    THURSDAY,
-    FRIDAY,
-    SATURDAY
 }
 
 export function getNextWeekday(date: Date, weekday: Weekdays) {

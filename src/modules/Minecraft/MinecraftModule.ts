@@ -91,11 +91,11 @@ export class MinecraftModule extends BaseModule {
                 }, 1000)
 
                 ServerConnection.on("serverConnect", () => {
-                    if (!this.messagesEnabled) return
-                    const embed = new EmbedBuilder()
-                    embed.setDescription(`Connected to server`)
-                    embed.setColor(Colors.Green)
-                    channel.send({embeds: [embed]})
+                    // if (!this.messagesEnabled) return
+                    // const embed = new EmbedBuilder()
+                    // embed.setDescription(`Connected to server`)
+                    // embed.setColor(Colors.Green)
+                    // channel.send({embeds: [embed]})
                 })
 
                 ServerConnection.on("serverDisconnect", () => {
