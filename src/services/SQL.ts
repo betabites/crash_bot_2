@@ -153,11 +153,11 @@ export function sql(strings: TemplateStringsArray, ...args: (SQLParameterWithUns
         }
         else {
             if (arg instanceof SQLParameterOverride) {
-                return {
-                    name: `param${index}_${index}`,
+                params.push({
+                    name: `param${index}`,
                     type: arg.type,
                     data: arg.data
-                };
+                });
             }
             else {
                 params.push({
