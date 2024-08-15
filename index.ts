@@ -6,47 +6,35 @@ import fileUpload, {UploadedFile} from "express-fileupload"
 import fs from "fs"
 import * as path from "path";
 import {client, getToken,} from "./src/services/Discord.js";
-import openai from "./src/services/ChatGPT.js";
-import SafeQuery, {sql} from "./src/services/SQL.js";
+import SafeQuery from "./src/services/SQL.js";
 import {buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
 import {CrashBotUser} from "./src/misc/UserManager.js";
-import Discord, {
+import {
     ActionRowBuilder,
     AttachmentBuilder,
     ButtonBuilder,
     ButtonStyle,
     ChannelType,
-    EmbedBuilder,
     Guild,
-    GuildMember,
     MessageActionRowComponentBuilder,
-    TextBasedChannel,
-    TextChannel
+    TextChannel,
+    WebhookClient
 } from "discord.js";
 import {fetchThrowTemplates, generateThrow} from "./src/misc/ThrowMaker.js";
 import ytdl from "ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
 import {makeid} from "./src/misc/Common.js";
-import WSS from "./src/misc/WSS.js";
-import {VoiceConnectionManager} from "./src/services/VoiceManager/VoiceManager.js";
-import http from "http";
-import https from "https";
 import mssql from "mssql";
-import randomWords from "random-words";
-import bad_baby_words from "./badwords.json" assert {type: "json"}
-import {setupBungieAPI,} from "./src/modules/D2/Bungie.NET.js";
 import {BaseModule} from "./src/modules/BaseModule.js";
 import {D2_ROUTER, D2Module} from "./src/modules/D2.js";
 import {RoleplayModule} from "./src/modules/RoleplayModule.js";
 import {GPTModule} from "./src/modules/GPT.js";
-import {getUserData} from "./src/utilities/getUserData.js";
 import {ResourcePackManagerModule} from "./src/modules/ResourcePackManagerModule.js";
 import {ImagesModule} from "./src/modules/ImagesModule.js";
 import {ExperimentsModule} from "./src/modules/ExperimentsModule.js";
 import {MinecraftModule} from "./src/modules/Minecraft/MinecraftModule.js";
 import {MiscModule} from "./src/modules/MiscModule.js";
 import {VOICE_ROUTER, VoiceControlModule} from "./src/modules/VoiceControlModule.js";
-import {quoteReply} from "./src/utilities/quoteReply.js";
 import {sendNotifications} from "./src/modules/D2/SetupNotifications.js";
 import dotenv from "dotenv"
 import {ACHIEVEMENTS_ROUTER} from "./src/modules/GameAchievements.js";
@@ -56,8 +44,7 @@ import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
 import {SpeechModule} from "./src/modules/Speech.js";
 import {PointsModule} from "./src/modules/Points.js";
 import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
-import RemoteStatusServer from "./src/misc/RemoteStatusServer.js";
-import {EXPRESS_APP, HTTP_SERVER, HTTPS_SERVER, IO} from "./src/misc/getHttpServer.js";
+import {EXPRESS_APP} from "./src/misc/getHttpServer.js";
 
 const moduleClasses = [
     D2Module,
@@ -82,7 +69,7 @@ let pack_updated
 setInterval(async () => {
     let res = await SafeQuery("SELECT * FROM dbo.Webhook WHERE timeout < GETDATE()", [])
     for (let _webhook of res.recordset) {
-        let webhook = new Discord.WebhookClient({id: _webhook.webhook_id, token: _webhook.token})
+        let webhook = new WebhookClient({id: _webhook.webhook_id, token: _webhook.token})
         webhook.delete()
     }
     await SafeQuery("DELETE FROM dbo.Webhook WHERE timeout < GETDATE()", [])

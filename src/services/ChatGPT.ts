@@ -32,7 +32,8 @@ export class AIConversation extends EventEmitter {
     private messages: ChatCompletionMessageParam[] = []
     private functions: RunnableToolFunction<any>[] = []
     readonly id: string
-    private delayedSendTimer: NodeJS.Timeout | null = null
+    protected delayedSendTimer: NodeJS.Timeout | null = null
+    #controller: AbortController | undefined
 
     /**
      * Creates an AIConversation instance using saved conversation data.
@@ -59,6 +60,8 @@ export class AIConversation extends EventEmitter {
 
     get isNew() {return this.messages.length === 0}
 
+    get controller() {return this.#controller}
+
     /**
      * Creates a new instance of AIConversation.
      *
@@ -73,7 +76,7 @@ export class AIConversation extends EventEmitter {
         await SafeQuery(sql`DELETE FROM AiConversationHistory WHERE conversation_id = ${id}`)
     }
 
-    private constructor(
+    protected constructor(
         messages: ChatCompletionMessageParam[],
         functions: RunnableToolFunction<any>[] = [],
         id: string
@@ -106,11 +109,16 @@ export class AIConversation extends EventEmitter {
     async sendToAI(): Promise<ChatCompletionMessageParam> {
         this.delayedSendTimer = null
         if (this.functions.length === 0) {
+            let controller = new AbortController()
+            this.#controller = controller
+
             const result = await openai.chat.completions.create({
                 model: 'gpt-3.5-turbo',
-                messages: this.messages
+                messages: this.messages,
             })
             console.log(result.choices)
+            if (this.#controller?.signal.aborted) throw new Error("Aborted")
+
             const message: ChatCompletionAssistantMessageParam = {
                 role: "assistant",
                 content: result.choices.reduce((a, b) => a + b.message.content, "")
@@ -126,13 +134,21 @@ export class AIConversation extends EventEmitter {
                 messages: this.messages,
                 tools: this.functions
             })
+            this.#controller = runner.controller
+
             runner.allChatCompletions()
             const result = await runner.finalMessage()
+            if (this.#controller?.signal.aborted) throw new Error("Aborted")
+
             await this.saveMessage(result)
             this.emit("onAIResponse", result)
             return result
         }
     }
+}
+
+export function generateAIImage(...params: Parameters<typeof openai.images.generate>) {
+    return openai.images.generate(...params)
 }
 
 export async function generateAIThumbnail(prompt: string) {

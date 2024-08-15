@@ -1,7 +1,7 @@
 import {client} from "../services/Discord.js";
 import {EmbedBuilder, GuildMember, TextChannel} from "discord.js";
 import SafeQuery from "../services/SQL.js";
-import RemoteStatusServer from "./RemoteStatusServer.js";
+import {Connection} from "./RemoteStatusServer.js";
 
 let last_scoreboard_update = Date.now() - 30000
 
@@ -24,8 +24,7 @@ export async function updateScoreboard() {
         try {
             member = await channel.guild.members.fetch(user.discord_id)
         } catch(e) {}
-        // @ts-ignore
-        let player = RemoteStatusServer.connections["pczWlxfMzPmuI6yjQMaQYA=="].getPlayer(user.mc_id)
+        let player = Connection.getPlayer(user.mc_id)
 
         if (player && user.mc_detailed_scoreboard) {
             embed.addFields({

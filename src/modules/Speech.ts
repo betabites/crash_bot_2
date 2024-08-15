@@ -200,7 +200,11 @@ export class SpeechModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     private async onMessage(msg: Message) {
-        if (!msg.member || msg.author.bot) return
+        if (msg.author.bot) return
+        if (!msg.member) {
+            this.emitAlteredMessageEvent(msg, msg.content, null)
+            return
+        }
         let message = msg.content
 
         if (msg.reference) {

@@ -1,12 +1,14 @@
 import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.js";
-import Discord, {
+import {
     ChannelType,
     ChatInputCommandInteraction,
     Client,
+    Collection,
     Colors,
     EmbedBuilder,
     GuildMember,
     Message,
+    TextBasedChannel,
     User
 } from "discord.js";
 import {
@@ -25,9 +27,9 @@ import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {TWAGGER_POST_CHANNEL} from "../misc/sendTwaggerPost.js";
 import {PointsModule} from "./Points.js";
-import {ChatCompletionMessageParam} from "openai/resources/index";
 import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 import {Character, OnSpeechModeAdjustmentComplete} from "./Speech.js";
+import {GPTTextChannel} from "./GPTTextChannel.js";
 
 export class GPTModule extends BaseModule {
     commands = [
@@ -81,9 +83,12 @@ export class GPTModule extends BaseModule {
                     .setName("hours")
                     .setDescription("Number of hours you'd like to look back and summarise (default; 24 hrs)")
                     .setRequired(false)
-            )
+            ),
+        new SlashCommandBuilder()
+            .setName("become_a_111_operator")
+            .setDescription("Simulate a bullshit 111 call, with you as the operator")
     ]
-    activeConversations = new Map<string, AIConversation>()
+    activeConversations = new Map<string, GPTTextChannel>()
 
     constructor(client: Client) {
         super(client);
@@ -225,14 +230,15 @@ export class GPTModule extends BaseModule {
             askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
         }
         else if (msg.mentions.users.has(this.client.user.id) || this.activeConversations.has(msg.channelId) || msg.channel.type === ChannelType.DM) {
+            console.log("HERE!")
+            let conversation = this.activeConversations.get(msg.channelId) as GPTTextChannel
             if (msg.content === "reset") {
-                await AIConversation.reset(msg.channelId)
-                msg.reply("Crash Bot's memory has been reset")
+                await conversation.reset()
+                void msg.reply("Crash Bot's memory has been reset")
                 this.activeConversations.delete(msg.channelId)
                 return
             }
 
-            let conversation = this.activeConversations.get(msg.channelId)
             if (!conversation) {
                 let level = await PointsModule.getPoints(msg.author.id)
                 if (level.level < 7) {
@@ -240,66 +246,20 @@ export class GPTModule extends BaseModule {
                     return
                 }
 
-                let filesAwaitingSend: string[] = []
-                conversation = await AIConversation.fromSaved(msg.channelId, this.generateChatGPTFunctions(msg, (type, data) => {
-                    switch (type) {
-                        case "attachment":
-                            filesAwaitingSend.push(data)
-                            break
-                    }
-                }))
-                if (msg.channel.type !== ChannelType.DM) {
-                    this.activeConversations.set(msg.channelId, conversation)
-                    setTimeout(async () => {
-                        if (!conversation) return
-                        await conversation.saveMessage({
-                            role: "system",
-                            content: "Your conversation has expired. Please say goodbye"
-                        })
-                        try {
-                            await conversation.sendToAI()
-                        } catch (e) {
-                            console.error(e)
-                        }
-                        this.activeConversations.delete(msg.channelId)
-                        conversation.reset()
-                    }, 300000)
-                }
-                conversation.on("onAIResponse", async (message: ChatCompletionMessageParam) => {
-                    let ai_res = message.content?.toString()
-                    let embeds: EmbedBuilder[] = []
-                    let files: string[] = JSON.parse(JSON.stringify(filesAwaitingSend))
-                    filesAwaitingSend.length = 0
-
-                    for (let file of files) {
-                        embeds.push(new EmbedBuilder().setImage(file))
-                    }
-                    if (!ai_res) return
-                    let response = await msg.channel.send({
-                        content: ai_res,
-                        files: filesAwaitingSend,
-                        embeds,
-                        allowedMentions: {
-                            parse: [],
-                            users: [],
-                            roles: [],
-                            repliedUser: false
-                        },
-                    })
-                })
-                await conversation.saveMessage({
-                    role: "system",
-                    content: "You are a bot by the name of `Crash Bot`. You act Gangsta and help people out within a Discord server."
-                })
+                conversation = await this.#getConversationForChannel(msg.channel)
             }
 
-            await conversation.saveMessage({
-                role: "user",
-                name: character?.name || msg.author.displayName.replace(/[^A-z]/g, ""),
-                content: messageContent
-            })
-            conversation.delayedSendToAI()
+            void conversation.processMessage([msg], messageContent, character)
         }
+    }
+
+    async #getConversationForChannel(channel: TextBasedChannel) {
+        let conversation = this.activeConversations.get(channel.id)
+        if (conversation) return conversation
+
+        conversation = await GPTTextChannel.load(channel, this.client)
+        this.activeConversations.set(channel.id, conversation)
+        return conversation
     }
 
     @InteractionChatCommandResponse("tldr")
@@ -313,8 +273,8 @@ export class GPTModule extends BaseModule {
 
         let lookback_until = Date.now() - (lookback_hours * 60 * 60 * 1000)
 
-        let messages: Discord.Collection<string, Discord.Message<boolean>> = new Discord.Collection([])
-        let last_message: Discord.Message<boolean> | undefined
+        let messages: Collection<string, Message<boolean>> = new Collection([])
+        let last_message: Message<boolean> | undefined
         while (messages.size < 150 || (messages.last()?.createdTimestamp || 0) >= lookback_until) {
             let new_messages = await interaction.channel?.messages.fetch({
                 limit: 100,
@@ -562,5 +522,17 @@ export class GPTModule extends BaseModule {
                     ]
                 })
             })
+    }
+
+    @InteractionChatCommandResponse("become_a_111_operator")
+    async becomeAnEmergencyOperator(interaction: ChatInputCommandInteraction) {
+        if (!interaction.channel) return
+
+        let conversation = await this.#getConversationForChannel(interaction.channel)
+        await conversation.saveMessage({
+            role: "system",
+            content: "You are talking with a pretend 911 operator. YOU ARE THE CALLER, NOT THE OPERATOR. YOU ARE ONLY ACTING ON BEHALF OF THE CALLER. You must make up a fake story, similar to the 911 calls in Paradise PD. NSFW, swears, and vulgar scenes are acceptable as long as they are for the purposes of comedy.",
+        })
+        interaction.reply("Ready to start the call!")
     }
 }

@@ -34,8 +34,8 @@ RemoteStatusServer.io.on("connection", () => {
     console.log("Client connected")
 })
 
-// const MC_CHAT_CHANNEL = "968298113427206195"
-const MC_CHAT_CHANNEL = "892518396166569994"
+const MC_CHAT_CHANNEL = "968298113427206195"
+// const MC_CHAT_CHANNEL = "892518396166569994"
 const COORDINATES_SHARE_REGEX = /\[name:(?<name>".*"), x:(?<x>[-0-9]*), y:(?<y>[-0-9]*), z:(?<z>[-0-9]*), dim:(?<dim>.*)]/g
 
 export class MinecraftModule extends BaseModule {

@@ -539,7 +539,7 @@ export async function mobaltyicsToDIMLoadout(build: z.infer<typeof DESTINY_BUILD
                 if (!socketType) continue
 
                 let suitableItem = socketOverridesRaw.find(item =>
-                    socketType.plugWhitelist.find(plug => item.plug?.plugCategoryHash === plug.categoryHash)
+                    socketType?.plugWhitelist.find(plug => item.plug?.plugCategoryHash === plug.categoryHash)
                 )
                 if (!suitableItem) continue
 

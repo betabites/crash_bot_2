@@ -1,7 +1,8 @@
-import Discord, {
+import {
     ActionRowBuilder,
     ButtonStyle,
     EmbedBuilder,
+    InteractionReplyOptions,
     MessageActionRowComponentBuilder,
     SelectMenuBuilder
 } from "discord.js";
@@ -135,7 +136,7 @@ export function getTierTypeEmoji(tier: number) {
     }
 }
 
-export async function buildItemMessage(searchQuery: string, item: DestinyInventoryItemDefinition, similarItems: DestinyInventoryItemDefinition[]): Promise<Discord.InteractionReplyOptions & {
+export async function buildItemMessage(searchQuery: string, item: DestinyInventoryItemDefinition, similarItems: DestinyInventoryItemDefinition[]): Promise<InteractionReplyOptions & {
     fetchReply: true
 }> {
     // Detect the item type
@@ -228,7 +229,7 @@ export function getItemVendors(itemHash: number): Promise<DestinyVendorDefinitio
     })
 }
 
-export async function buildVendorMessage(searchQuery: string, item: DestinyVendorDefinition, similarItems: DestinyVendorDefinition[]): Promise<Discord.InteractionReplyOptions & {
+export async function buildVendorMessage(searchQuery: string, item: DestinyVendorDefinition, similarItems: DestinyVendorDefinition[]): Promise<InteractionReplyOptions & {
     fetchReply: true
 }> {
     const getCategoryIndex = (a: DestinyInventoryItemDefinition) => {
@@ -436,7 +437,7 @@ export function buildTinyVendorEmbed(vendor: DestinyVendorDefinition) {
     return embed
 }
 
-export async function buildActivityMessage(searchQuery: string, activity: DestinyActivityDefinition, similarActivities: DestinyActivityDefinition[]): Promise<Discord.InteractionReplyOptions & {
+export async function buildActivityMessage(searchQuery: string, activity: DestinyActivityDefinition, similarActivities: DestinyActivityDefinition[]): Promise<InteractionReplyOptions & {
     fetchReply: true
 }> {
     // Detect the item type
