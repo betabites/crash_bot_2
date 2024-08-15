@@ -21,6 +21,15 @@ const sql_config: config = {
     }
 }
 
+class SQLParameterOverride {
+    readonly data: any;
+    readonly type: ISqlType;
+    constructor(type: mssql.ISqlType, data: any) {
+        this.data = data
+        this.type = type
+    }
+
+}
 type SQLParameter = string | number | Date | null | boolean
 type SQLParameterWithUnsafe = SQLParameter | UnsafeParam
 type SQLQueryObject = {
@@ -115,26 +124,48 @@ function determineSqlType(item: SQLParameterWithUnsafe): PreparedArgumentUnsafe[
     }
 }
 
-export function sql(strings: TemplateStringsArray, ...args: (SQLParameterWithUnsafe | SQLParameter[])[]): SQLQueryObject {
+export function override(type: ISqlType, data: any) {
+    return new SQLParameterOverride(type, data)
+}
+
+export function sql(strings: TemplateStringsArray, ...args: (SQLParameterWithUnsafe | SQLParameterOverride | (SQLParameter | SQLParameterOverride)[])[]): SQLQueryObject {
     let params: (PreparedArgumentUnsafe | PreparedArgument[])[] = []
     args.forEach((arg, index) => {
         if (Array.isArray(arg)) {
             params.push(arg.map((subArg, subIndex) => {
-                let type = determineSqlType(subArg)
-                if (type === UnsafeSymbol) throw new Error("Cannot parse unsafe parameters in an input array")
-                return {
-                    name: `param${index}_${subIndex}`,
-                    type,
-                    data: subArg
-                };
+                if (subArg instanceof SQLParameterOverride) {
+                    return {
+                        name: `param${index}_${subIndex}`,
+                        type: subArg.type,
+                        data: subArg.data
+                    };
+                }
+                else {
+                    let type = determineSqlType(subArg)
+                    if (type === UnsafeSymbol) throw new Error("Cannot parse unsafe parameters in an input array")
+                    return {
+                        name: `param${index}_${subIndex}`,
+                        type,
+                        data: subArg
+                    };
+                }
             }))
         }
         else {
-            params.push({
-                name: `param${index}`,
-                type: determineSqlType(arg),
-                data: arg
-            });
+            if (arg instanceof SQLParameterOverride) {
+                return {
+                    name: `param${index}_${index}`,
+                    type: arg.type,
+                    data: arg.data
+                };
+            }
+            else {
+                params.push({
+                    name: `param${index}`,
+                    type: determineSqlType(arg),
+                    data: arg
+                });
+            }
         }
     });
     let query = ""
