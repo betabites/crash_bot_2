@@ -10,24 +10,54 @@ import SafeQuery, {SafeTransaction, sql} from "../../services/SQL.js";
 import mssql from "mssql";
 import fetch from "node-fetch"
 import {
-    DestinyActivityDefinition,
-    DestinyClass,
-    DestinyComponentType,
-    DestinyDestinationDefinition,
-    DestinyInventoryItemDefinition,
-    DestinyItemType,
-    DestinyVendorDefinition,
-    DestinyVendorsResponse
-} from "bungie-net-core/lib/models/index.js";
+    type DestinyActivityDefinition,
+    type DestinyComponentType,
+    type DestinyDestinationDefinition,
+    type DestinyInventoryItemDefinition,
+    type DestinyVendorDefinition,
+} from "bungie-net-core/models";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
 import {API_KEY, BungieAPIResponse} from "../../services/Bungie.NET.js";
 import {Weekdays} from "./Weekdays.js";
+import {getPublicMilestones} from "bungie-net-core/endpoints/Destiny2";
+import {BungieNETConnectionProfile} from "./BungieNETConnectionProfile.js";
+
+enum DestinyItemType {
+    None = 0,
+    Currency = 1,
+    Armor = 2,
+    Weapon = 3,
+    Message = 7,
+    Engram = 8,
+    Consumable = 9,
+    ExchangeMaterial = 10,
+    MissionReward = 11,
+    QuestStep = 12,
+    QuestStepComplete = 13,
+    Emblem = 14,
+    Quest = 15,
+    Subclass = 16,
+    ClanBanner = 17,
+    Aura = 18,
+    Mod = 19,
+    Dummy = 20,
+    Ship = 21,
+    Vehicle = 22,
+    Emote = 23,
+    Ghost = 24,
+    Package = 25,
+    Bounty = 26,
+    Wrapper = 27,
+    SeasonalArtifact = 28,
+    Finisher = 29,
+    Pattern = 30
+}
 
 const D2ClassEmojis = {
-    [DestinyClass.Titan]: "1186537374247829505",
-    [DestinyClass.Hunter]: "1186537371055947786",
-    [DestinyClass.Warlock]: "1186537375912968272",
-    [DestinyClass.Unknown]: null
+    [0]: "1186537374247829505", // Titan
+    [1]: "1186537371055947786", // Hunter
+    [2]: "1186537375912968272", // Warlock
+    [3]: null
 }
 
 // Function to calculate the Levenshtein distance
@@ -284,14 +314,17 @@ export async function buildVendorMessage(searchQuery: string, item: DestinyVendo
 
                                 let text = `${getTierTypeEmoji(i.inventory.tierType)} [${i.displayProperties.name}](https://www.light.gg/db/items/${i.hash}) ${getItemTypeName(i.itemType)}`
                                 switch (i.classType) {
-                                    case DestinyClass.Hunter:
-                                        text += ` [<:emoji:${D2ClassEmojis[DestinyClass.Hunter]}> Hunter]`
+                                    case 1:
+                                        // Hunter
+                                        text += ` [<:emoji:${D2ClassEmojis[1]}> Hunter]`
                                         break
-                                    case DestinyClass.Titan:
-                                        text += ` [<:emoji:${D2ClassEmojis[DestinyClass.Titan]}> Titan]`
+                                    case 0:
+                                        // Titan
+                                        text += ` [<:emoji:${D2ClassEmojis[0]}> Titan]`
                                         break
-                                    case DestinyClass.Warlock:
-                                        text += ` [<:emoji:${D2ClassEmojis[DestinyClass.Warlock]}> Warlock]`
+                                    case 2:
+                                        // Warlock
+                                        text += ` [<:emoji:${D2ClassEmojis[2]}> Warlock]`
                                         break
                                 }
 
@@ -647,4 +680,17 @@ export function getNextWeekday(date: Date, weekday: Weekdays) {
         date.setDate(date.getDate() + (7 - currentWeekday) + weekday)
     }
     return date
+}
+
+export async function getWeeklyMilestonesMessage() {
+    const milestones = await getPublicMilestones(BungieNETConnectionProfile);
+    let embed = new EmbedBuilder()
+    let description = ""
+
+    for (let milestone of Object.values(milestones.Response)) {
+        let data = (await MANIFEST_SEARCH.milestones.byHash([milestone.milestoneHash]))[0]
+        description += `${data.displayProperties.name}\n`
+    }
+    embed.setDescription(description)
+    return embed
 }

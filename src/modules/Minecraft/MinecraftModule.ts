@@ -103,7 +103,7 @@ export class MinecraftModule extends BaseModule {
                     const embed = new EmbedBuilder()
                     embed.setDescription(`Server connection lost`)
                     embed.setColor(Colors.Red)
-                    channel.send({embeds: [embed]})
+                    // channel.send({embeds: [embed]})
                 })
 
                 ServerConnection.on("message", async (message: string, player: any) => {

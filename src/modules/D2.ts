@@ -32,34 +32,33 @@ import {
     buildTinyVendorEmbed,
     buildVendorMessage,
     getNextWeekday,
+    getWeeklyMilestonesMessage,
     onlyVendorsThatSellStuff
 } from "./D2/Bungie.NET.js";
 import {surfaceFlatten} from "../utilities/surfaceFlatten.js";
 import {groupItemsWithMatchingNames} from "../utilities/groupItemsWithMatchingNames.js";
 import {
-    BungieMembershipType,
-    DestinyActivityDefinition,
-    DestinyComponentType,
-    DestinyInventoryItemDefinition,
-    DestinyItemType,
-    DestinyRecordComponent,
-    DestinyVendorDefinition
-} from "bungie-net-core/lib/models/index.js";
+    type BungieMembershipType,
+    type DestinyActivityDefinition,
+    type DestinyInventoryItemDefinition,
+    type DestinyRecordComponent,
+    type DestinyVendorDefinition,
+} from "bungie-net-core/models";
 import {atSpecificTime, itemAvailableAtVendor} from "./D2/SetupNotifications.js";
 import express from "express";
 import * as console from "console";
 import SafeQuery, {PutOperation, sql} from "../services/SQL.js";
 import cookieParser from "cookie-parser"
-import {getMembershipDataForCurrentUser} from "bungie-net-core/lib/endpoints/User/index.js";
-import {BasicBungieClient} from "bungie-net-core/lib/client.js";
+import {getMembershipDataForCurrentUser} from "bungie-net-core/endpoints/User";
 import fetch from "node-fetch";
-import {getProfile} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
 import {AchievementProgress, GAME_IDS} from "./GameAchievements.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
 import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
 import {WeekdayNames, Weekdays} from "./D2/Weekdays.js";
 import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
 import schedule from "node-schedule";
+import {BungieClient} from "./D2/BungieNETConnectionProfile.js";
+import {getProfile} from "bungie-net-core/endpoints/Destiny2";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing
@@ -74,12 +73,12 @@ interface SqlLiteItem {
 }
 
 const AUTO_MESSAGE_RESPONSE_EXCLUDE_TYPES = [
-    DestinyItemType.None,
-    DestinyItemType.Currency,
-    DestinyItemType.Dummy,
-    DestinyItemType.Package,
-    DestinyItemType.Emote,
-    DestinyItemType.Mod
+    0,
+    1,
+    20,
+    25,
+    23,
+    19
 ]
 const MOBALYTICS_REGEX = /https:\/\/mobalytics\.gg\/destiny-2\/builds\/([^\/]+)\/[^\/]+\/([^\/]+)/g
 
@@ -131,7 +130,7 @@ export class D2Module extends GameSessionModule {
                         new SlashCommandStringOption()
                             .setName("name")
                             .setDescription("The name of the activity you are looking for")
-                            .setRequired(true)
+                            .setRequired(false)
                     )
             )
             .addSubcommand(
@@ -403,6 +402,14 @@ export class D2Module extends GameSessionModule {
                     })
                 return
             case "activities":
+                if (!name) {
+                    interaction.reply({
+                        content: '',
+                        embeds: [await getWeeklyMilestonesMessage()]
+                    })
+                    return
+                }
+
                 if (name.length < 3) {
                     interaction.reply({
                         content: "That search is a bit short. Please try something longer"
@@ -440,7 +447,10 @@ export class D2Module extends GameSessionModule {
                 })
                 break
             case "schedule":
-                interaction.reply(await this.generateScheduleMessage())
+                interaction.reply({
+                    ...await this.generateScheduleMessage(),
+                    ephemeral: true
+                })
                     .then(msg => this._scheduleMessages.push(msg))
         }
     }
@@ -485,7 +495,8 @@ export class D2Module extends GameSessionModule {
         return {
             embeds: [
                 new EmbedBuilder()
-                    .setTitle("🛡️ Re-Flesh Raids Sessions (BETA)")
+                    .setTitle("🛡️ Re-Flesh Raids Sessions")
+                    .setDescription("Raids typically start at about 7PM NZ time")
                     // .setDescription("Below is a list of raiding sessions over the next 2 weeks. Use the buttons below to mark yourself as available for sessions of your choice.")
                     .addFields(sessions.map((session, index) => {
                         const atTime = session.date.getTime()
@@ -494,8 +505,8 @@ export class D2Module extends GameSessionModule {
                             "<t:" + Math.floor(atTime / 1000) + ":d>"
 
                         return {
-                            name: displayText,
-                            value: `${WeekdayNames[session.date.getDay()]} (${session.people.length}/6)`,
+                            name: WeekdayNames[session.date.getDay()],
+                            value: `${displayText} (${session.people.length}/6)`,
                             inline: true
                         }
                     }))
@@ -785,9 +796,7 @@ async function asyncDatabaseQueryWithJSONParse<T = unknown>(sql: string, params:
 }
 
 function getClient(access_token: string) {
-    const client = new BasicBungieClient()
-    client.setToken(access_token)
-    return client
+    return new BungieClient(access_token)
 }
 
 export async function syncD2Achievements(discord_id: string | null = null) {
@@ -815,12 +824,12 @@ export async function syncD2Achievements(discord_id: string | null = null) {
         const primaryMembership = currentUser.destinyMemberships.find(i => i.membershipId === currentUser.primaryMembershipId)
         if (!primaryMembership) continue
         let _data = {
-            components: [DestinyComponentType.Records],
+            components: [900],
             destinyMembershipId: currentUser.primaryMembershipId,
             membershipType: primaryMembership.membershipType
         }
         console.log(_data)
-        let profile = await getProfile(_data, client)
+        let profile = await getProfile(client, _data)
         if (profile.Response.profileRecords.data) {
             for (let recordHash of Object.keys(profile.Response.profileRecords.data.records)) {
                 const recordHashNum = parseInt(recordHash)

@@ -1,18 +1,16 @@
 import sqlite3 from "sqlite3";
-import {getDestinyManifest} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
-import {BasicBungieClient} from "bungie-net-core/lib/client.js";
 import {
-    DestinyActivityDefinition,
-    DestinyDestinationDefinition,
-    DestinyInventoryItemDefinition,
-    DestinySocketTypeDefinition,
-    DestinyStatDefinition,
-    DestinyVendorDefinition
-} from "bungie-net-core/lib/models/index.js";
+    type DestinyActivityDefinition,
+    type DestinyDestinationDefinition,
+    type DestinyInventoryItemDefinition,
+    type DestinyMilestoneDefinition,
+    type DestinySocketTypeDefinition,
+    type DestinyStatDefinition,
+    type DestinyVendorDefinition
+} from "bungie-net-core/models";
 import {groupItemsWithMatchingNames} from "../../utilities/groupItemsWithMatchingNames.js";
 import {surfaceFlatten} from "../../utilities/surfaceFlatten.js";
 
-const client = new BasicBungieClient();
 
 export function levenshteinDistance(s1: string, s2: string): number {
     const m = s1.length;
@@ -58,10 +56,6 @@ export const destinyManifestDatabase = new sqlite3.Database("./assets/destiny/ma
         console.log("Connected to my database!")
     }
 })
-
-export function getManifest() {
-    return getDestinyManifest(client)
-}
 
 type SQLParameter = string | number | Date | null | boolean
 type SQLParameterWithArray = SQLParameter | SQLParameterWithArray[]
@@ -162,9 +156,11 @@ export const MANIFEST_SEARCH = {
         },
         bySocketType(hash: number[]) {
             return MANIFEST_SEARCH.customParseJSON<DestinyInventoryItemDefinition>(sqlite`SELECT *
-                                                                                       FROM DestinyInventoryItemDefinition,
-                                                                                            json_each(json_extract(DestinyInventoryItemDefinition.json, '$.sockets.socketEntries')) as json_data
-                                                                                       WHERE json_extract(json_data.value, '$.socketTypeHash') IN ${hash}
+                                                                                          FROM DestinyInventoryItemDefinition,
+                                                                                               json_each(json_extract(
+                                                                                                       DestinyInventoryItemDefinition.json,
+                                                                                                       '$.sockets.socketEntries')) as json_data
+                                                                                          WHERE json_extract(json_data.value, '$.socketTypeHash') IN ${hash}
             `)
         }
     },
@@ -280,6 +276,14 @@ export const MANIFEST_SEARCH = {
             return MANIFEST_SEARCH.customParseJSON<DestinyDestinationDefinition>(sqlite`SELECT *
                                                                                         FROM "DestinyDestinationDefinition"
                                                                                         WHERE json_extract(json, "$.hash") IN ${hash}`)
+        }
+    },
+
+    milestones: {
+        byHash(hash: number[]) {
+            return MANIFEST_SEARCH.customParseJSON<DestinyMilestoneDefinition>(sqlite`SELECT *
+                                                                                      FROM "DestinyMilestoneDefinition"
+                                                                                      WHERE json_extract(json, "$.hash") IN ${hash}`)
         }
     },
 }
