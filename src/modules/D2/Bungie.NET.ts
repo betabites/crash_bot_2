@@ -21,6 +21,7 @@ import {API_KEY, BungieAPIResponse} from "../../services/Bungie.NET.js";
 import {Weekdays} from "./Weekdays.js";
 import {getPublicMilestones} from "bungie-net-core/endpoints/Destiny2";
 import {BungieNETConnectionProfile} from "./BungieNETConnectionProfile.js";
+import {DestinyVendorsResponse} from "bungie-net-core/models/Destiny/Responses/DestinyVendorsResponse.js";
 
 enum DestinyItemType {
     None = 0,

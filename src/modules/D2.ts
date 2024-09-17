@@ -51,7 +51,7 @@ import SafeQuery, {PutOperation, sql} from "../services/SQL.js";
 import cookieParser from "cookie-parser"
 import {getMembershipDataForCurrentUser} from "bungie-net-core/endpoints/User";
 import fetch from "node-fetch";
-import {AchievementProgress, GAME_IDS} from "./GameAchievements.js";
+import {AchievementProgress, EVENT_IDS} from "./GameAchievements.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
 import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
 import {WeekdayNames, Weekdays} from "./D2/Weekdays.js";
@@ -871,7 +871,7 @@ function processD2RecordObject(hash: number, record: DestinyRecordComponent, dis
     }, 0) / record.objectives.length
     operation.addRow({
         discord_id: discord_id,
-        game_id: GAME_IDS.DESTINY2,
+        game_id: EVENT_IDS.DESTINY2,
         progress: isNaN(progress) ? 0 : progress,
         achievement_id: hash.toString()
     })

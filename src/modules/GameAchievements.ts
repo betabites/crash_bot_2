@@ -3,14 +3,32 @@ import SafeQuery, {sql} from "../services/SQL.js";
 import express from "express";
 import {z} from "zod";
 
-export enum GAME_IDS {
-    DESTINY2 = 0
+export enum EVENT_IDS {
+    DESTINY2 = 0,
+    AMONG_US = 1,
+    SPACE_ENGINEERS,
+    BOPL_BATTLE,
+    LETHAL_COMPANY,
+    MINECRAFT,
+    PHASMOPHOBIA,
+    BORDERLANDS,
+    ESCAPISTS,
+    GMOD,
+    NORTHGARD,
+    OH_DEER,
+    PROJECT_PLAYTIME,
+    TERRARIA,
+    WARFRAME,
+    WHOS_YOUR_DADDY,
+    OTHER,
+    CHILL,
+    MOVIE_OR_TV,
 }
 
 export type AchievementProgress = {
     id: number
     discord_id: string,
-    game_id: GAME_IDS,
+    game_id: EVENT_IDS,
     progress: number,
     achievement_id: string
 }
@@ -18,7 +36,7 @@ export type AchievementProgress = {
 const BEARER_KEY = "GytGsN$nEb4BRg?fRsi?Dga$mk&Lcj?Qka#Sh?3!"
 
 export class GameAchievements extends BaseModule {
-    static async getProgress(discord_id: string, game_id: GAME_IDS, achievement_id: string) {
+    static async getProgress(discord_id: string, game_id: EVENT_IDS, achievement_id: string) {
         return (await SafeQuery<AchievementProgress>(sql`SELECT *
                                                          FROM dbo.UserAchievements
                                                          WHERE discord_id = ${discord_id}
@@ -67,10 +85,10 @@ ACHIEVEMENTS_ROUTER.post("/:game_id/users/achievements/2D", express.json(), asyn
             res.send()
             return
         }
-        let game_id: GAME_IDS = parseInt(req.params.game_id)
+        let game_id: EVENT_IDS = parseInt(req.params.game_id)
         console.log(req.body)
         let data = AchievementRequestData2D.parse(req.body)
-        if (isNaN(game_id) || !GAME_IDS[game_id]) {
+        if (isNaN(game_id) || !EVENT_IDS[game_id]) {
             res.status(500)
             res.send()
             return
@@ -115,8 +133,8 @@ ACHIEVEMENTS_ROUTER.get("/:game_id/users/:discord_id/achievements/:achievement_i
             res.send()
             return
         }
-        let game_id: GAME_IDS = parseInt(req.params.game_id)
-        if (isNaN(game_id) || !GAME_IDS[game_id]) {
+        let game_id: EVENT_IDS = parseInt(req.params.game_id)
+        if (isNaN(game_id) || !EVENT_IDS[game_id]) {
             res.status(500)
             res.send()
             return

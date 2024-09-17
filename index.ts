@@ -45,6 +45,7 @@ import {SpeechModule} from "./src/modules/Speech.js";
 import {PointsModule} from "./src/modules/Points.js";
 import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
 import {EXPRESS_APP} from "./src/misc/getHttpServer.js";
+import {EventsModule} from "./src/modules/events.js";
 
 const moduleClasses = [
     D2Module,
@@ -57,7 +58,8 @@ const moduleClasses = [
     ResourcePackManagerModule,
     VoiceControlModule,
     SpeechModule,
-    PointsModule
+    PointsModule,
+    EventsModule
 ]
 
 dotenv.config()

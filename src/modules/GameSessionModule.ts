@@ -1,31 +1,40 @@
 import {BaseModule} from "./BaseModule.js";
 import SafeQuery, {override, SafeTransaction, sql} from "../services/SQL.js";
 import mssql from "mssql";
-import {Client} from "discord.js";
+import {ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder} from "discord.js";
+import {EVENT_IDS} from "./GameAchievements.js";
 
 export type GameSessionData = {
     id: string,
     start: Date,
-    hidden_discord_channel: string | null
+    hidden_discord_channel: string | null,
+    description: string,
+    minPlayers?: number,
+    maxPlayers?: number
 }
 
 export abstract class GameSessionModule extends BaseModule {
     readonly game_id: number;
+    static sessionBindings = new Map<EVENT_IDS, GameSessionModule>
 
     onUserJoinsSession = (session: string, user_id: string) => {}
     onUserLeavesSession = (session: string, user_id: string) => {}
 
-    constructor(client: Client, game_id: number) {
+    constructor(client: Client, game_id: EVENT_IDS) {
         super(client);
-        this.game_id = game_id;
+        this.game_id = game_id
+        GameSessionModule.sessionBindings.set(game_id, this)
     }
 
-    async createNewGameSession(start: Date) {
+    async createNewGameSession(
+        start: Date,
+        description = "New session"
+    ) {
         let res = await SafeQuery<{ NewRecordID: string }>(sql`
             DECLARE @NewID uniqueidentifier;
             SET @NewId = NEWID();
-            INSERT INTO GameSessions (start, id, game_id)
-            VALUES (${start}, @NewId, ${this.game_id});
+            INSERT INTO GameSessions (start, id, game_id, description)
+            VALUES (${start}, @NewId, ${this.game_id}, ${description});
             SELECT @NewId AS NewRecordID
         `)
         return res.recordset[0].NewRecordID
@@ -63,7 +72,7 @@ export abstract class GameSessionModule extends BaseModule {
     async getGameSession(start_or_id: Date | string, createIfDoesNotExist?: boolean): Promise<GameSessionData | undefined> {
         if (start_or_id instanceof Date) {
             let res = await SafeQuery<GameSessionData>(sql`
-                SELECT start, id, hidden_discord_channel
+                SELECT start, id, hidden_discord_channel, description
                 FROM GameSessions
                 WHERE start = ${start_or_id}
                   AND game_id = ${this.game_id}
@@ -72,6 +81,7 @@ export abstract class GameSessionModule extends BaseModule {
             if (createIfDoesNotExist) return {
                 start: start_or_id,
                 id: await this.createNewGameSession(start_or_id),
+                description: "New session",
                 hidden_discord_channel: null
             }
             return
@@ -128,4 +138,21 @@ export abstract class GameSessionModule extends BaseModule {
         await SafeQuery(sql`DELETE FROM dbo.UserGameSessionsSchedule WHERE session_id = ${override(mssql.TYPES.UniqueIdentifier(), session_id)} AND game_id = ${this.game_id} AND discord_id = ${discord_id}`)
         void this.onUserLeavesSession(session_id, discord_id)
     }
+}
+
+export function buildInviteEmbed(data: GameSessionData) {
+    return new EmbedBuilder()
+        .setTitle("New event created")
+        .setThumbnail("https://cdn4.iconfinder.com/data/icons/small-n-flat/24/calendar-1024.png")
+        .setDescription(`${data.description}\n<t:${data.start.getTime() / 1000}:R>`)
+}
+
+export function buildInviteComponents(data: GameSessionData) {
+    return new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId(`join_event_${data.id}`)
+                .setLabel("Join this event")
+                .setStyle(ButtonStyle.Primary)
+        )
 }

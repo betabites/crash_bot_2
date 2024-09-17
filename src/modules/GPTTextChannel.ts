@@ -1,18 +1,59 @@
 import {AIConversation, generateAIImage} from "../services/ChatGPT.js";
 import SafeQuery, {sql} from "../services/SQL.js";
 import {ChatCompletionMessageParam} from "openai/resources/index";
-import {ChannelType, Client, Colors, EmbedBuilder, Message, TextBasedChannel, TextChannel} from "discord.js";
+import {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ChannelType,
+    Client,
+    Colors,
+    EmbedBuilder,
+    Message,
+    TextBasedChannel,
+    TextChannel
+} from "discord.js";
 import {Character} from "./Speech.js";
 import {PointsModule} from "./Points.js";
 import {type ImageGenerateParams} from "openai/src/resources/images.js";
+import moment from "moment-timezone"
+import {buildInviteComponents, buildInviteEmbed, GameSessionData, GameSessionModule} from "./GameSessionModule.js";
+import {EVENT_IDS} from "./GameAchievements.js";
+
+const EVENT_ID_MAPPINGS = {
+    "chill": EVENT_IDS.CHILL,
+    "movie/tv show": EVENT_IDS.MOVIE_OR_TV,
+    "(game) destiny 2": EVENT_IDS.DESTINY2,
+    "(game) among us": EVENT_IDS.AMONG_US,
+    "(game) space engineers": EVENT_IDS.SPACE_ENGINEERS,
+    "(game) bopl battle": EVENT_IDS.BOPL_BATTLE,
+    "(game) lethal company": EVENT_IDS.LETHAL_COMPANY,
+    "(game) minecraft": EVENT_IDS.MINECRAFT,
+    "(game) phasmophobia": EVENT_IDS.PHASMOPHOBIA,
+    "(game) borderlands": EVENT_IDS.BORDERLANDS,
+    "(game) escapists": EVENT_IDS.ESCAPISTS,
+    "(game) garry's mod": EVENT_IDS.GMOD,
+    "(game) northgard": EVENT_IDS.NORTHGARD,
+    "(game) oh deer": EVENT_IDS.OH_DEER,
+    "(game) project playtime": EVENT_IDS.PROJECT_PLAYTIME,
+    "(game) terraria": EVENT_IDS.TERRARIA,
+    "(game) warframe": EVENT_IDS.WARFRAME,
+    "(game) who's your daddy": EVENT_IDS.WHOS_YOUR_DADDY,
+    "other": EVENT_IDS.OTHER,
+} as const
 
 export class GPTTextChannel extends AIConversation {
     #channel: TextBasedChannel;
     #lastMessage: Message | undefined;
     #knownUserMappings = new Map<string, string>() // Maps usernames to discord user IDs. Contains the IDs of users in the conversation.
     _imageAttachmentQueue: string[] = []
+    _embedQueue: EmbedBuilder[] = []
     _aiResponseHandler = (message: ChatCompletionMessageParam) => {
-        let embeds: EmbedBuilder[] = []
+        let embeds: EmbedBuilder[] = [...this._embedQueue]
+        let components = [...this._actionRowQueue]
+        this._actionRowQueue = []
+
+        this._embedQueue = []
 
         if (!this.#lastMessage) {
             embeds.push(new EmbedBuilder()
@@ -30,6 +71,7 @@ export class GPTTextChannel extends AIConversation {
         this.#channel.send({
             content: message.content?.toString() ?? '',
             embeds,
+            components,
             allowedMentions: {
                 parse: [],
                 users: [],
@@ -38,6 +80,8 @@ export class GPTTextChannel extends AIConversation {
             }
         }).then(msg => this.#lastMessage = msg)
     }
+    _currentDate: Date | null = null
+    _actionRowQueue: ActionRowBuilder<ButtonBuilder>[] = [];
     private client: Client;
 
     static async load(channel: TextBasedChannel, client: Client) {
@@ -50,6 +94,20 @@ export class GPTTextChannel extends AIConversation {
         )
     }
 
+    static toAIDate(date: Date, includeTime?: boolean) {
+        return new Intl.DateTimeFormat("en-US", {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: includeTime ? '2-digit' : undefined,
+            minute: includeTime ?'2-digit' : undefined,
+            second: includeTime ? '2-digit' : undefined,
+            timeZone: 'UTC',
+            timeZoneName: 'short'
+        }).format(date)
+    }
+
     constructor(
         messages: ChatCompletionMessageParam[],
         channel: TextBasedChannel,
@@ -60,7 +118,7 @@ export class GPTTextChannel extends AIConversation {
                 type: "function",
                 function: {
                     name: "generate_image",
-                    description: "Generate an image using DALL-E",
+                    description: "Generate an image using DALL-E. Only use if explicitly asked for.",
                     parse: JSON.parse,
                     function: async (
                         props: {description: string, size?: ImageGenerateParams["size"], style?: ImageGenerateParams["style"], quality?: ImageGenerateParams["quality"]}
@@ -102,10 +160,26 @@ export class GPTTextChannel extends AIConversation {
             {
                 type: "function",
                 function: {
+                    name: "get_now",
+                    description: "Get the current date and time",
+                    parse: JSON.parse,
+                    function: async () => {
+                        return GPTTextChannel.toAIDate(new Date(), true)
+                    },
+                    parameters: {
+                        type: "object",
+                        properties: {}
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
                     name: "get_points",
                     description: "Get the level and points of the current user/player",
                     parse: JSON.parse,
                     function: async ({username}: {username: string}) => {
+                        if (!username) return "You didn't specify a username"
                         let user_id = this.#knownUserMappings.get(username.toLowerCase())
                         if (!user_id) return "Unknown user. User may not exist, may not have joined the conversation, or may have another issue with their points."
 
@@ -194,6 +268,100 @@ export class GPTTextChannel extends AIConversation {
                         required: ["allowNSFW"]
                     }
                 }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "create_event",
+                    description: "Create a new event.",
+                    parse: JSON.parse,
+                    function: async (props: {
+                        activity: keyof typeof EVENT_ID_MAPPINGS,
+                        description: string,
+                        timestamp: string,
+                        // timeZoneOffset: number
+                        timeZoneCode: string,
+                        maximumPlayers?: number,
+                        minimumPlayers?: number
+                    }) => {
+                        // convert the timestamp
+                        let date = moment(props.timestamp)
+                            .tz(props.timeZoneCode, true)
+                            .utc()
+
+                        let activity = EVENT_ID_MAPPINGS[props.activity]
+                        if (!activity) {
+                            return `Unknown activity; ${props.activity}`
+                        }
+                        let sessionHandler = GameSessionModule.sessionBindings.get(activity)
+                        if (!sessionHandler) return "INTERNAL ERROR; No session handler has been bound for that activity type"
+
+                        let session = await sessionHandler.createNewGameSession(
+                            date.toDate(),
+                            props.description
+                        )
+                        // this._embedQueue.push(
+                        //     new EmbedBuilder()
+                        //         .setTitle("New event created")
+                        //         .setDescription(props.description)
+                        //         .addFields([
+                        //             {name: "timestamp", value: `<t:${date.toDate().getTime() / 1000}:R>`},
+                        //             {name: "timestamp", value: props.timestamp},
+                        //             {name: "timezone", value: props.timeZoneCode},
+                        //             {name: "maximum players", value: props.maximumPlayers?.toString() ?? "N/A"},
+                        //             {name: "minimum players", value: props.minimumPlayers?.toString() ?? "N/A"},
+                        //         ])
+                        // )
+
+                        let gameData: GameSessionData = {
+                            id: session,
+                            start: date.toDate(),
+                            hidden_discord_channel: null,
+                            description: props.description
+                        }
+                        this._embedQueue.push(buildInviteEmbed(gameData))
+                        this._actionRowQueue.push(buildInviteComponents(gameData))
+
+                        return {
+                            result: "Created new event",
+                            // eventId: res.recordset[0].NewRecordID
+                        }
+                    },
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            activity: {
+                                type: "string",
+                                enum: Object.keys(EVENT_ID_MAPPINGS)
+                            },
+                            description: {
+                                type: "string"
+                            },
+                            timeZoneCode: {
+                                type: "string",
+                                description: "Standard IANA format Region/Country. If not specified, assume Auckland/Pacific"
+                            },
+                            // timeZoneOffset: {
+                            //     type: "number",
+                            //     description: "The timezone offset (minutes) for the timezone in which this event is occurring. Consider daylight savings when applicable. If not specified, assume New Zealand."
+                            // },
+                            timestamp: {
+                                type: "string",
+                                format: "date-time",
+                                description: "Timestamp for when this event starts."
+                            },
+                            maximumPlayers: {
+                                type: "number",
+                                description: "The maximum amount of users allowed to join the event. Can be undefined"
+                            },
+                            minimumPlayers: {
+                                type: "number",
+                                description: "The minimum amount of users required to join the event for it to proceed."
+                            }
+                        },
+                        required: ["activity", "description", "timestamp", "timeZoneCode"]
+                    }
+                }
             }
         ], "channel_" + channel.id);
         this.#channel = channel
@@ -217,9 +385,19 @@ export class GPTTextChannel extends AIConversation {
         return
     }
 
-    async saveMessage(message: ChatCompletionMessageParam): Promise<void> {
+    async saveMessage(
+        message: ChatCompletionMessageParam,
+        ignoreDateCheck?: boolean
+    ): Promise<void> {
         this.controller?.abort("Received a new message")
-        super.saveMessage(message);
+        if (this._currentDate?.getDate() !== (new Date()).getDate()) {
+            // Day has changed,
+            await super.saveMessage({
+                role: "system",
+                content: `The current date is: ${GPTTextChannel.toAIDate(new Date())}`
+            })
+        }
+        await super.saveMessage(message);
     }
 
     delayedSendToAI() {
