@@ -4,7 +4,8 @@ import {
     ChatInputCommandInteraction,
     Client,
     ClientEvents,
-    SelectMenuInteraction
+    SelectMenuInteraction,
+    TextInputStyle
 } from "discord.js";
 import {client} from "../services/Discord.js";
 
@@ -87,6 +88,7 @@ export function InteractionChatCommandResponse(identifier: string) {
 export function InteractionButtonResponse(identifier: string | ((id: string) => boolean)) {
     function decorator(originalMethod: (interaction: ButtonInteraction) => any, context: ClassMethodDecoratorContext<BaseModule>) {
         context.addInitializer(function init(this: BaseModule) {
+            if (!this.subscribedButtonInteractions) this.subscribedButtonInteractions = []
             this.subscribedButtonInteractions.push([identifier, originalMethod])
         })
 

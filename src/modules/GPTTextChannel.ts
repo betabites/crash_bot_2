@@ -17,7 +17,7 @@ import {Character} from "./Speech.js";
 import {PointsModule} from "./Points.js";
 import {type ImageGenerateParams} from "openai/src/resources/images.js";
 import moment from "moment-timezone"
-import {buildInviteComponents, buildInviteEmbed, GameSessionData, GameSessionModule} from "./GameSessionModule.js";
+import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
 import {EVENT_IDS} from "./GameAchievements.js";
 
 const EVENT_ID_MAPPINGS = {
@@ -289,16 +289,27 @@ export class GPTTextChannel extends AIConversation {
                             .tz(props.timeZoneCode, true)
                             .utc()
 
+                        if (date.toDate().getTime() < Date.now()) {
+                            return "Events cannot be created for the past."
+                        }
+
                         let activity = EVENT_ID_MAPPINGS[props.activity]
-                        if (!activity) {
-                            return `Unknown activity; ${props.activity}`
+                        if (typeof activity === "undefined") {
+                            throw new Error(`Unknown activity; ${props.activity}`)
+                            // return `Unknown activity; ${props.activity}`
                         }
                         let sessionHandler = GameSessionModule.sessionBindings.get(activity)
-                        if (!sessionHandler) return "INTERNAL ERROR; No session handler has been bound for that activity type"
+                        if (!sessionHandler) {
+                            console.error(new Error("INTERNAL ERROR; No session handler has been bound for that activity type: " + activity))
+                            return "INTERNAL ERROR; No session handler has been bound for that activity type: " + activity
+                        }
 
+                        let message = await this.#channel.send("`creating an event...`")
                         let session = await sessionHandler.createNewGameSession(
                             date.toDate(),
-                            props.description
+                            props.description,
+                            message.channel.id,
+                            message.id
                         )
                         // this._embedQueue.push(
                         //     new EmbedBuilder()
@@ -316,11 +327,15 @@ export class GPTTextChannel extends AIConversation {
                         let gameData: GameSessionData = {
                             id: session,
                             start: date.toDate(),
+                            game_id: activity,
                             hidden_discord_channel: null,
                             description: props.description
                         }
-                        this._embedQueue.push(buildInviteEmbed(gameData))
-                        this._actionRowQueue.push(buildInviteComponents(gameData))
+                        await message.edit({
+                            content: "",
+                            embeds: [sessionHandler.buildInviteEmbed(gameData)],
+                            components: [sessionHandler.buildInviteComponents(gameData)]
+                        })
 
                         return {
                             result: "Created new event",
@@ -360,6 +375,29 @@ export class GPTTextChannel extends AIConversation {
                             }
                         },
                         required: ["activity", "description", "timestamp", "timeZoneCode"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "get_events",
+                    description: "Get a list of all currently organised events.",
+                    parse: JSON.parse,
+                    function: async () => {
+                        let events = await GameSessionModule.getAllGameSessions()
+                        for (let event of events) {
+                            let handler = GameSessionModule.sessionBindings.get(event.game_id);
+                            if (!handler) continue
+
+                            this._embedQueue.push(handler.buildInviteEmbed(event))
+                        }
+
+                        return events
+                    },
+                    parameters: {
+                        type: "object",
+                        properties: {}
                     }
                 }
             }

@@ -46,6 +46,48 @@ import {PointsModule} from "./src/modules/Points.js";
 import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
 import {EXPRESS_APP} from "./src/misc/getHttpServer.js";
 import {EventsModule} from "./src/modules/events.js";
+import {
+    AmongUsEventSessionHandler,
+    BoplBattleCompanyEventSessionHandler,
+    BorderlandsEventSessionHandler,
+    ChillEventSessionHandler,
+    EscapistsEventSessionHandler,
+    GModEventSessionHandler,
+    LethalCompanyEventSessionHandler,
+    MinecraftEventSessionHandler,
+    MovieTVShowEventSessionHandler,
+    NorthgardEventSessionHandler,
+    OhDeerEventSessionHandler,
+    OtherEventSessionHandler,
+    PhasmophobiaEventSessionHandler,
+    ProjectPlaytimeEventSessionHandler,
+    SpaceEngineersEventSessionHandler,
+    TerrariaEventSessionHandler,
+    WarframeEventSessionHandler,
+    WhosYourDaddyEventSessionHandler
+} from "./src/modules/events/eventSessionHandlers.js";
+import {GucciModule} from "./src/modules/GucciModule.js";
+
+const eventSessionHandlers = [
+    OtherEventSessionHandler,
+    ChillEventSessionHandler,
+    MovieTVShowEventSessionHandler,
+    AmongUsEventSessionHandler,
+    SpaceEngineersEventSessionHandler,
+    LethalCompanyEventSessionHandler,
+    BoplBattleCompanyEventSessionHandler,
+    MinecraftEventSessionHandler,
+    PhasmophobiaEventSessionHandler,
+    BorderlandsEventSessionHandler,
+    EscapistsEventSessionHandler,
+    GModEventSessionHandler,
+    NorthgardEventSessionHandler,
+    OhDeerEventSessionHandler,
+    ProjectPlaytimeEventSessionHandler,
+    TerrariaEventSessionHandler,
+    WarframeEventSessionHandler,
+    WhosYourDaddyEventSessionHandler
+]
 
 const moduleClasses = [
     D2Module,
@@ -59,7 +101,9 @@ const moduleClasses = [
     VoiceControlModule,
     SpeechModule,
     PointsModule,
-    EventsModule
+    EventsModule,
+    GucciModule,
+    ...eventSessionHandlers
 ]
 
 dotenv.config()

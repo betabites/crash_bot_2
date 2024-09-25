@@ -8,7 +8,6 @@ import {
 import {
     ActionRowBuilder,
     AutocompleteInteraction,
-    BaseGuildTextChannel,
     BaseMessageOptions,
     ButtonBuilder,
     ButtonInteraction,
@@ -19,7 +18,6 @@ import {
     EmbedBuilder,
     Message,
     MessageActionRowComponentBuilder,
-    PermissionsBitField,
     SelectMenuInteraction,
     StringSelectMenuBuilder,
     TextChannel,
@@ -55,10 +53,11 @@ import {AchievementProgress, EVENT_IDS} from "./GameAchievements.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
 import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
 import {WeekdayNames, Weekdays} from "./D2/Weekdays.js";
-import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
+import {GameSessionData} from "./GameSessionModule.js";
 import schedule from "node-schedule";
 import {BungieClient} from "./D2/BungieNETConnectionProfile.js";
 import {getProfile} from "bungie-net-core/endpoints/Destiny2";
+import {BasicEventSessionHandler} from "./events/BasicEventSessionHandler.js";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing
@@ -87,12 +86,17 @@ export const D2_ROUTER = express.Router()
 /**
  * Represents a module for handling Destiny 2 related commands and functionality.
  */
-export class D2Module extends GameSessionModule {
+export class D2Module extends BasicEventSessionHandler {
     readonly liveScheduleChannelID = "1049104983586517092"
     readonly liveScheduleID = "1188381813048094732"
     readonly maxFireteamSize = 6
     primaryScheduleMessage: Message | null = null
     private _scheduleMessages: Message[] = []
+
+    embedConfig = {
+        title: "Destiny 2 Event",
+        thumbnail: "https://i1.wp.com/i2-prod.dailystar.co.uk/incoming/article21380006.ece/ALTERNATES/s1200c/0_Destiny-2.jpg"
+    }
 
     readonly commands = [
         (new SlashCommandBuilder())
@@ -182,61 +186,6 @@ export class D2Module extends GameSessionModule {
         schedule.scheduleJob("0 0 0 * * *", () => {
             void this.cleanUpSessions()
             void this.updateSessions()
-        })
-
-        this.onUserJoinsSession = (async (session_id, user_id) => {
-            let session = await this.getGameSession(session_id)
-            if (!session) return
-
-            let channel: BaseGuildTextChannel
-            if (!session.hidden_discord_channel) {
-                // Create a Discord channel for this session
-                let guild = await this.client.guilds.fetch("892518158727008297")
-                channel = await guild.channels.create({
-                    name: session.start.toLocaleDateString().replaceAll("/", "-"),
-                    parent: "1273515817451130913",
-                    type: ChannelType.GuildText,
-                    permissionOverwrites: [
-                        {
-                            allow: [
-                                PermissionsBitField.Flags.ViewChannel,
-                            ],
-                            id: user_id
-                        },
-                        {
-                            deny: [PermissionsBitField.Flags.ViewChannel],
-                            id: guild.id // Deny access by default
-                        },
-                    ]
-                })
-                void this.attachDiscordChannelToSession(session_id, channel.id)
-                let msg = await channel.send({
-                    content: `Welcome to this game session channel! This channel will be automatically deleted up to 24 hours after the session.`
-                })
-                await msg.pin()
-            }
-            else {
-                let _channel = await this.client.channels.fetch(session.hidden_discord_channel)
-                channel = _channel as BaseGuildTextChannel
-                void channel.permissionOverwrites.create(user_id, {
-                    ViewChannel: true
-                })
-            }
-
-            channel.send(`<@${user_id}> joined this session`)
-        })
-        this.onUserLeavesSession = (async (session_id, user_id) => {
-            let session = await this.getGameSession(session_id)
-            if (!session) return
-
-            let channel: BaseGuildTextChannel
-            if (!session.hidden_discord_channel) return
-
-            let _channel = await this.client.channels.fetch(session.hidden_discord_channel)
-            channel = _channel as BaseGuildTextChannel
-            void channel.permissionOverwrites.delete(user_id)
-
-            channel.send(`<@${user_id}> left this session`)
         })
     }
 
