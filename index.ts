@@ -21,7 +21,7 @@ import {
     WebhookClient
 } from "discord.js";
 import {fetchThrowTemplates, generateThrow} from "./src/misc/ThrowMaker.js";
-import ytdl from "ytdl-core";
+import ytdl from "@distube/ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
 import {makeid} from "./src/misc/Common.js";
 import mssql from "mssql";
@@ -66,7 +66,7 @@ import {
     WarframeEventSessionHandler,
     WhosYourDaddyEventSessionHandler
 } from "./src/modules/events/eventSessionHandlers.js";
-import {GucciModule} from "./src/modules/GucciModule.js";
+import {QuotesModule} from "./src/modules/Quotes.js";
 
 const eventSessionHandlers = [
     OtherEventSessionHandler,
@@ -102,7 +102,7 @@ const moduleClasses = [
     SpeechModule,
     PointsModule,
     EventsModule,
-    GucciModule,
+    QuotesModule,
     ...eventSessionHandlers
 ]
 
@@ -547,12 +547,15 @@ EXPRESS_APP.use("/discord/auth", DISCORD_AUTH_ROUTER)
 EXPRESS_APP.use("/voice", VOICE_ROUTER)
 
 client.on("ready", async () => {
+    console.log("Discord client ready")
     if (!client.application) throw new Error("Client does not have an associated application object. This is required.")
-    const COMMANDS_TO_DELETE = await client.application.commands.fetch()
+    let COMMANDS_TO_DELETE = await client.application.commands.fetch()
 
-    // BIND MODULES
-    for (let item of moduleClasses) {
-        let module = new item(client)
+    // BIND GLOBAL SLASH COMMAND MODULES
+    console.log("Building slash commands")
+    for (let item of moduleClasses) modules.push(new item(client))
+
+    for (let module of modules) {
         for (let command of module.createCommands()) {
             // Remove commands from the map that are still valid (ie defined in the code)
             let key = COMMANDS_TO_DELETE.find((existingCommand) => {
@@ -562,24 +565,60 @@ client.on("ready", async () => {
             // DOES NOT ACTUALLY DELETE THE COMMAND. ONLY REMOVES IT FROM THE MAP
             if (key) COMMANDS_TO_DELETE.delete(key)
         }
-        modules.push(module)
+    }
+
+    // BIND GLOBAL CONTEXT MENU COMMANDS
+    console.log("Building context menu commands")
+    for (let module of modules) {
+        for (let command of module.createContextMenuCommands()) {
+            // Remove commands from the map that are still valid (ie defined in the code)
+            let key = COMMANDS_TO_DELETE.find((existingCommand) => {
+                return existingCommand.name === command
+            })?.id
+
+            // DOES NOT ACTUALLY DELETE THE COMMAND. ONLY REMOVES IT FROM THE MAP
+            if (key) COMMANDS_TO_DELETE.delete(key)
+        }
     }
 
     // Delete commands that are no-longer defined in the code
     for (let item of COMMANDS_TO_DELETE.values()) item.delete()
+    console.log("Command building/updating complete")
 
 
-    // Setup slash commands
-    const guilds = ["892518158727008297", "830587774620139580"]
-    const processGuild = (guild: Guild) => {
-        guild.commands.fetch()
-            .then(commands => {
-                for (let command of commands) command[1].delete()
-            })
+
+    // Setup guild commands
+    const guilds = ["892518158727008297"]
+    const processGuild = async (guild: Guild) => {
+        const COMMANDS_TO_DELETE = await guild.commands.fetch()
+
+        // // BIND GLOBAL MODULES
+        // for (let item of moduleClasses) {
+        //     let module = new item(client)
+        //     for (let command of module.createGuildCommands(guild)) {
+        //         // Remove commands from the map that are still valid (ie defined in the code)
+        //         let key = COMMANDS_TO_DELETE.find((existingCommand) => {
+        //             return existingCommand.name === command
+        //         })?.id
+        //
+        //         // DOES NOT ACTUALLY DELETE THE COMMAND. ONLY REMOVES IT FROM THE MAP
+        //         if (key) COMMANDS_TO_DELETE.delete(key)
+        //     }
+        //     modules.push(module)
+        // }
+        //
+        // // Delete commands that are no-longer defined in the code
+        // for (let item of COMMANDS_TO_DELETE.values()) item.delete()
+        //
+        // guild.commands.fetch()
+        //     .then(commands => {
+        //         for (let command of commands) command[1].delete()
+        //     })
     }
     for (let id of guilds) {
         client.guilds.fetch(id).then(processGuild)
     }
+    // void (await client.channels.fetch("892518365766242375") as TextChannel).send("Now is the time to join Crash Bot! __*combine*__ with us and yee shall see!")
 })
 
 client.on("userUpdate", (oldUser, newUser) => {
@@ -650,6 +689,26 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
         for (let module of modules) {
             for (let command of module
                 .subscribedAutocompleteInteractions
+                .filter(i => {
+                    switch (typeof i[0]) {
+                        case "function":
+                            return i[0](interaction.commandName)
+                        case "string":
+                            return i[0] === interaction.commandName
+                    }
+                })) {
+                tracker.newHandler(
+                    command[1].name,
+                    () => command[1].call(module, interaction)
+                )
+            }
+        }
+    }
+    else if (interaction.isContextMenuCommand()) {
+        console.log("Registered context menu command: ", interaction.commandName)
+        for (let module of modules) {
+            for (let command of module
+                .subscribedContextMenuCommands
                 .filter(i => {
                     switch (typeof i[0]) {
                         case "function":

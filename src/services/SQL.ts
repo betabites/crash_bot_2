@@ -229,17 +229,17 @@ export class PutOperation<T extends IPutColumns> {
         this.rows = []
     }
 
-    async buildQuery() {
+    async #buildQueryPart(rows: T[]) {
         let existing_items = await SafeQuery<any>(`SELECT ${
             (this.rowKey ? [...this.keys, this.rowKey] : this.keys).join(", ")
         }
                                                    FROM dbo.UserAchievements
                                                    WHERE ${(this.keys as string[]).map(
-            key => key + " IN (" + makeUnique(this.rows.map(rows => convertToSQLValue(rows[key]))).join(",") + ")"
+            key => key + " IN (" + makeUnique(rows.map(rows => convertToSQLValue(rows[key]))).join(",") + ")"
         ).join(" AND ")}`, [])
         let update_items: T[] = []
         let insert_items: T[] = []
-        for (let row of this.rows) {
+        for (let row of rows) {
             let existing_item = existing_items.recordset.find(i => {
                 let matches = true
                 for (let key of this.keys) if (i[key] !== row[key]) {
@@ -260,30 +260,10 @@ export class PutOperation<T extends IPutColumns> {
         }
 
         let sql: string[] = []
-        // if (this.rowKey) for (let item of update_items) {
-        //     sql.push(`UPDATE ${this.tableName}
-        //               SET ${
-        //                           Object.keys(item).map(key => {
-        //                               return key + "=" + item[key]
-        //                           }).join(", ")
-        //                   }
-        //               WHERE ${this.rowKey} = ${convertToSQLValue(item[this.rowKey])}
-        //     `)
-        // }
-        // else for (let item of update_items) {
-        //     sql.push(`UPDATE ${this.tableName}
-        //               SET ${
-        //         Object.keys(item).map(key => {
-        //             return key + "=" + item[key]
-        //         }).join(", ")
-        //     }
-        //               WHERE ${(this.keys as string[]).map(key => key + " = " + item[key]).join(" AND ")}
-        //     `)
-        // }
 
         if (update_items.length !== 0 && this.rowKey) {
             sql.push(`UPDATE dbo.${this.tableName}
-                      SET ${Object.keys(this.rows[0]).filter(i => i !== this.rowKey).map(field => field + " = t." + field).join(", ")}
+                      SET ${Object.keys(rows[0]).filter(i => i !== this.rowKey).map(field => field + " = t." + field).join(", ")}
                       FROM dbo.${this.tableName} AS e
                                INNER JOIN (VALUES ${update_items.map(item => "(" + Object.values(item).join(", ") + ")")}) t (${Object.keys(update_items[0]).join(", ")})
                                           ON t.id = e.id
@@ -299,7 +279,15 @@ export class PutOperation<T extends IPutColumns> {
             }).join(", ")}
             `)
         }
+        return sql
+    }
 
+    async buildQuery() {
+        let sql: string[] = []
+        while (this.rows.length !== 0) {
+            let results = await this.#buildQueryPart(this.rows.splice(0, 1000))
+            results.forEach(result => sql.push(result))
+        }
         return sql.join("; ")
     }
 }

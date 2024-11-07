@@ -9,7 +9,7 @@ import {
     GuildMember,
     MessageActionRowComponentBuilder
 } from "discord.js";
-import ytdl from "ytdl-core";
+import ytdl from "@distube/ytdl-core";
 import ytpl from "ytpl";
 import SafeQuery from "../SQL.js";
 import {QueueManager, ShuffleArray} from "../../misc/Common.js";

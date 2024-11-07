@@ -1,5 +1,6 @@
-import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {
+    AttachmentBuilder,
     ChannelType,
     ChatInputCommandInteraction,
     Client,
@@ -18,7 +19,7 @@ import {
     SlashCommandUserOption
 } from "@discordjs/builders";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
-import openai, {AIConversation} from "../services/ChatGPT.js";
+import openai, {AIConversation, generateAIImage} from "../services/ChatGPT.js";
 import {removeAllMentions} from "../utilities/removeAllMentions.js";
 import SafeQuery, {sql, UNSAFE_SQL_PARAM} from "../services/SQL.js";
 import mssql from "mssql";
@@ -86,7 +87,21 @@ export class GPTModule extends BaseModule {
             ),
         new SlashCommandBuilder()
             .setName("become_a_111_operator")
-            .setDescription("Simulate a bullshit 111 call, with you as the operator")
+            .setDescription("Simulate a bullshit 111 call, with you as the operator"),
+        new SlashCommandBuilder()
+            .setName('combine')
+            .setDescription('Combine two users into one')
+            .addUserOption(option => option
+                .setName('user1')
+                .setDescription('First user')
+                .setRequired(true)
+            )
+            .addUserOption(option => option
+                .setName('user2')
+                .setDescription('Second user')
+                .setRequired(true)
+            )
+
     ]
     activeConversations = new Map<string, GPTTextChannel>()
 
@@ -224,7 +239,6 @@ export class GPTModule extends BaseModule {
 
     @OnSpeechModeAdjustmentComplete()
     async onMessage([msg]: [Message], messageContent: string, character: Character | null) {
-        console.log(this)
         if ((msg.author.bot && !msg.webhookId) || !this.client.user) return
         else if (msg.channel.type === ChannelType.PublicThread && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
             askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
@@ -432,6 +446,36 @@ export class GPTModule extends BaseModule {
             })
     }
 
+    async getTopWords(discordId: string, sampleSize: number = 50) {
+        let res = await SafeQuery<{
+            word: string,
+            count: number,
+            userUniqueness: number,
+            daysSinceUsed: number
+        }>(sql`
+                    SELECT TOP ${UNSAFE_SQL_PARAM(Math.round(sampleSize * 1.5))} word                                              AS 'word',
+                                                                                  count                                             AS 'count',
+                                                                                  CAST(count as DECIMAL(10, 2)) /
+                                                                                  (SELECT SUM(count)
+                                                                                   FROM CrashBot.dbo.WordsExperiment
+                                                                                   WHERE WMS.discord_id = ${discordId})             AS 'userUniqueness',
+                                                                                  CAST(last_appeared - (GETDATE() - 90) AS TINYINT) AS 'daysSinceUsed'
+                    FROM CrashBot.dbo.WordsExperiment AS WMS
+                    WHERE discord_id = ${discordId}
+                      AND WMS.word NOT IN (SELECT stopword FROM EnglishStopWords)
+                      AND DATEADD(MONTH, -3, GETDATE()) < WMS.last_appeared
+                    ORDER BY userUniqueness DESC
+                `)
+
+        let top: {
+            word: string,
+            percentage: number
+        }[] = ShuffleArray(res.recordset).slice(0, sampleSize).map((i) => {
+            return {word: i.word, percentage: i.userUniqueness}
+        })
+        return top
+    }
+
     @InteractionChatCommandResponse("catchphrase2")
     async onCatchphrase2(interaction: ChatInputCommandInteraction) {
         getUserData(interaction.member as GuildMember)
@@ -447,41 +491,8 @@ export class GPTModule extends BaseModule {
 
                 if (sample_size < 1 || sample_size > 1000) sample_size = 50
                 await interaction.deferReply()
-                let res = await SafeQuery<{
-                    word: string,
-                    count: number,
-                    userUniqueness: number,
-                    daysSinceUsed: number
-                }>(sql`
-                    SELECT TOP ${UNSAFE_SQL_PARAM(Math.round(sample_size * 1.5))} word                                              AS 'word',
-                                                                                  count                                             AS 'count',
-                                                                                  CAST(count as DECIMAL(10, 2)) /
-                                                                                  (SELECT SUM(count)
-                                                                                   FROM CrashBot.dbo.WordsExperiment
-                                                                                   WHERE WMS.discord_id = ${member.id})             AS 'userUniqueness',
-                                                                                  CAST(last_appeared - (GETDATE() - 90) AS TINYINT) AS 'daysSinceUsed'
-                    FROM CrashBot.dbo.WordsExperiment AS WMS
-                    WHERE discord_id = ${member.id}
-                      AND WMS.word NOT IN (SELECT stopword FROM EnglishStopWords)
-                      AND DATEADD(MONTH, -3, GETDATE()) < WMS.last_appeared
-                    ORDER BY userUniqueness DESC
-                `)
 
-                //     return SafeQuery("SELECT TOP " + (sample_size * 1.5) + " word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
-                //         // @ts-ignore
-                //     ])
-                // })
-                // if (res?.recordset.length < 20) {
-                //     interaction.editReply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
-                //     return
-                // }
-                let top: {
-                    word: string,
-                    percentage: number
-                }[] = ShuffleArray(res.recordset).slice(0, sample_size).map((i) => {
-                    return {word: i.word, percentage: i.userUniqueness}
-                })
-
+                let top = await this.getTopWords(member.id)
                 let conversation = AIConversation.new()
                 let theme = interaction.options.getString("theme")
                 await conversation.saveMessage({
@@ -534,5 +545,90 @@ export class GPTModule extends BaseModule {
             content: "You are talking with a pretend 911 operator. YOU ARE THE CALLER, NOT THE OPERATOR. YOU ARE ONLY ACTING ON BEHALF OF THE CALLER. You must make up a fake story, similar to the 911 calls in Paradise PD. NSFW, swears, and vulgar scenes are acceptable as long as they are for the purposes of comedy.",
         })
         interaction.reply("Ready to start the call!")
+    }
+
+    async combineUsers(user1: User, user2: User) {
+        let aiConversation = AIConversation.new()
+        await aiConversation.saveMessage({
+            role: "system",
+            content: "Create a fake person's online profile based on data from these profiles. KEEP IT SHORT, AND PRIORITISE COMEDY OVER REALISM. Age 18+ humour is more than acceptable.\n\n" +
+                JSON.stringify(await Promise.all([user1, user2].map(async user => {
+                    return {
+                        name: user.username,
+                        createdAt: user.createdAt,
+                        discriminator: user.discriminator,
+                        avatar: user.avatarURL(),
+                        banner: user.bannerURL(),
+                        favouriteWords: await this.getTopWords(user.id)
+                    }
+                })))
+        })
+        let bioResult = await aiConversation.sendToAI()
+        await aiConversation.saveMessage({
+            role: "system",
+            content: "Write a prompt to generate a profile picture for the imaginary user."
+        })
+        let imagePromptResult = await aiConversation.sendToAI()
+        if (!imagePromptResult.content) throw new Error("AI did not respond")
+
+        let image = await generateAIImage({
+            prompt: imagePromptResult.content?.toString(),
+            model: "dall-e-3",
+            response_format: "url",
+            quality: "standard",
+            size: "1024x1024"
+        })
+        let imageUrl = image.data[0].url
+        if (!imageUrl) throw new Error("Image generation failed")
+        console.log(imageUrl)
+
+        await aiConversation.reset()
+
+
+        return {message: bioResult.content?.toString() ?? "", imageUrl}
+    }
+
+    @InteractionChatCommandResponse("combine")
+    async onCombine(interaction: ChatInputCommandInteraction) {
+        const user1 = interaction.options.getUser('user1', true);
+        const user2 = interaction.options.getUser('user2', true);
+
+        await interaction.deferReply()
+        let result = await this.combineUsers(user1, user2)
+        await interaction.editReply({
+            content: result.message,
+            files: [new AttachmentBuilder(result.imageUrl).setName("image.webp")]
+        })
+    }
+
+    @OnClientEvent("messageCreate")
+    async onTest(msg: Message) {
+        if (msg.author.bot|| !msg.guild) return
+        if (msg.content.toLowerCase() === "combine") {
+            let user1 = await msg.guild.members.fetch("892535864192827392")
+            let result = await this.combineUsers(msg.author, user1.user)
+            void msg.reply({content: result.message, files: [
+                    new AttachmentBuilder(result.imageUrl)
+                        .setName("image.webp")
+                ]})
+        }
+        else if (msg.content.toLowerCase() === "combine harvester") {
+            let image = await generateAIImage({
+                prompt: Math.random() < .5
+                    ? "Kids playing in the fields"
+                    : "A combine harvester",
+                model: "dall-e-3",
+                response_format: "url",
+                quality: "standard",
+                size: "1024x1024"
+            })
+            void msg.reply({
+                content: " ",
+                files: [
+                    new AttachmentBuilder(image.data[0].url ?? "")
+                        .setName("image.webp")
+                ]
+            })
+        }
     }
 }

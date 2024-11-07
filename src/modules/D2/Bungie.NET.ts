@@ -591,19 +591,6 @@ export function updateMSVendors(): Promise<void> {
     })
 }
 
-export async function setupBungieAPI() {
-    console.log("STEP 1")
-    await refreshTokens()
-    await updateMSVendors()
-    setInterval(() => {
-        refreshTokens()
-            .then(() => {
-                updateMSVendors()
-            })
-        // Tokens reset every hour. This will refresh just beforehand
-    }, 3240000)
-}
-
 async function refreshTokens() {
     let users: {
         id: number,

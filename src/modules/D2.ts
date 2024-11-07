@@ -54,10 +54,11 @@ import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestData
 import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
 import {WeekdayNames, Weekdays} from "./D2/Weekdays.js";
 import {GameSessionData} from "./GameSessionModule.js";
-import schedule from "node-schedule";
 import {BungieClient} from "./D2/BungieNETConnectionProfile.js";
 import {getProfile} from "bungie-net-core/endpoints/Destiny2";
 import {BasicEventSessionHandler} from "./events/BasicEventSessionHandler.js";
+import {refreshAuthorization} from "bungie-net-core/auth";
+import {client} from "../services/Discord.js";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing
@@ -162,6 +163,7 @@ export class D2Module extends BasicEventSessionHandler {
         }, 10000)
         setInterval(async () => {
             await this.updateScheduleMessages()
+            await refreshAccessTokens()
             void syncD2Achievements()
         }, 120000)
 
@@ -182,17 +184,7 @@ export class D2Module extends BasicEventSessionHandler {
                 this.primaryScheduleMessage = message
             })
         })
-        void this.updateSessions()
-        schedule.scheduleJob("0 0 0 * * *", () => {
-            void this.cleanUpSessions()
-            void this.updateSessions()
-        })
-    }
-
-    async updateSessions() {
-        for (let session of getNextRaidSessionTimes()) {
-            await this.getGameSession(session, true)
-        }
+        void refreshAccessTokens()
     }
 
 
@@ -744,7 +736,7 @@ async function asyncDatabaseQueryWithJSONParse<T = unknown>(sql: string, params:
     return results.map(row => JSON.parse(row.json));
 }
 
-function getClient(access_token: string) {
+export function getClient(access_token: string) {
     return new BungieClient(access_token)
 }
 
@@ -884,11 +876,15 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
         const d2User = await getMembershipDataForCurrentUser(client)
         console.log(d2User)
 
-        if (!d2User.Response.primaryMembershipId) throw new Error("Bungie account does not have a primary membership ID")
+
+        let membershipId: string = d2User.Response.primaryMembershipId || d2User.Response.destinyMemberships[0].membershipId
+        let primaryMembership = d2User.Response.destinyMemberships.find(i => i.membershipId === membershipId)
+        if (!membershipId || !primaryMembership) throw new Error("Bungie account does not have a primary membership ID")
         await SafeQuery(sql`UPDATE dbo.Users
                             SET D2_AccessToken=${access_token},
                                 D2_RefreshToken=${refresh_token},
-                                D2_MembershipId=${d2User.Response.primaryMembershipId}
+                                D2_MembershipId=${membershipId},
+                                D2_MembershipType=${primaryMembership.membershipType}
                             WHERE discord_id = ${discord_id}`)
         // Save access_token and refresh_token for future use
         console.log(access_token, refresh_token)
@@ -922,4 +918,43 @@ function getNextRaidSessionTimes() {
     ].sort((a, b) => {
         return a > b ? 1 : -1
     })
+}
+
+async function refreshAccessTokens() {
+    console.log("Refreshing D2 access tokens")
+    let tokens = (await SafeQuery<{ discord_id: string, D2_RefreshToken: string }>(sql`
+        SELECT discord_id, D2_RefreshToken
+        FROM dbo.Users
+        WHERE D2_RefreshToken IS NOT NULL
+          AND D2_AccessTokenExpiry < SYSDATETIME()
+    `)).recordset
+    for (let token of tokens) {
+        try {
+            console.log("Refreshing tokens", token.D2_RefreshToken, {
+                client_id: process.env.BUNGIE_CLIENT_ID ?? "",
+                client_secret: process.env.BUNGIE_CLIENT_SECRET ?? ""
+            })
+            let res = await refreshAuthorization(token.D2_RefreshToken, {
+                client_id: process.env.BUNGIE_CLIENT_ID ?? "",
+                client_secret: process.env.BUNGIE_CLIENT_SECRET ?? ""
+            }, new BungieClient())
+            await SafeQuery(sql`UPDATE dbo.Users
+                                SET D2_AccessToken=${res.access_token},
+                                    D2_RefreshToken=${res.refresh_token},
+                                    D2_AccessTokenExpiry=${new Date(Date.now() + (res.expires_in * 1000))}
+                                    WHERE discord_id=${token.discord_id}
+                                    `);
+        } catch (e) {
+            console.error(`An error occured while refreshing D2 token for discord ID: ${token.discord_id}`, e)
+
+            // Disconnect the Bungie account
+            await SafeQuery(sql`UPDATE dbo.Users SET
+                     D2_AccessToken=NULL,
+                     D2_RefreshToken=NULL,
+                     D2_MembershipId=NULL,
+                     D2_AccessTokenExpiry=NULL
+                     WHERE discord_id=${token.discord_id}`);
+            (await client.users.fetch(token.discord_id)).send("We failed to refresh access to your Bungie account. To reconnect your Bungie account to Crash Bot, please run /destiny2 login.")
+        }
+    }
 }

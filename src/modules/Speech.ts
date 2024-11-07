@@ -61,7 +61,8 @@ const SPEECH_LEVEL_GATES: {
     [SPEECH_MODES.ALCOHOLIC_BUTTER]: 16,
     [SPEECH_MODES.TANIKS]: 16,
     [SPEECH_MODES.SMART_TANIKS]: 18,
-    [SPEECH_MODES.WOOD_PALLETS]: 19
+    [SPEECH_MODES.WOOD_PALLETS]: 19,
+    [SPEECH_MODES.AUSTRALIAN]: 19
 }
 
 const WOOD_PALLET_MESSAGES = [
@@ -191,7 +192,11 @@ export class SpeechModule extends BaseModule {
                             {
                                 name: "Wood Pallets (Requires level 19)",
                                 value: SPEECH_MODES.WOOD_PALLETS
-                            }
+                            },
+                            // {
+                            //     name: "The Land Down Under (Requires level 19)",
+                            //     value: SPEECH_MODES.AUSTRALIAN
+                            // }
                         )
                         return opt
                     })
@@ -200,6 +205,8 @@ export class SpeechModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     private async onMessage(msg: Message) {
+        console.trace()
+
         if (msg.author.bot) return
         if (!msg.member) {
             this.emitAlteredMessageEvent(msg, msg.content, null)
@@ -515,6 +522,15 @@ export class SpeechModule extends BaseModule {
                 }
                 alteredMessage += (
                     await openai.sendMessage(`Repeat this message. However, replace bad grammar (if any) with 'wood pallets': ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.AUSTRALIAN:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Make this message sound like it was written by an incredibly stereotypical australian: ${msg}`)
                 ).text
                 break
             default:

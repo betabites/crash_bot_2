@@ -3,7 +3,7 @@ import {SlashCommandBuilder, SlashCommandNumberOption, SlashCommandSubcommandBui
 import {ButtonInteraction, ChatInputCommandInteraction, GuildMember, Message, TextChannel} from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {CrashBotUser} from "../misc/UserManager.js";
-import SafeQuery from "../services/SQL.js";
+import SafeQuery, {sql} from "../services/SQL.js";
 import mssql from "mssql";
 import ffmpeg, {FfprobeData} from "fluent-ffmpeg";
 import path from "path";
@@ -32,7 +32,7 @@ export class VoiceControlModule extends BaseModule {
     ]
 
     @OnClientEvent("messageCreate")
-    onMessage(msg: Message) {
+    async onMessage(msg: Message) {
         if (msg.content === "<@892535864192827392> piss off" && msg.guildId) {
             const connection = VoiceConnectionManager.connections.get(msg.guildId)
             if (connection) {
@@ -40,8 +40,32 @@ export class VoiceControlModule extends BaseModule {
             }
         }
 
-        if (msg.channel.id === "999848214691852308") {
+        if (msg.channel.id === "999848214691852308" && !msg.author.bot) {
             let url = msg.content
+            if (url === "hit up my boss music") {
+                let data = (await SafeQuery<{yt_boss_music: string | null}>(sql`SELECT yt_boss_music FROM Users WHERE discord_id = ${msg.author.id}`)).recordset[0]
+                if (!data.yt_boss_music) {
+                    void msg.reply("Oh no! You don't have boss music yet! Ask <@404507305510699019> to set one up for you!")
+                    return
+                }
+                url = `https://www.youtube.com/watch?v=${data.yt_boss_music}`
+            }
+            else if (url === "hit up my theme music") {
+                let data = (await SafeQuery<{yt_theme_song: string | null}>(sql`SELECT yt_theme_song FROM Users WHERE discord_id = ${msg.author.id}`)).recordset[0]
+                if (!data.yt_theme_song) {
+                    void msg.reply("Oh no! You don't have theme music yet! Ask <@404507305510699019> to set one up for you!")
+                    return
+                }
+                url = `https://www.youtube.com/watch?v=${data.yt_theme_song}`
+            }
+            else if (url === "hit up my heroic entrance music") {
+                let data = (await SafeQuery<{yt_heroic_entrance: string | null}>(sql`SELECT yt_heroic_entrance FROM Users WHERE discord_id = ${msg.author.id}`)).recordset[0]
+                if (!data.yt_heroic_entrance) {
+                    void msg.reply("Oh no! You don't have heroic entrance music yet! Ask <@404507305510699019> to set one up for you!")
+                    return
+                }
+                url = `https://www.youtube.com/watch?v=${data.yt_heroic_entrance}`
+            }
 
             // Check audio queue
             if (!msg.member?.voice.channel) {
@@ -56,9 +80,7 @@ export class VoiceControlModule extends BaseModule {
             }
             VoiceConnectionManager.join((msg.channel as TextChannel).guild, msg.member.voice.channel)
                 .then(manager => {
-                    if (manager) {
-                        manager.generateQueueItem(url).then(item => manager.addToQueue(item))
-                    }
+                    if (manager) manager.generateQueueItem(url).then(item => manager.addToQueue(item))
                     msg.delete()
                 })
                 .catch(e => {
@@ -102,7 +124,6 @@ export class VoiceControlModule extends BaseModule {
             let i = 0
             for (let recording of recordings.recordset) {
                 let seek = (recording.start.getTime() - first_track_start.getTime())
-                console.log(recording, seek)
                 command.input(path.join(path.resolve("./"), "voice_recordings", recording.filename))
 
 
@@ -203,7 +224,6 @@ export class VoiceControlModule extends BaseModule {
     onAudioSkipPress(interaction: ButtonInteraction) {
         interaction.reply({content: "Skipping track...", ephemeral: true})
         let connection = VoiceConnectionManager.connections.get(interaction.guildId || "no guild")
-        console.log(connection)
         connection?.skip()
     }
 

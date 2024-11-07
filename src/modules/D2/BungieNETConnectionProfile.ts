@@ -14,6 +14,7 @@ export class BungieClient implements BungieClientProtocol {
     // this method is required
     async fetch<T>(config: BungieFetchConfig): Promise<T> {
         const apiKey = process.env.BUNGIE_API_KEY!;
+        console.log(apiKey)
 
         const headers: Record<string, string> = {
             ...config.headers,
@@ -33,11 +34,12 @@ export class BungieClient implements BungieClientProtocol {
         };
 
         const res = await fetch(config.url, payload);
-        const data = await res.json();
+        const data = await res.text();
         if (!res.ok) {
+            console.error("An error occured while fetching data from Bungie.net:", config)
             throw data
         }
-        return data as T;
+        return JSON.parse(data) as T;
     }
 }
 

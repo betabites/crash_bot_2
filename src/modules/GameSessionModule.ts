@@ -3,6 +3,7 @@ import SafeQuery, {override, SafeTransaction, sql} from "../services/SQL.js";
 import mssql from "mssql";
 import {ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder} from "discord.js";
 import {EVENT_IDS} from "./GameAchievements.js";
+import schedule from "node-schedule";
 
 export type GameSessionData = {
     id: string,
@@ -69,6 +70,11 @@ export abstract class GameSessionModule extends BaseModule {
         this.game_id = game_id
         GameSessionModule.sessionBindings.set(game_id, this)
         console.log("BOUND GAME ID", game_id)
+
+        schedule.scheduleJob("0 0 0 * * *", () => {
+            void this.cleanUpSessions()
+            void this.updateSessions()
+        })
     }
 
     async createNewGameSession(

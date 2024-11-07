@@ -11,7 +11,7 @@ import {
 } from "@discordjs/voice";
 import * as Discord from "discord.js";
 import {EmbedBuilder, GuildMember} from "discord.js";
-import ytdl from "ytdl-core";
+import ytdl from "@distube/ytdl-core";
 import SafeQuery from "../SQL.js";
 import {makeid, QueueManager} from "../../misc/Common.js";
 import mssql from "mssql"

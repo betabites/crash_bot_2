@@ -113,7 +113,7 @@ export class AIConversation extends EventEmitter {
             this.#controller = controller
 
             const result = await openai.chat.completions.create({
-                model: 'gpt-3.5-turbo',
+                model: 'gpt-4o',
                 messages: this.messages,
             })
             console.log(result.choices)
