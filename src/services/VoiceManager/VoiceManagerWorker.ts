@@ -30,6 +30,8 @@ import {
 import crypto from "crypto";
 import {ActiveVoiceRecording} from "./VoiceRecording.js";
 import dotenv from "dotenv";
+import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
+import {createReadStream} from "fs"
 
 client.login(workerData.discordClientToken)
 dotenv.config()
@@ -61,7 +63,7 @@ parentPort?.on("message", async (message: messageToAudioManager<AUDIO_MANAGER_ME
             message.data = message.data as StreamStartMessage
             const connection = AudioStreamManager.connections.get(message.data.guildId)
             if (!connection) return
-            await connection.streamItem(message.data.youtubeUrl)
+            await connection.streamItem(message.data.streamUrl)
         }
         else if (message.type === AUDIO_MANAGER_MESSAGE_TYPES.STOP_STREAM) {
             message.data = message.data as string
@@ -262,7 +264,7 @@ export class AudioStreamManager extends EventEmitter {
     //
     // }
 
-    async streamItem(youtubeUrl: string) {
+    async streamItem(streamUrl: string) {
         console.log("Opening new stream...")
         try {
             if (this.stream) this.stream.destroy()
@@ -270,21 +272,30 @@ export class AudioStreamManager extends EventEmitter {
             console.error(e)
         }
         try {
-            let info = await ytdl.getInfo(ytdl.getURLVideoID(youtubeUrl))
+            if (isYoutubeUrl(streamUrl)) {
+                let info = await ytdl.getInfo(ytdl.getURLVideoID(streamUrl))
 
-            this.stream = ytdl(youtubeUrl, {
-                format: ytdl.chooseFormat(info.formats, {
-                    quality: "highestaudio"
-                }),
-                // @ts-ignore
-                fmt: "mp3",
-                highWaterMark: 1 << 62,
-                liveBuffer: 1 << 62,
-                dlChunkSize: 0, //disabling chunking is recommended in discord bot
-                // bitrate: 128,
-                quality: "lowestaudio"
-            })
-            this.player.play(createAudioResource(this.stream))
+                this.stream = ytdl(streamUrl, {
+                    format: ytdl.chooseFormat(info.formats, {
+                        quality: "highestaudio"
+                    }),
+                    // @ts-ignore
+                    fmt: "mp3",
+                    highWaterMark: 1 << 62,
+                    liveBuffer: 1 << 62,
+                    dlChunkSize: 0, //disabling chunking is recommended in discord bot
+                    // bitrate: 128,
+                    quality: "lowestaudio"
+                })
+                this.player.play(createAudioResource(this.stream))
+            }
+            else if (streamUrl.startsWith("file://")) {
+                console.log("Playing local sound:", streamUrl)
+                this.player.play(createAudioResource(createReadStream(streamUrl.replace("file://", ""))))
+            }
+            else {
+                throw new Error("Invalid stream URL:" + streamUrl)
+            }
         } catch(e) {}
         console.log("New stream opened!")
     }

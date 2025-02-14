@@ -22,7 +22,7 @@ import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
 import {EVENT_IDS} from "./GameAchievements.js";
 import {getCharacter, getProfile} from "bungie-net-core/endpoints/Destiny2";
 import {getClient} from "./D2.js";
-import {DestinyClass, DestinyComponentType, DestinyItemType} from "bungie-net-core/enums";
+import {DestinyClass, DestinyComponentType, DestinyItemSubType, DestinyItemType} from "bungie-net-core/enums";
 import {
     DestinyCharacterComponent,
     DestinyInventoryItemDefinition,
@@ -106,6 +106,7 @@ export class GPTTextChannel extends AIConversation {
         let content = message.content?.toString() ?? ""
         while (content.length > 2000) {
             let part = content.slice(0, 2000)
+            content = content.slice(2000)
             await this.#channel.send(part)
         }
 
@@ -479,7 +480,7 @@ export class GPTTextChannel extends AIConversation {
                         description: "Get basic information about the given user's D2 characters.",
                         parse: JSON.parse,
                         function: async (props: { discordId: string[] }) => {
-                            let result: {[key: string]: DestinyCharacterSerialised[] | string} = {}
+                            let result: { [key: string]: DestinyCharacterSerialised[] | string } = {}
                             for (let discordId of props.discordId) {
                                 let resultData = await getD2Characters(discordId)
                                 if (resultData) result[discordId] = resultData
@@ -573,8 +574,117 @@ export class GPTTextChannel extends AIConversation {
                             required: ["discordId", "characterId"]
                         }
                     }
-                }
+                },
+                {
+                    type: "function",
+                    function: {
+                        name: "d2_get_all_inventory",
+                        description: "Get all items a player currently has",
+                        parse: JSON.parse,
+                        parameters: {
+                            type: "object",
+                            description: "A return type of 'limited: true' indicates your search was too broad and the result set was limited",
+                            properties: {
+                                discordId: {
+                                    type: "string"
+                                },
+                                fetchOnlyTypes: {
+                                    type: "array",
+                                    description: "The types of items to fetch. Is required otherwise too many items will be returned.",
+                                    items: {
+                                        type: "integer",
+                                        description: "0: None, 1: Currency, 2: Armor, 3: Weapon, 7: Message, 8: Engram, 9: Consumable, 10: ExchangeMaterial, 11: MissionReward, 12: QuestStep, 13: QuestStepComplete, 14: Emblem, 15: Quest, 16: Subclass, 17: ClanBanner, 18: Aura, 19: Mod, 20: Dummy, 21: Ship, 22: Vehicle, 23: Emote, 24: Ghost, 25: Package, 26: Bounty, 27: Wrapper, 28: SeasonalArtifact, 29: Finisher, 30: Pattern",
+                                        enum: [
+                                            0,  // None
+                                            1,  // Currency
+                                            2,  // Armor
+                                            3,  // Weapon
+                                            7,  // Message
+                                            8,  // Engram
+                                            9,  // Consumable
+                                            10, // ExchangeMaterial
+                                            11, // MissionReward
+                                            12, // QuestStep
+                                            13, // QuestStepComplete
+                                            14, // Emblem
+                                            15, // Quest
+                                            16, // Subclass
+                                            17, // ClanBanner
+                                            18, // Aura
+                                            19, // Mod
+                                            20, // Dummy
+                                            21, // Ship
+                                            22, // Vehicle
+                                            23, // Emote
+                                            24, // Ghost
+                                            25, // Package
+                                            26, // Bounty
+                                            27, // Wrapper
+                                            28, // SeasonalArtifact
+                                            29, // Finisher
+                                            30  // Pattern
+                                        ]
+                                    },
+                                    minItems: 1,
+                                    maxItems: 3,
+                                    uniqueItems: true
+                                }
 
+                            },
+                            required: ["discordId", "fetchOnlyTypes"]
+                        },
+                        function: async ({discordId, fetchOnlyTypes}: { discordId: string, fetchOnlyTypes: (typeof DestinyItemType)[keyof typeof DestinyItemType][] }) => {
+                            let items = await fetchAllItemsInInventory(discordId)
+                            if (items === null) return "User has not linked their Bungie.NET account"
+                            console.log("Fetching ", fetchOnlyTypes)
+
+                            // Get item details from manifest
+                            let itemHashes: number[] = []
+                            for (let item of items) itemHashes.push(item[1].itemHash)
+                            let manifestItems = await MANIFEST_SEARCH.items.byHash(itemHashes)
+
+                            let res: {
+                                id: string,
+                                hash: number,
+                                name: string,
+                                type: (typeof DestinyItemType)[keyof typeof DestinyItemType],
+                                subType: (typeof DestinyItemSubType)[keyof typeof DestinyItemSubType]
+                            }[] = []
+                            let limited = false
+                            for (let item of items) {
+                                let manifestItem = manifestItems.find(i => i.hash === item[1].itemHash)
+                                if (!manifestItem) continue
+                                if (!manifestItem.itemType || !fetchOnlyTypes.includes(manifestItem.itemType)) continue
+                                res.push({
+                                    id: item[0],
+                                    hash: item[1].itemHash,
+                                    name: manifestItem.displayProperties.name,
+                                    type: manifestItem.itemType,
+                                    subType: manifestItem.itemSubType
+                                })
+                                if (res.length >= 100) {
+                                    limited = true
+                                    break
+                                }
+                            }
+                            return {DestinyItemType, DestinyItemSubType, res, limited}
+                        }
+                    }
+                },
+                // {
+                //     type: "function",
+                //     function: {
+                //         name: "d2_generate_dim_loadout",
+                //         description: "Generates a DIM loadout. PLAN THE LOADOUT WITH THE USER FIRST. Be as detailed as you can. Include mods, shaders, and everything that you feasibly can.",
+                //         parse: JSON.parse,
+                //         parameters: JSONLoadoutSchema,
+                //         function: async (loadout: Loadout) => {
+                //             console.log(loadout)
+                //             console.log(`https://app.destinyitemmanager.com/loadouts?loadout=${encodeURIComponent(JSON.stringify(loadout))}`)
+                //             return "loadout has been generated and sent to the user!"
+                //         }
+                //     }
+                // }
             ],
             "channel_" + channel.id
         );
@@ -592,7 +702,7 @@ export class GPTTextChannel extends AIConversation {
         this.#knownUserMappings.set((msg.author.displayName ?? msg.author.username).toLowerCase(), msg.author.id)
         await this.saveMessage({
             role: "user",
-            name: character?.name || (msg.author.displayName ?? msg.author.username).replace(/[^A-z]/g, ""),
+            name: character?.name || (msg.author.displayName ?? msg.author.username).replaceAll(/[^A-z]/g, ""),
             content: JSON.stringify({discordId: msg.author.id, message: messageContent})
         })
         void this.delayedSendToAI()
@@ -684,8 +794,35 @@ async function getD2Characters(discordId: string) {
     return Object.values(profile.Response.characters.data).map(i => serialiseDestinyCharacter(i))
 }
 
+async function fetchAllItemsInInventory(discordId: string) {
+    let destinyOAuthDetails = await getD2AccessToken(discordId)
+    if (!destinyOAuthDetails) return null
 
-function itemTypeToText(type: DestinyItemType) {
+    let client = getClient(destinyOAuthDetails.accessToken)
+    let profile = await getProfile(client, {
+        components: [
+            DestinyComponentType.ProfileInventories,
+            DestinyComponentType.Characters,
+            DestinyComponentType.CharacterInventories,
+            DestinyComponentType.CharacterEquipment,
+            DestinyComponentType.ItemInstances
+        ],
+        destinyMembershipId: destinyOAuthDetails.membershipId,
+        membershipType: destinyOAuthDetails.membershipType
+    })
+    if (!profile.Response.characters.data || !profile.Response.profileInventory.data) throw new Error("No characters returned")
+    // let activeCharacter = profile.Response.characters.data[Object.keys(profile.Response.characters.data)[0]]
+    // let characterClass = activeCharacter.classType
+
+    const allItems = new Map<string, DestinyItemComponent>()
+    const vaultItems = profile.Response.profileInventory.data.items || [];
+    vaultItems.forEach(item => {
+        if (item.itemInstanceId) allItems.set(item.itemInstanceId, item);
+    });
+    return allItems
+}
+
+function itemTypeToText(type: (typeof DestinyItemType)[keyof typeof DestinyItemType]) {
     switch (type) {
         case DestinyItemType.Armor:
             return "armor"

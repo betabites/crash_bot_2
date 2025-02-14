@@ -1,0 +1,71 @@
+<!<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Crash Bot Push Notifications</title>
+
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging.js";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDxfR-p9yeQBADJAYvJ048kzFsLC063sN4",
+            authDomain: "crash-bot-4378a.firebaseapp.com",
+            projectId: "crash-bot-4378a",
+            storageBucket: "crash-bot-4378a.firebasestorage.app",
+            messagingSenderId: "1036809150984",
+            appId: "1:1036809150984:web:888b8778c76ff2e68627bd"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const messaging = getMessaging(app);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            let notificationGrant = document.getElementById('notification-grant')
+            let notificationSettings = document.getElementById('notification-settings')
+            let requestNotificationButton = document.getElementById('request-notification-button')
+
+            requestNotificationButton.addEventListener('click', () => {
+                Notification.requestPermission().then((permission) => {
+                    if (permission === 'granted') {
+                        updateNotificationButtonDisplay()
+                    }
+                    else {
+                        alert('You need to grant permission to use push notifications')
+                    }
+                })
+            })
+
+            async function updateNotificationButtonDisplay() {
+                let token = ""
+                if (Notification.permission !== 'granted') {
+                    notificationGrant.style.display = 'block'
+                    notificationSettings.style.display = 'none'
+                    return
+                }
+
+                token = await getToken(messaging, { vapidKey: "BJWd0aqWz3o6xAMYaCnd593zqBwvaxMhDaIQWP6vMowbE8ME_O6LYMns92OI1yr_-teKPDqr4p5yjtNAy4xhMVo" })
+                console.log(token)
+
+                notificationGrant.style.display = 'none'
+                notificationSettings.style.display = 'block'
+            }
+            updateNotificationButtonDisplay()
+        })
+    </script>
+</head>
+<body>
+    <div id="notification-grant">
+        <button id="request-notification-button">Request Notification Permission</button>
+    </div>
+    <div id="notification-settings">
+        <button id="enable-vex-notifications">Enable Vex Incursion Notifications</button>
+    </div>
+</body>
+</html>

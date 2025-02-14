@@ -29,6 +29,7 @@ import {sendImpersonateMessage} from "../../services/Discord.js";
 import {PointsModule} from "../Points.js";
 import deathMessages from "./deathMessages.json" assert {type: "json"}
 import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.js";
+// const deathMessages: any = {}
 
 RemoteStatusServer.io.on("connection", () => {
     console.log("Client connected")
@@ -424,6 +425,7 @@ export class MinecraftModule extends BaseModule {
                         PointsModule.grantPoints({
                             userDiscordId: member.id,
                             points: 1,
+                            reason: "Minecraft advancement"
                         })
                         channel.send({content: ' ', embeds: [embed]})
                     }
@@ -490,6 +492,7 @@ export class MinecraftModule extends BaseModule {
                     discordClient: this.client,
                     userDiscordId: player.discord_id,
                     points: 1,
+                    reason: "Minecraft voice chat"
                 })
             }
         }, 300_000)

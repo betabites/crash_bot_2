@@ -10,7 +10,7 @@ import {
     WebhookClient,
     WebhookMessageCreateOptions
 } from "discord.js";
-import SafeQuery from "./SQL.js";
+import SafeQuery, {sql} from "./SQL.js";
 import mssql from "mssql";
 import Jimp from "jimp";
 import {makeid} from "../misc/Common.js";
@@ -35,11 +35,19 @@ export const client = new Client({
     ], partials: [Partials.Channel]
 })
 
-export async function sendImpersonateMessage(channel: TextChannel, member: GuildMember, message: string |
-    MessagePayload |
-    BaseMessageOptions |
-    WebhookMessageCreateOptions
+export type JimpProfilePictureModification = (profilePicture: Jimp) => Promise<Jimp>
+
+export async function sendImpersonateMessage(
+    channel: TextChannel,
+    member: GuildMember,
+    message: string |
+        MessagePayload |
+        BaseMessageOptions |
+        WebhookMessageCreateOptions,
+    name?: string,
+    avatar?: string | JimpProfilePictureModification
 ) {
+    let nameStr = name || member.nickname || member.user.username
     try {
         let res = await SafeQuery("SELECT * FROM dbo.Webhook WHERE channel_id = @channelid AND user_id = @userid", [
             {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
@@ -56,7 +64,7 @@ export async function sendImpersonateMessage(channel: TextChannel, member: Guild
                 roles: [],
                 repliedUser: false
             },
-        }: message)
+        } : message)
     } catch (e) {
         // channel.createWebhook(member.nickname || member.user.username, {
         //     avatar: member.avatarURL() || member.user.avatarURL(),
@@ -67,9 +75,20 @@ export async function sendImpersonateMessage(channel: TextChannel, member: Guild
             {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
             {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
         ])
+        let avatarString =
+            (typeof avatar === "string" && avatar)
+            || member.avatarURL({extension: "png"})
+            || member.user.avatarURL({extension: "png"})
+            || ""
+        if (typeof avatar === "function") {
+            avatarString = await (
+                await avatar(await Jimp.read(avatarString))
+            ).getBase64Async(Jimp.MIME_PNG)
+        }
+
         let webhook = await channel.createWebhook({
-            name: member.nickname || member.user.username,
-            avatar: member.avatarURL() || member.user.avatarURL(),
+            name: nameStr,
+            avatar: avatarString,
             reason: "Needed new cheese"
         })
         await webhook.send(typeof message === "string" ? {
@@ -80,7 +99,7 @@ export async function sendImpersonateMessage(channel: TextChannel, member: Guild
                 roles: [],
                 repliedUser: false
             },
-        }: message)
+        } : message)
         return await SafeQuery("INSERT INTO dbo.Webhook (user_id, channel_id, webhook_id, token) VALUES (@userid, @channelid, @webhookid, @token)", [
             {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
             {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
@@ -188,4 +207,14 @@ export function downloadDiscordAttachment(url: string, fileextension: string, st
 
 export function getToken() {
     return fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString()
+}
+
+export async function deleteAllWebhooksForUser(userId: string) {
+    let res = await SafeQuery<{webhook_id: string, token: string}>(sql`SELECT * FROM dbo.Webhook WHERE user_id = ${userId}`)
+    await Promise.all(res.recordset.map(data => {
+        let webhook = new WebhookClient({id: data.webhook_id, token: data.token})
+        return webhook.delete()
+    }))
+
+    if (res.recordset.length === 0) throw "Could not find webhook"
 }

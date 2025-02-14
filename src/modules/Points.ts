@@ -214,9 +214,22 @@ interface GrantPointsOptions {
     userDiscordId: string,
     points: number,
     capped?: boolean,
+    reason: string,
 
     // Specify if the user should only receive the points when they are above a certain level.
     levelGate?: number
+}
+
+export enum UserPointsType {
+
+}
+
+export interface UserPointsHistory {
+    discord_id: string,
+    type: UserPointsType,
+    start: Date,
+    end: Date,
+    channel: string
 }
 
 export class PointsModule extends BaseModule {
@@ -254,10 +267,11 @@ export class PointsModule extends BaseModule {
                     console.log(`GRANTING POINTS TO USER; ${memberId}`)
                     void PointsModule.grantPointsWithDMResponse({
                         userDiscordId: memberId,
-                        points: 1,
+                        points: call[1].length - 1,
                         capped: true,
                         discordClient: this.client,
-                        levelGate: 5
+                        levelGate: 5,
+                        reason: "Discord voice call"
                     })
                 }
             }
@@ -285,7 +299,7 @@ export class PointsModule extends BaseModule {
             let upgradeMsg = levelUpgradeMessages[user.level + 1]
             let embed = new EmbedBuilder()
             embed.setTitle(`🥳 Level up!`)
-            embed.setDescription(`<@${options.userDiscordId}> just leveled up to level ${user.level + 1}!${
+            embed.setDescription(`<@${options.userDiscordId}> just leveled up to level ${user.level}!${
                 upgradeMsg ? "\n\n" + upgradeMsg : ""
             }`)
             embed.setThumbnail(discord_user.displayAvatarURL())
@@ -304,7 +318,7 @@ export class PointsModule extends BaseModule {
             let upgradeMsg = levelUpgradeMessages[user.level + 1]
             let embed = new EmbedBuilder()
             embed.setTitle(`🥳 Level up!`)
-            embed.setDescription(`<@${options.userDiscordId}> just leveled up to level ${user.level + 1}!${
+            embed.setDescription(`<@${options.userDiscordId}> just leveled up to level ${user.level}!${
                 upgradeMsg ? "\n\n" + upgradeMsg : ""
             }`)
             embed.setThumbnail(discordUser.displayAvatarURL())
@@ -312,7 +326,7 @@ export class PointsModule extends BaseModule {
         }
     }
 
-    static async grantPoints(options: GrantPointsOptions): Promise<{ level: number, points: number } | null> {
+    static async grantPoints(options: GrantPointsOptions): Promise<{ level: number, points: number, leveled_up: boolean } | null> {
         let res: IResult<{ points: number, level: number }>
         if (options.capped) {
             res = await SafeQuery<{
@@ -321,7 +335,7 @@ export class PointsModule extends BaseModule {
             }>
             (sql`UPDATE Users
                  SET points=points + ${options.points}, cappedPoints=cappedPoints + ${options.points}
-                 WHERE discord_id = ${options.userDiscordId} AND cappedPoints < 40;
+                 WHERE discord_id = ${options.userDiscordId} AND cappedPoints < 80;
             SELECT points, level
             FROM Users
             WHERE discord_id = ${options.userDiscordId} AND level >= ${options.levelGate || 0}`)
@@ -338,11 +352,14 @@ export class PointsModule extends BaseModule {
             FROM Users
             WHERE discord_id = ${options.userDiscordId} AND level >= ${options.levelGate || 0}`)
         }
-
         console.log(res)
 
         let user = res.recordset[0]
+        let leveled_up = false
         if (!user) return null
+        // Runs the history recording here, in case the user's points cap was reached and no points were actually awarded.
+        void SafeQuery(sql`INSERT INTO Points (discord_id, reason, points) VALUES (${options.userDiscordId}, ${options.reason}, ${options.points})`)
+
         if (user.points >= PointsModule.calculateLevelGate(user.level + 1)) {
             await SafeQuery(sql`UPDATE Users
                                 SET points=0,
@@ -350,8 +367,9 @@ export class PointsModule extends BaseModule {
                                 WHERE discord_id = ${options.userDiscordId}`)
             user.level += 1
             user.points = 0
+            leveled_up = true
         }
-        return user
+        return {...user, leveled_up}
     }
 
     static async getPoints(userDiscordId: string) {
@@ -444,7 +462,8 @@ export class PointsModule extends BaseModule {
             userDiscordId: msg.author.id,
             points: 3,
             responseChannel: msg.channel,
-            discordClient: this.client
+            discordClient: this.client,
+            reason: "Discord text message"
         })
     }
 
@@ -491,7 +510,7 @@ You've earned ${userPointsData.points}/${pointsRequiredForNextLevel} points`)
     }
 
     async #updateUsersInVoiceChannel(channel: VoiceBasedChannel) {
-        let members = channel.members.map(member => member.id);
+        let members = channel.members.filter(member => !member.voice.selfDeaf && !member.voice.serverDeaf && !member.voice.selfMute && !member.voice.serverMute).map(member => member.id);
         if (members.length < 2) {
             if (this.activeVoiceChannels.has(channel.id)) this.activeVoiceChannels.delete(channel.id)
             return

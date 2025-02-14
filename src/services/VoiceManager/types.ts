@@ -32,7 +32,7 @@ export interface ConnectMessage {
 
 export interface StreamStartMessage {
     guildId: string,
-    youtubeUrl: string
+    streamUrl: string
 }
 
 // FOR MESSAGES SENT TO THE VOICE MANAGER

@@ -67,6 +67,10 @@ import {
     WhosYourDaddyEventSessionHandler
 } from "./src/modules/events/eventSessionHandlers.js";
 import {QuotesModule} from "./src/modules/Quotes.js";
+import {Pterodactyl} from "./src/modules/Pterodactyl.js";
+import {LethalCompanyModule} from "./src/modules/LethalCompanyModule.js";
+
+console.log(`Node.js version: ${process.version}`);
 
 const eventSessionHandlers = [
     OtherEventSessionHandler,
@@ -103,6 +107,8 @@ const moduleClasses = [
     PointsModule,
     EventsModule,
     QuotesModule,
+    Pterodactyl,
+    LethalCompanyModule,
     ...eventSessionHandlers
 ]
 

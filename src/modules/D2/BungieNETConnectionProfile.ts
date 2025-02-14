@@ -24,6 +24,7 @@ export class BungieClient implements BungieClientProtocol {
 
         // attach the acces_token if we have it as a Bearer token
         if (this.access_token) {
+            // delete headers["X-API-KEY"];
             headers['Authorization'] = `Bearer ${this.access_token}`;
         }
 
@@ -37,7 +38,12 @@ export class BungieClient implements BungieClientProtocol {
         const data = await res.text();
         if (!res.ok) {
             console.error("An error occured while fetching data from Bungie.net:", config)
-            throw data
+            throw new Error(JSON.stringify({
+                status: res.status,
+                statusText: res.statusText,
+                payload,
+                data
+            }));
         }
         return JSON.parse(data) as T;
     }

@@ -28,75 +28,31 @@ type ConversationEvents = {
  * Represents a conversation with an AI assistant.
  * @extends EventEmitter
  */
-export class AIConversation extends EventEmitter {
-    private messages: ChatCompletionMessageParam[] = []
-    private functions: RunnableToolFunction<any>[] = []
-    readonly id: string
+export class BasicAIConversation extends EventEmitter {
+    protected messages: ChatCompletionMessageParam[] = []
+    protected functions: RunnableToolFunction<any>[] = []
     protected delayedSendTimer: NodeJS.Timeout | null = null
     #controller: AbortController | undefined
 
-    /**
-     * Creates an AIConversation instance using saved conversation data.
-     *
-     * @param {string} id - The ID of the conversation.
-     * @param {RunnableToolFunction<any>[]} [functions=[]] - An array of runnable tool functions to be used in the conversation.
-     * @param {string} [systemPrompt] - The system prompt to be added as the first message in the conversation.
-     *
-     * @returns {Promise<AIConversation>} - A Promise that resolves to an AIConversation instance.
-     */
-    static async fromSaved(id: string, functions: RunnableToolFunction<any>[] = [], systemPrompt?: string) {
-        let messages = await SafeQuery<{content: string}>(sql`SELECT content FROM AiConversationHistory WHERE conversation_id = ${id}`);
-        let messages_parsed: ChatCompletionMessageParam[] = messages.recordset.map(record => JSON.parse(record.content))
-        if (systemPrompt) messages_parsed.unshift({
-            role: "system",
-            content: systemPrompt
-        })
-        return new AIConversation(
-            messages_parsed,
-            functions,
-            id
-        )
+    get isNew() {
+        return this.messages.length === 0
     }
 
-    get isNew() {return this.messages.length === 0}
-
-    get controller() {return this.#controller}
-
-    /**
-     * Creates a new instance of AIConversation.
-     *
-     * @param {RunnableToolFunction[]} [functions=[]] - The list of functions to be executed.
-     * @returns {AIConversation} - The newly created instance of AIConversation.
-     */
-    static new(functions: RunnableToolFunction<any>[] = []) {
-        return new AIConversation([], functions, crypto.randomUUID())
-    }
-
-    static async reset(id: string) {
-        await SafeQuery(sql`DELETE FROM AiConversationHistory WHERE conversation_id = ${id}`)
+    get controller() {
+        return this.#controller
     }
 
     protected constructor(
         messages: ChatCompletionMessageParam[],
-        functions: RunnableToolFunction<any>[] = [],
-        id: string
+        functions: RunnableToolFunction<any>[] = []
     ) {
         super()
         this.messages = messages
         this.functions = functions
-        this.id = id
     }
 
-    reset() {
-        this.messages = []
-        return AIConversation.reset(this.id)
-    }
-
-    async saveMessage(message: ChatCompletionMessageParam) {
-        console.trace()
-        console.log(message)
+    saveMessage(message: ChatCompletionMessageParam) {
         this.messages.push(message)
-        await SafeQuery(sql`INSERT INTO AiConversationHistory (conversation_id, content) VALUES (${this.id}, ${JSON.stringify(message)})`);
     }
 
     delayedSendToAI() {
@@ -144,6 +100,80 @@ export class AIConversation extends EventEmitter {
             this.emit("onAIResponse", result)
             return result
         }
+    }
+}
+
+export class AIConversation extends BasicAIConversation {
+    readonly id: string
+
+    /**
+     * Creates an AIConversation instance using saved conversation data.
+     *
+     * @param {string} id - The ID of the conversation.
+     * @param {RunnableToolFunction<any>[]} [functions=[]] - An array of runnable tool functions to be used in the conversation.
+     * @param {string} [systemPrompt] - The system prompt to be added as the first message in the conversation.
+     *
+     * @returns {Promise<AIConversation>} - A Promise that resolves to an AIConversation instance.
+     */
+    static async fromSaved(id: string, functions: RunnableToolFunction<any>[] = [], systemPrompt?: string): Promise<AIConversation> {
+        let messages = await SafeQuery<{ content: string }>(sql`SELECT content
+                                                                FROM AiConversationHistory
+                                                                WHERE conversation_id = ${id}`);
+        let messages_parsed: ChatCompletionMessageParam[] = messages.recordset.map(record => JSON.parse(record.content))
+        if (systemPrompt) messages_parsed.unshift({
+            role: "system",
+            content: systemPrompt
+        })
+        return new AIConversation(
+            messages_parsed,
+            functions,
+            id
+        )
+    }
+
+    constructor(
+        messages: ChatCompletionMessageParam[],
+        functions: RunnableToolFunction<any>[] = [],
+        id: string = crypto.randomUUID()
+    ) {
+        super(messages, functions);
+        this.id = id;
+    }
+
+    /**
+     * Creates a new instance of AIConversation.
+     *
+     * @param {RunnableToolFunction[]} [functions=[]] - The list of functions to be executed.
+     * @returns {AIConversation} - The newly created instance of AIConversation.
+     */
+    static new(functions: RunnableToolFunction<any>[] = []): AIConversation {
+        return new AIConversation([], functions, crypto.randomUUID())
+    }
+
+    static async reset(id: string) {
+        await SafeQuery(sql`DELETE
+                            FROM AiConversationHistory
+                            WHERE conversation_id = ${id}`)
+    }
+
+    reset() {
+        this.messages = []
+        return AIConversation.reset(this.id)
+    }
+
+    async saveMessage(message: ChatCompletionMessageParam) {
+        super.saveMessage(message)
+        await SafeQuery(sql`INSERT INTO AiConversationHistory (conversation_id, content)
+                            VALUES (${this.id}, ${JSON.stringify(message)})`);
+    }
+}
+
+export class UnsavedAIConversation extends BasicAIConversation {
+    constructor(
+        messages: ChatCompletionMessageParam[],
+        functions: RunnableToolFunction<any>[] = []
+    ) {
+        super(messages, functions);
     }
 }
 

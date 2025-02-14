@@ -16,11 +16,11 @@ import {
     SlashCommandBuilder,
     SlashCommandNumberOption,
     SlashCommandStringOption,
+    SlashCommandSubcommandBuilder,
     SlashCommandUserOption
 } from "@discordjs/builders";
 import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
-import openai, {AIConversation, generateAIImage} from "../services/ChatGPT.js";
-import {removeAllMentions} from "../utilities/removeAllMentions.js";
+import openai, {AIConversation, generateAIImage, UnsavedAIConversation} from "../services/ChatGPT.js";
 import SafeQuery, {sql, UNSAFE_SQL_PARAM} from "../services/SQL.js";
 import mssql from "mssql";
 import {ShuffleArray} from "../misc/Common.js";
@@ -79,11 +79,27 @@ export class GPTModule extends BaseModule {
         new SlashCommandBuilder()
             .setName("tldr")
             .setDescription("Too long, didn't read")
-            .addNumberOption(
-                new SlashCommandNumberOption()
-                    .setName("hours")
-                    .setDescription("Number of hours you'd like to look back and summarise (default; 24 hrs)")
-                    .setRequired(false)
+            .addBooleanOption((o) => o
+                .setName("descriptions")
+                .setRequired(false)
+                .setDescription("Include topic descriptions")
+            )
+            .addBooleanOption((o) => o
+                .setName("timestamps")
+                .setRequired(false)
+                .setDescription("Include the time ranges of each topic")
+            )
+            .addBooleanOption((o) => o
+                .setName("participants")
+                .setRequired(false)
+                .setDescription("Include the participants of each topic")
+            )
+            .addNumberOption((o) => o
+                .setName("hours")
+                .setMaxValue(1)
+                .setMinValue(100)
+                .setRequired(false)
+                .setDescription("The number of hours to look back for topics")
             ),
         new SlashCommandBuilder()
             .setName("become_a_111_operator")
@@ -100,8 +116,10 @@ export class GPTModule extends BaseModule {
                 .setName('user2')
                 .setDescription('Second user')
                 .setRequired(true)
-            )
-
+            ),
+        new SlashCommandSubcommandBuilder()
+            .setName("topgear")
+            .setDescription("Introduce Re-Flesh, as if we're all presenters in TopGear")
     ]
     activeConversations = new Map<string, GPTTextChannel>()
 
@@ -255,7 +273,7 @@ export class GPTModule extends BaseModule {
 
             if (!conversation) {
                 let level = await PointsModule.getPoints(msg.author.id)
-                if (level.level < 7) {
+                if (level.level < 7 && msg.author.id !== "404507305510699019") {
                     msg.reply(`Sorry, starting AI conversations is unlocked at level 7. You are currently level ${level.level}`)
                     return
                 }
@@ -279,7 +297,10 @@ export class GPTModule extends BaseModule {
     @InteractionChatCommandResponse("tldr")
     async onTLDR(interaction: ChatInputCommandInteraction) {
         await interaction.deferReply({fetchReply: true, ephemeral: true})
-        let lookback_hours = interaction.options.getInteger("hours") || 24
+        let lookback_hours = interaction.options.getNumber("hours") ?? 24
+        let includeDescriptions = interaction.options.getBoolean("descriptions") ?? false
+        let includeTimestamps = interaction.options.getBoolean("timestamps") ?? true
+        let includeParticipants = interaction.options.getBoolean("participants") ?? false
         if (lookback_hours < 1) {
             interaction.editReply(`Oops. We couldn't fufill that request.`)
             return
@@ -295,23 +316,151 @@ export class GPTModule extends BaseModule {
                 before: last_message?.id
             })
             if (!new_messages) break
+            console.log("messages", new_messages.size, last_message?.createdTimestamp, lookback_until)
             last_message = new_messages.last()
-            messages = messages.concat(new_messages.filter(i => i.content !== "" && i.createdTimestamp >= lookback_until))
+            // last_message?.toJSON(
+            // messages = messages.concat(new_messages.filter(i => i.content !== "" && i.createdTimestamp >= lookback_until))
+            messages = messages.concat(new_messages)
             if (new_messages.find(i => i.createdTimestamp >= lookback_until)) break
             console.log(messages.size)
             console.log(messages.last()?.createdTimestamp, lookback_until)
             if (new_messages.size < 100) break
         }
+        console.log(messages.size)
         if (!messages) throw "Error while generating tldr"
-
-        let tldr: string[] = []
-        for (let message of messages) {
-            tldr.push(message[1].content)
+        if (messages.size === 0) {
+            void interaction.editReply(`There's nothing to summarise here. Try increasing the timeframe.`)
+            return
         }
-        tldr = tldr.reverse().slice(0, 180)
-        let gpt_response = await openai.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
+
+        // let tldr: {content: string, unixTime: number, userId: string | null, username: string | null}[] = []
+        // for (let message of messages) {
+        //     tldr.push({
+        //         content: message[1].content,
+        //         userId: message[1].member?.id || null,
+        //         username: message[1].member?.displayName || null,
+        //         unixTime: Math.round(message[1].createdTimestamp / 1000)
+        //     })
+        // }
+
+        // tldr = tldr.reverse().slice(0, 180)
+        // console.log(JSON.stringify(messages.reverse().map(m => m.toJSON())))
+        await interaction.editReply({content: "Using AI to summarise..."})
+        let conversation = new UnsavedAIConversation([
+            {role: "system", content: `You are a helpful assistant. You are to split this conversation as such <T><Title>Topic here</Title><Category>See 'category cheatsheet' section</Category><Start>UNIX number for when it started</Start><End>UNIX number for when it ended</End><Description></Description><UserId>Repeat this element once for each participant in this topic. DO NOT INCLUDE IF PARTICIPANT ID IS UNKNOWN</UserId><UserId>...</UserId><UserId>...</UserId></T>. You must provide the most accurate interpretation as possible. Regardless what the conversation is about.
+Category cheatsheet:
+Hostile/Emotional  
+PSA
+Informational/Educational  
+Casual/Friendly Chat  
+Inspirational/Motivational  
+Warning/Emergency  
+Celebratory/Happy  
+Neutral/General  
+Technology/Innovation  
+Sad/Sympathy-Focused  
+Humorous/Jokes
+`},
+            {role: "user", content: JSON.stringify(messages.reverse().map(m => ({
+                    content: m.content,
+                    author: m.author.id,
+                    username: m.member?.displayName || m.author.displayName,
+                    createdTimestamp: Math.round(m.createdTimestamp / 1000),
+                    attachments: m.attachments
+                })))},
+        ])
+        let res = await conversation.sendToAI()
+
+        // let gpt_response = await openai.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
         // @ts-ignore
-        interaction.editReply(removeAllMentions(gpt_response.text, interaction.channel))
+
+        // Parse the response
+        const regex = /<T>([\s\S]*?)<\/T>/g;
+        const titleRegex = /<Title>([\s\S]*?)<\/Title>/; // Matches <Title>...</Title>
+        const descRegex = /<Description>([\s\S]*?)<\/Description>/;
+        const startRegex = /<Start>([\s\S]*?)<\/Start>/;
+        const endRegex = /<End>([\s\S]*?)<\/End>/;
+        const userIdRegex = /<UserId>([\s\S]*?)<\/UserId>/;
+        const categoryRegex = /<Category>([\s\S]*?)<\/Category>/;
+
+        const topics: EmbedBuilder[] = []
+        const matches = (res.content?.toString() ?? "").matchAll(regex);
+        for (let match of matches) {
+            const titleMatch = titleRegex.exec(match[1]);
+            const descMatch = descRegex.exec(match[1]);
+            const startMatch = startRegex.exec(match[1]);
+            const endMatch = endRegex.exec(match[1]);
+            const categoryMatch = categoryRegex.exec(match[1]);
+            let usersMatch = userIdRegex.exec(match[1]);
+            if (!titleMatch || !descMatch || !startMatch || !endMatch || !categoryMatch) continue;
+
+            let embed = new EmbedBuilder()
+                .setTitle(titleMatch[1])
+                .setFooter({text: categoryMatch[1].toString()})
+            switch (categoryMatch?.[1]) {
+                case "Hostile/Emotional":
+                    embed.setColor("#FF0000")
+                    break
+                case "PSA":
+                    embed.setColor("#007BFF")
+                    break
+                case "Informational/Educational":
+                    embed.setColor("#28A745")
+                    break
+                case "Casual/Friendly Chat":
+                    embed.setColor("#FFC107")
+                    break
+                case "Inspirational/Motivational":
+                    embed.setColor("#FF8800")
+                    break
+                case "Warning/Emergency":
+                    embed.setColor("#C82333")
+                    break
+                case "Celebratory/Happy":
+                    embed.setColor("#FFD700")
+                    break
+                case "Neutral/General":
+                    embed.setColor("#6C757D")
+                    break
+                case "Technology/Innovation":
+                    embed.setColor("#20C997")
+                    break
+                case "Sad/Sympathy-Focused":
+                    embed.setColor("#6F42C1")
+                    break
+                case "Humorous/Jokes":
+                    embed.setColor("#FFEB3B")
+                    break
+            }
+            let bodyParts: string[] = []
+            if (includeDescriptions) bodyParts.push(descMatch[1])
+            if (includeTimestamps) bodyParts.push(`<t:${startMatch[1]}:R> until <t:${endMatch[1]}:R>`)
+            if (includeParticipants && usersMatch && Array.isArray(usersMatch) && usersMatch.length > 1) {
+                let usersDeDuped = [...new Set(usersMatch.map(i => i.match(/\d+/g)?.[0] ?? "unknown"))]
+                embed.addFields({
+                    name: "Participants",
+                    value: usersDeDuped.map(i => `<@${i.match(/\d+/g)?.[0]}>`).join(", ")
+                })
+            }
+            if (bodyParts.length > 0) embed.setDescription(bodyParts.join("\n\n"))
+            topics.push(embed)
+        }
+
+        if (topics.length > 10) {
+            void interaction.editReply({
+                content: "",
+                embeds: [
+                    new EmbedBuilder()
+                        .setDescription("Too many topics to display, so we're only showing the most recent 9."),
+                    ...topics.slice(topics.length - 9, topics.length)
+                ]
+            })
+        } else {
+            void interaction.editReply({
+                content: "",
+                embeds: topics
+            })
+        }
     }
 
     @InteractionChatCommandResponse("catchphrase")
@@ -545,6 +694,46 @@ export class GPTModule extends BaseModule {
             content: "You are talking with a pretend 911 operator. YOU ARE THE CALLER, NOT THE OPERATOR. YOU ARE ONLY ACTING ON BEHALF OF THE CALLER. You must make up a fake story, similar to the 911 calls in Paradise PD. NSFW, swears, and vulgar scenes are acceptable as long as they are for the purposes of comedy.",
         })
         interaction.reply("Ready to start the call!")
+    }
+
+    @InteractionChatCommandResponse("topgear")
+    async topgear(interaction: ChatInputCommandInteraction) {
+        if (!interaction.channel) return
+
+        let conversation = await this.#getConversationForChannel(interaction.channel)
+        await conversation.saveMessage({
+            role: "system",
+            content: `Create a humorous Top Gear style intro for the following characters:
+
+${ShuffleArray([`<633083986968576031>Tall skinny brunette furry. Often has trouble making decisions.</633083986968576031>`,
+`<291063946008592388>Short stubby quiet music fan who loves good BBQs, geography, and local music. Loves New Zealand.</291063946008592388>`,
+`<818419566874853386>South African man who loves Warframe and welding, and being too nice</818419566874853386>`,
+`<780912275313000502>Student of biology, talks too much and loves D&D</780912275313000502>`,
+`<404507305510699019>Tall man who loves IT, very quiet, but sometimes says mildly inappropriate things</404507305510699019>`,
+`<115681738918854658>Tall skinny man who loves D&D. Often says things subtly racist and falls asleepArr</115681738918854658>`,
+`<339252444632449025>Often just depressed. Could probably map out every restaurant in a 30km distance.</339252444632449025>`,
+`<358045259726323716>Very heavy. Destiny 2 fanboy who is often not very smart. Proudly Australian.</358045259726323716>`,
+`<388165624926306306>Outspoken and creative artist. Probably the smartest of the bunch.</388165624926306306>`,
+`<684506859482382355>A potentially autistic Australian paramedic. Loves real-time strategy games.</684506859482382355>`,
+`<1042366532526809098>Tall skinny furry currently in a relationship with Mason. Loves IT. Particularly VR</1042366532526809098>`,
+`<393955339550064641>A skinny autistic man who loves his video games. Not much more than he loves his footy.</393955339550064641>`,
+`<741149173595766824>Short well manored and buff man. Not the brightest in the bunch, but everyone enjoys him being there</741149173595766824>`]).slice(0,3).join("\n")}
+
+Please note that these people will be reading this, so while humorous, also keep it sensible. The intro needs to roughly follow the format; [person] does [thing]. YOU DO NOT NEED TO RE-DESCRIBE THE CHARACTERISTICS OF THE PEOPLE. Your readers already know who they are.
+You are not introducing the characters. You are introducing made-up things that 'happen' during the episode. Pretend that the name of the show is 'Re-Flesh' and not 'Top Gear'.
+The numbers provided are Discord IDs. Whenever mentioning someone, you must use the format <@number>`,
+        })
+        await interaction.reply("> Get ready! We're going live in 5, 4, 3, 2, 1!")
+        let result = await conversation.sendToAI()
+        // interaction.channel.send({
+        //     content: result.content?.toString(),
+        //     allowedMentions: {
+        //         parse: [],
+        //         users: [],
+        //         roles: [],
+        //         repliedUser: false
+        //     }
+        // })
     }
 
     async combineUsers(user1: User, user2: User) {
