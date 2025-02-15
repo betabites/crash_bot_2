@@ -137,6 +137,7 @@ export class AudioStreamManager extends EventEmitter {
             adapterCreator: guild.voiceAdapterCreator,
             selfDeaf: false
         })
+        console.log("Joined voice channel")
         let id
         while (true) {
             try {
