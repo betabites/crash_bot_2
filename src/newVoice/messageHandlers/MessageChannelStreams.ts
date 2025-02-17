@@ -1,6 +1,6 @@
 import {Readable, type StreamOptions, Writable} from "stream";
 import {type MessagePort} from "worker_threads"
-import {PortMessenger} from "./PortMessenger.js";
+import {RootPortManager} from "./RootPortManager.js";
 
 export class MessagePortWritable extends Writable {
     pendingChunks: {
@@ -10,9 +10,9 @@ export class MessagePortWritable extends Writable {
     }[] = [];
     processingChunks = false
 
-    static fromPort(port: MessagePort) {return new this(new PortMessenger(port))}
+    static fromPort(port: MessagePort) {return new this(new RootPortManager(port))}
 
-    constructor(private port: PortMessenger, options: Omit<StreamOptions<Writable>, "construct" | "destroy"> = {}) {
+    constructor(private port: RootPortManager, options: Omit<StreamOptions<Writable>, "construct" | "destroy"> = {}) {
         // port.on("close", () => this.destroy(new Error("Port closed")))
         super(options);
     }
@@ -53,9 +53,9 @@ export class MessagePortWritable extends Writable {
 
 export class MessagePortReadable extends Readable {
     chunks: Buffer[] = []
-    static fromPort(port: MessagePort) {return new this(new PortMessenger(port))}
+    static fromPort(port: MessagePort) {return new this(new RootPortManager(port))}
 
-    constructor(private port: PortMessenger) {
+    constructor(private port: RootPortManager) {
         super({
             highWaterMark: 1 << 62,
         });

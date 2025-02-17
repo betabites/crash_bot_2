@@ -27,7 +27,7 @@ import mssql from "mssql";
 import RemoteStatusServer, {Connection as ServerConnection} from "../../misc/RemoteStatusServer.js";
 import {sendImpersonateMessage} from "../../services/Discord.js";
 import {PointsModule} from "../Points.js";
-import deathMessages from "./deathMessages.json" assert {type: "json"}
+// import deathMessages from "./deathMessages.json" assert {type: "json"}
 import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.js";
 // const deathMessages: any = {}
 
@@ -73,7 +73,7 @@ export class MinecraftModule extends BaseModule {
                     .setRequired(true)
             )
     ]
-    deathMessages: string[] = [...deathMessages]
+    deathMessages: string[] = ["placeholder death message"]
     messagesEnabled = true
 
     constructor(client: Client) {

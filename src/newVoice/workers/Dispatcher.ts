@@ -2,8 +2,8 @@
  * The Dispatcher takes audio input and dispatches it to the relevant audio stream. One dispatcher per voice connection.
  */
 
-import {MessagePort, parentPort, workerData} from "worker_threads";
-import {PortMessenger} from "../messageHandlers/PortMessenger.js";
+import {parentPort, workerData} from "worker_threads";
+import {RootPortManager} from "../messageHandlers/RootPortManager.js";
 import {client} from "../../services/Discord.js";
 import {
     createAudioPlayer,
@@ -12,8 +12,8 @@ import {
     NoSubscriberBehavior,
     type VoiceConnection
 } from "@discordjs/voice";
-import {Readable} from "stream";
-import {MessagePortReadable} from "../messageHandlers/MessageChannelStreams.js";
+import {PassThrough, Readable} from "stream";
+import {type BaseVoiceModule} from "../modules/BaseVoiceModule.js";
 
 if (!parentPort) throw new Error("No parent port");
 
@@ -25,26 +25,46 @@ let player = createAudioPlayer({
 })
 
 /* Audio stream handling */
-let messenger = new PortMessenger(parentPort);
+let messenger = new RootPortManager(parentPort);
 let currentAudioStream: Readable | null = null
 
-messenger.on("audioStream", (port: MessagePort, callback: () => void) => {
-    console.log("Received new audio stream")
-    if (currentAudioStream) currentAudioStream.destroy()
-    currentAudioStream = new MessagePortReadable(new PortMessenger(port))
-    currentAudioStream.on("readable", () => console.log("Readable", currentAudioStream.readableLength))
-    let resource = createAudioResource(currentAudioStream)
-    currentAudioStream.resume()
-    player.play(resource)
-    // setTimeout(() => {console.log(resource)}, 5000)
+// messenger.on("audioStream", (port: MessagePort, callback: () => void) => {
+//     console.log("Received new audio stream")
+//     if (currentAudioStream) currentAudioStream.destroy()
+//     currentAudioStream = new MessagePortReadable(new RootPortManager(port))
+//     currentAudioStream.on("readable", () => console.log("Readable", currentAudioStream.readableLength))
+//     let resource = createAudioResource(currentAudioStream)
+//     currentAudioStream.resume()
+//     player.play(resource)
+//     // setTimeout(() => {console.log(resource)}, 5000)
+//
+//     // let testFileStream = createWriteStream("test.mp3")
+//     // testFileStream.on("finish", () => {console.log("Finished")})
+//     // testFileStream.on("error", (e) => {console.error(e)})
+//     // testFileStream.on("pipe", () => console.log('Writable: Source stream is piping to this writable'))
+//     // currentAudioStream.pipe(testFileStream)
+//
+//     callback()
+// })
 
-    // let testFileStream = createWriteStream("test.mp3")
-    // testFileStream.on("finish", () => {console.log("Finished")})
-    // testFileStream.on("error", (e) => {console.error(e)})
-    // testFileStream.on("pipe", () => console.log('Writable: Source stream is piping to this writable'))
-    // currentAudioStream.pipe(testFileStream)
+messenger.on("loadModule", async (path: string, resolve: () => {}, reject: (e: any) => {}) => {
+    try {
+        let subMessenger = messenger.createEmbeddedPortManager(path)
+        let importedData = await import(path)
+        let stream = new PassThrough()
+        let voiceModule = new importedData.default(
+            subMessenger,
+            true,
+            stream
+        ) as BaseVoiceModule
+        voiceModule.onThreadReady()
 
-    callback()
+        let resource = createAudioResource(stream)
+        player.play(resource)
+        resolve()
+    } catch(e) {
+        reject(e)
+    }
 })
 
 let connection: VoiceConnection;

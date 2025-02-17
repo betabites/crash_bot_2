@@ -2,7 +2,7 @@ import {BaseModule, OnClientEvent} from "../../modules/BaseModule.js";
 import {Message, VoiceBasedChannel} from "discord.js";
 import {connectVoice, TestVoiceModule} from "../VoiceConnectionManager.js";
 
-export class MusicPlayerModule extends BaseModule {
+export class MusicPlayerVoiceModule extends BaseModule {
     @OnClientEvent("messageCreate")
     async onMessage(msg: Message) {
         if (msg.author.id === "404507305510699019" && msg.content === "test") {

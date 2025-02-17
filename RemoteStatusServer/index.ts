@@ -1,6 +1,6 @@
 import {Namespace, Server} from "socket.io";
 import {EventEmitter} from 'node:events';
-import {IO} from "../src/misc/getHttpServer.js";
+import {IO} from "../dist/misc/getHttpServer.js";
 import {z} from "zod";
 import {ConnectionHandler} from "./connectionHandler.js";
 

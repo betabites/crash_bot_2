@@ -1,7 +1,7 @@
 // This class serves the purpose of managing interactions between the main thread and the voice worker
 import {VoiceBasedChannel} from "discord.js";
 import {MessageChannel, Worker} from "worker_threads";
-import {PortMessenger} from "./messageHandlers/PortMessenger.js";
+import {RootPortManager} from "./messageHandlers/RootPortManager.js";
 import {MessagePortWritable} from "./messageHandlers/MessageChannelStreams.js";
 import {Writable} from "stream";
 import ytdl from "@distube/ytdl-core";
@@ -39,7 +39,7 @@ export class VoiceConnectionManager {
                     guildId: channel.guild.id,
                 }
             })
-            let messenger = new PortMessenger(dispatcher)
+            let messenger = new RootPortManager(dispatcher)
 
             const onerror = (err?: Error) => {
                 reject(err)
@@ -63,7 +63,7 @@ export class VoiceConnectionManager {
     protected constructor(
         private readonly channel: VoiceBasedChannel,
         private readonly dispatcher: Worker,
-        private readonly messenger: PortMessenger,
+        private readonly messenger: RootPortManager,
     ) {
         this.dispatcher.on("error", (e) => {
             console.error("DISPATCHER ERROR:")

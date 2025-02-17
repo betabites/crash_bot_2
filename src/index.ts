@@ -5,10 +5,10 @@ import express from "express"
 import fileUpload, {UploadedFile} from "express-fileupload"
 import fs from "fs"
 import * as path from "path";
-import {client, getToken,} from "./src/services/Discord.js";
-import SafeQuery from "./src/services/SQL.js";
-import {buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
-import {CrashBotUser} from "./src/misc/UserManager.js";
+import {client, getToken,} from "./services/Discord.js";
+import SafeQuery from "./services/SQL.js";
+import {buildPack, dirTree, FindOwnership, searchIndex} from "./misc/ResourcePackManager.js";
+import {CrashBotUser} from "./misc/UserManager.js";
 import {
     ActionRowBuilder,
     AttachmentBuilder,
@@ -20,32 +20,32 @@ import {
     TextChannel,
     WebhookClient
 } from "discord.js";
-import {fetchThrowTemplates, generateThrow} from "./src/misc/ThrowMaker.js";
+import {fetchThrowTemplates, generateThrow} from "./misc/ThrowMaker.js";
 import ytdl from "@distube/ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
-import {makeid} from "./src/misc/Common.js";
+import {makeid} from "./misc/Common.js";
 import mssql from "mssql";
-import {BaseModule} from "./src/modules/BaseModule.js";
-import {D2_ROUTER, D2Module} from "./src/modules/D2.js";
-import {RoleplayModule} from "./src/modules/RoleplayModule.js";
-import {GPTModule} from "./src/modules/GPT.js";
-import {ResourcePackManagerModule} from "./src/modules/ResourcePackManagerModule.js";
-import {ImagesModule} from "./src/modules/ImagesModule.js";
-import {ExperimentsModule} from "./src/modules/ExperimentsModule.js";
-import {MinecraftModule} from "./src/modules/Minecraft/MinecraftModule.js";
-import {MiscModule} from "./src/modules/MiscModule.js";
-import {VOICE_ROUTER, VoiceControlModule} from "./src/modules/VoiceControlModule.js";
-import {sendNotifications} from "./src/modules/D2/SetupNotifications.js";
+import {BaseModule} from "./modules/BaseModule.js";
+import {D2_ROUTER, D2Module} from "./modules/D2.js";
+import {RoleplayModule} from "./modules/RoleplayModule.js";
+import {GPTModule} from "./modules/GPT.js";
+import {ResourcePackManagerModule} from "./modules/ResourcePackManagerModule.js";
+import {ImagesModule} from "./modules/ImagesModule.js";
+import {ExperimentsModule} from "./modules/ExperimentsModule.js";
+import {MinecraftModule} from "./modules/Minecraft/MinecraftModule.js";
+import {MiscModule} from "./modules/MiscModule.js";
+import {VOICE_ROUTER, VoiceControlModule} from "./modules/VoiceControlModule.js";
+import {sendNotifications} from "./modules/D2/SetupNotifications.js";
 import dotenv from "dotenv"
-import {ACHIEVEMENTS_ROUTER} from "./src/modules/GameAchievements.js";
-import {MEMORIES_ROUTER} from "./src/modules/Memories.js";
-import {PACK_ROUTER} from "./src/routes/packs.js";
-import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
-import {SpeechModule} from "./src/modules/Speech.js";
-import {PointsModule} from "./src/modules/Points.js";
-import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
-import {EXPRESS_APP} from "./src/misc/getHttpServer.js";
-import {EventsModule} from "./src/modules/events.js";
+import {ACHIEVEMENTS_ROUTER} from "./modules/GameAchievements.js";
+import {MEMORIES_ROUTER} from "./modules/Memories.js";
+import {PACK_ROUTER} from "./routes/packs.js";
+import {DISCORD_AUTH_ROUTER} from "./routes/discordAuth.js";
+import {SpeechModule} from "./modules/Speech.js";
+import {PointsModule} from "./modules/Points.js";
+import {InteractionTracker} from "./modules/UsageTrackingModule.js";
+import {EXPRESS_APP} from "./misc/getHttpServer.js";
+import {EventsModule} from "./modules/events.js";
 import {
     AmongUsEventSessionHandler,
     BoplBattleCompanyEventSessionHandler,
@@ -65,11 +65,12 @@ import {
     TerrariaEventSessionHandler,
     WarframeEventSessionHandler,
     WhosYourDaddyEventSessionHandler
-} from "./src/modules/events/eventSessionHandlers.js";
-import {QuotesModule} from "./src/modules/Quotes.js";
-import {Pterodactyl} from "./src/modules/Pterodactyl.js";
-import {LethalCompanyModule} from "./src/modules/LethalCompanyModule.js";
-import {MusicPlayerModule} from "./src/newVoice/modules/MusicPlayerModule.js";
+} from "./modules/events/eventSessionHandlers.js";
+import {QuotesModule} from "./modules/Quotes.js";
+import {Pterodactyl} from "./modules/Pterodactyl.js";
+import {LethalCompanyModule} from "./modules/LethalCompanyModule.js";
+import {BotemonModule} from "./botemon/BotemonModule.js";
+// import {MusicPlayerModule} from "./newVoice/modules/MusicPlayerModule.js";
 
 console.log(`Node.js version: ${process.version}`);
 
@@ -110,7 +111,8 @@ const moduleClasses = [
     QuotesModule,
     Pterodactyl,
     LethalCompanyModule,
-    MusicPlayerModule,
+    BotemonModule,
+    //MusicPlayerModule,
     ...eventSessionHandlers
 ]
 

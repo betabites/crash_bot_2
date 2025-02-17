@@ -52,6 +52,7 @@ export class BasicAIConversation extends EventEmitter {
     }
 
     saveMessage(message: ChatCompletionMessageParam) {
+        if ((message as any).tool_calls && (message as any).tool_calls.length === 0) delete (message as any).tool_calls
         this.messages.push(message)
     }
 
@@ -64,6 +65,7 @@ export class BasicAIConversation extends EventEmitter {
 
     async sendToAI(): Promise<ChatCompletionMessageParam> {
         this.delayedSendTimer = null
+        console.log(this.messages)
         if (this.functions.length === 0) {
             let controller = new AbortController()
             this.#controller = controller
@@ -71,6 +73,7 @@ export class BasicAIConversation extends EventEmitter {
             const result = await openai.chat.completions.create({
                 model: 'gpt-4o',
                 messages: this.messages,
+                parallel_tool_calls
             })
             console.log(result.choices)
             if (this.#controller?.signal.aborted) throw new Error("Aborted")
@@ -84,9 +87,8 @@ export class BasicAIConversation extends EventEmitter {
             return message
         }
         else {
-            console.log(this.messages)
             const runner = openai.beta.chat.completions.runTools({
-                model: 'gpt-3.5-turbo',
+                model: 'gpt-4o',
                 messages: this.messages,
                 tools: this.functions
             })

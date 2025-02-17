@@ -28,7 +28,7 @@ import {
 import * as crypto from "crypto";
 import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
 
-let worker = new Worker("./src/services/VoiceManager/VoiceManagerWorker.js", {
+let worker = new Worker("./dist/services/VoiceManager/VoiceManagerWorker.js", {
     workerData: {
         discordClientToken: getToken()
     }
