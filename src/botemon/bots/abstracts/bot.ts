@@ -1,5 +1,6 @@
 import {InventoryItem} from "../../items/abstracts/InventoryItem.js";
 import {Item} from "../../items/abstracts/Item.js";
+import {Effect} from "../../effects/abstracts/effect.js";
 
 type BasicBotAttributes = {
     health: number;
@@ -42,27 +43,71 @@ export type DamageSource = Item<any> | null;
 export abstract class Bot extends InventoryItem<BasicBotAttributes> {
     abstract resistantTo: Enum<typeof DamageTypes>[]
     abstract vulnerableTo: Enum<typeof DamageTypes>[]
+    #effects: Effect[] = []
+    damageHistory: {hp: number, type: Enum<typeof DamageTypes>}[] = []
+
+    abstract onTurnStart(): void
 
     /**
-     * Runs whenever damage is attempted on this entity. Returns the number of hit points damage actually incurred.
+     * Runs whenever damage is attempted on this entity. Returns true if the bot died.
      * @return number
      */
-    abstract damage(
+    damage(
         damageType: Enum<typeof DamageTypes>,
         source: DamageSource,
-        /**
-         * The guaranteed minimum number of hit point damage that will be done
-         */
-        minHitPoints: number,
-        /**
-         * The maximum number of a additional hit points that *may* be incurred.
-         */
-        potentialHitPoints: number,
-    ): number
+        hitPoints: number,
+    ) {
+        this.damageHistory.push({hp: hitPoints, type: damageType})
+        return false
+    }
+
+    rollForDamage(
+        minDamage: number,
+        maxDamage: number,
+        damageType: Enum<typeof DamageTypes>,
+        source: DamageSource,
+    ) {
+        let diff = maxDamage - minDamage
+        if (diff <= 0) return minDamage
+        if (this.resistantTo.includes(damageType)) {
+            // Roll a disadvantage against the attacker
+            return Math.min(roll(diff), roll(diff)) + minDamage
+        } else if (this.vulnerableTo.includes(damageType)) {
+            // Roll an advantage against the attacker
+            return Math.max(roll(diff), roll(diff)) + minDamage
+        }
+        return roll(diff) + minDamage
+    }
+
+    applyEffect<EFFECT extends Effect, ARGS extends any[]>(constructor: new (...args: ARGS) => EFFECT, ...args: ARGS) {
+        let existingEffect = this.hasEffect(constructor)
+        if (existingEffect) existingEffect.mergeEffects([new constructor(...args)])
+        else this.#effects.push(new constructor(...args))
+    }
+
+    hasEffect<ARGS extends any[], EFFECT extends Effect>(effect: new (...args: ARGS) => EFFECT) {
+        return this.#effects.find(e => e instanceof effect) as EFFECT | undefined
+    }
+
+    clearEffect(effectConstructor: new (...args: any[]) => Effect) {
+        let effect = this.hasEffect(effectConstructor)
+        if (!effect) return
+        this.#effects.splice(this.#effects.indexOf(effect), 1)
+    }
+
+    evolve(newBotConstructor: typeof Bot) {}
 }
 
-export function ItemAction(actionName: string, availableFunc: () => boolean, thisArg?: any) {
-    function decorator(originalMethod: () => any, context: ClassMethodDecoratorContext<Item<any>>) {
+/**
+ * roll returns a randome rounded number anywhere between 0 and maxDiceNumber
+ * @param maxDiceNumber
+ */
+export function roll(maxDiceNumber: number) {
+    return Math.floor(Math.random() * (maxDiceNumber + 1));
+}
+
+export function ItemAction(actionName: string, availableFunc: (thisBot: Bot, target: Bot) => boolean) {
+    function decorator(originalMethod: () => any, context: ClassMethodDecoratorContext<Bot>) {
         context.addInitializer(function init(this: Bot) {
             this.actions.push({
                 name: actionName,
@@ -77,8 +122,8 @@ export function ItemAction(actionName: string, availableFunc: () => boolean, thi
     return decorator
 }
 
-export function ItemAttackAction(actionName: string, availableFunc: () => boolean, thisArg?: any) {
-    function decorator(originalMethod: (target:Bot) => any, context: ClassMethodDecoratorContext<Item<any>>) {
+export function ItemAttackAction(actionName: string, availableFunc: (self: Bot, target: Bot) => boolean) {
+    function decorator(originalMethod: (target:Bot) => any, context: ClassMethodDecoratorContext<Bot>) {
         context.addInitializer(function init(this: Bot) {
             this.actions.push({
                 name: actionName,

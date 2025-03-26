@@ -8,10 +8,10 @@ export class ResourcePackManagerModule extends BaseModule {
     commands = [
         new SlashCommandBuilder()
             .setName("getlink")
-            .setDescription("Get your website link"),
+            .setDescription("[DEPRECATED] Get your website link"),
         new SlashCommandBuilder()
             .setName("getcode")
-            .setDescription("Get another player's access code/key")
+            .setDescription("[DEPRECATED] Get another player's access code/key")
             .setDefaultMemberPermissions(null)
             .addStringOption(
                 new SlashCommandStringOption()

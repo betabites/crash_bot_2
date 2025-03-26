@@ -1,13 +1,12 @@
 import SafeQuery, {sql} from "../../../services/SQL.js";
-import {CommandInteraction} from "discord.js";
 
-type ActionMetadata = {
+type ActionMetadata<SELF extends Item<any>> = {
     name: string,
-    available(): boolean,
-    action(interaction: CommandInteraction): any
+    available(thisBot: SELF, target: SELF): boolean,
+    action(target: SELF): any
 }
 export class Item<ATTRIBUTE_DATA extends Record<string, any>> {
-    actions: ActionMetadata[] = []
+    actions: ActionMetadata<this>[] = []
 
     static async new(itemType: string, ownerId: string | null) {
         let newId = await this._newInternal(itemType, ownerId, {})
@@ -56,7 +55,7 @@ export class Item<ATTRIBUTE_DATA extends Record<string, any>> {
 }
 
 export function ItemAction(actionName: string, availableFunc: () => boolean, thisArg?: any) {
-    function decorator(originalMethod: (interaction: CommandInteraction) => any, context: ClassMethodDecoratorContext<Item<any>>) {
+    function decorator(originalMethod: (self: Item<any>) => any, context: ClassMethodDecoratorContext<Item<any>>) {
         context.addInitializer(function init(this: Item<any>) {
             this.actions.push({
                 name: actionName,

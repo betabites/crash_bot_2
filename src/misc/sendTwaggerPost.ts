@@ -1,5 +1,5 @@
 import {Collection, EmbedBuilder, Message, TextChannel} from "discord.js";
-import openai from "../services/ChatGPT.js";
+import openai from "../services/ChatGPT/ChatGPT.js";
 import {client} from "../services/Discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";

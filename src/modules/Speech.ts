@@ -4,7 +4,7 @@ import {ChatInputCommandInteraction, ClientEvents, Message, TextChannel} from "d
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
-import openai from "../services/ChatGPT.js";
+import openai from "../services/ChatGPT/ChatGPT.js";
 import {deleteAllWebhooksForUser, JimpProfilePictureModification, sendImpersonateMessage} from "../services/Discord.js";
 import {PointsModule} from "./Points.js";
 import Jimp from "jimp";
@@ -143,8 +143,6 @@ export class SpeechModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     private async onMessage(msg: Message) {
-        console.trace()
-
         if (msg.author.bot) return
         if (!msg.member) {
             this.emitAlteredMessageEvent(msg, msg.content, null)

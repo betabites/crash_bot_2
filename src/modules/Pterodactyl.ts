@@ -85,7 +85,7 @@ export class Pterodactyl extends BaseModule {
             if (data.incident.state === "closed") {
                 // Check that the machine is still running first
 
-                await this.#scheduleShutdown(21600)
+                await this.#scheduleShutdown(72 * 60)
                 // channel.send(`The previous automatic shutdown has been cancelled. The server will now shut down <t:${Math.round(Date.now() / 1000) + 21600}:R> unless inactivity occurs.\n> If this is incorrect, please alert @BetaBites.`)
             }
             else {
@@ -138,7 +138,7 @@ export class Pterodactyl extends BaseModule {
                 void interaction.reply({content: "The Pterodactyl server is currently unavailable due to maintenance. Please try again later."})
                 return
             }
-            let serverDurationMinutes = interaction.options.getInteger("minutes") ?? 12 * 60
+            let serverDurationMinutes = interaction.options.getInteger("minutes") ?? 72 * 60
             await interaction.reply({content: "Starting up server...", ephemeral: true})
 
             try {

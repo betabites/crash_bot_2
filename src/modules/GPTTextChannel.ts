@@ -1,13 +1,13 @@
-import {AIConversation, generateAIImage} from "../services/ChatGPT.js";
+import {AIConversation, generateAIImage} from "../services/ChatGPT/ChatGPT.js";
 import SafeQuery, {sql} from "../services/SQL.js";
 import {ChatCompletionMessageParam} from "openai/resources/index";
 import {
     ActionRowBuilder,
+    AttachmentBuilder,
     ButtonBuilder,
     ButtonStyle,
     ChannelType,
     Client,
-    Colors,
     EmbedBuilder,
     Message,
     Role,
@@ -16,7 +16,6 @@ import {
 } from "discord.js";
 import {Character} from "./Speech.js";
 import {PointsModule} from "./Points.js";
-import {type ImageGenerateParams} from "openai/src/resources/images.js";
 import moment from "moment-timezone"
 import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
 import {EVENT_IDS} from "./GameAchievements.js";
@@ -32,7 +31,29 @@ import {
 import {DestinyRace} from "bungie.net";
 import {MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
 import {getD2AccessToken} from "./D2/getD2AccessToken.js";
+import {z} from "zod";
 
+export const EVENT_KEYS = [
+    "chill",
+    "movie/tv show",
+    "(game) destiny 2",
+    "(game) among us",
+    "(game) space engineers",
+    "(game) bopl battle",
+    "(game) lethal company",
+    "(game) minecraft",
+    "(game) phasmophobia",
+    "(game) borderlands",
+    "(game) escapists",
+    "(game) garry's mod",
+    "(game) northgard",
+    "(game) oh deer",
+    "(game) project playtime",
+    "(game) terraria",
+    "(game) warframe",
+    "(game) who's your daddy",
+    "other"
+] as const
 const EVENT_ID_MAPPINGS = {
     "chill": EVENT_IDS.CHILL,
     "movie/tv show": EVENT_IDS.MOVIE_OR_TV,
@@ -77,51 +98,57 @@ type DestinyCharacterSerialised = {
     items: SerialisedDestinyItemData[]
 }
 
+const EmptySchema = z.object({})
+const GenerateImageSchema = z.object({
+    description: z.string(),
+    size: z.enum(["1024x1024", "1792x1024", "1024x1792"]).optional(),
+    style: z.enum(["vivid", "natural"]).optional(),
+    quality: z.enum(["standard", "hd"]).optional()
+})
+const BasicDiscordUserSchema = z.object({
+    discord_id: z.string().regex(/^[0-9]{18}$/),
+})
+const RedditMemeSchema = z.object({
+    subreddit: z.string().regex(/^r\/[a-zA-Z0-9-_]+$/).optional(),
+    allowNSFW: z.boolean(),
+    count: z.number().min(1).max(10).optional()
+})
+const EventSchema = z.object({
+    activity: z.enum(EVENT_KEYS),
+    description: z.string().min(10).max(1000),
+    timeZoneCode: z.string().describe("Standard IANA format Region/Country. If not specified, assume Auckland/Pacific"),
+    timestamp: z.string().datetime().describe("Timestamp for when this event starts."),
+    maximumPlayers: z.number().optional(),
+    minimumPlayers: z.number().optional()
+})
+const DestinyCharacterFetchSchema = BasicDiscordUserSchema.extend({
+    characterId: z.string().regex(/^[0-9]{18}$/).describe("The user's Destiny 2 character ID")
+})
+const DestinyFetchVaultSchema = BasicDiscordUserSchema.extend({
+    fetchOnlyTypes: z.array(z
+        .number()
+        .describe("0: None, 1: Currency, 2: Armor, 3: Weapon, 7: Message, 8: Engram, 9: Consumable, 10: ExchangeMaterial, 11: MissionReward, 12: QuestStep, 13: QuestStepComplete, 14: Emblem, 15: Quest, 16: Subclass, 17: ClanBanner, 18: Aura, 19: Mod, 20: Dummy, 21: Ship, 22: Vehicle, 23: Emote, 24: Ghost, 25: Package, 26: Bounty, 27: Wrapper, 28: SeasonalArtifact, 29: Finisher, 30: Pattern")
+        .min(0)
+        .max(30)
+    ).min(1).max(30)
+})
+
+const DIMLoadoutItemSchema = z.object({
+    hash: z.number(),
+})
+
+const DIMLoadoutSchema = z.object({
+    name: z.string(),
+    classType: z.nativeEnum(DestinyClass),
+    equipped: z.array(DIMLoadoutItemSchema),
+    unequipped: z.array(DIMLoadoutItemSchema)
+})
+
 export class GPTTextChannel extends AIConversation {
-    #channel: TextBasedChannel;
+    channel: TextBasedChannel;
     #lastMessage: Message | undefined;
     #knownUserMappings = new Map<string, string>() // Maps usernames to discord user IDs. Contains the IDs of users in the conversation.
-    _imageAttachmentQueue: string[] = []
-    _embedQueue: EmbedBuilder[] = []
-    _aiResponseHandler = async (message: ChatCompletionMessageParam) => {
-        let embeds: EmbedBuilder[] = [...this._embedQueue]
-        let components = [...this._actionRowQueue]
-        this._actionRowQueue = []
-
-        this._embedQueue = []
-
-        if (!this.#lastMessage) {
-            embeds.push(new EmbedBuilder()
-                .setColor(Colors.Green)
-                .setDescription("Crash Bot can:\n- Read your current points\n- Fetch memes and other pictures from Reddit\n- Generate pictures (use responsibly)")
-                .setFooter({text: "To end a conversation, say 'reset'"})
-            )
-        }
-
-        for (let file of this._imageAttachmentQueue) {
-            embeds.push(new EmbedBuilder().setImage(file))
-        }
-        this._imageAttachmentQueue = []
-
-        let content = message.content?.toString() ?? ""
-        while (content.length > 2000) {
-            let part = content.slice(0, 2000)
-            content = content.slice(2000)
-            await this.#channel.send(part)
-        }
-
-        this.#channel.send({
-            content: content,
-            embeds,
-            components,
-            allowedMentions: {
-                parse: [],
-                users: [],
-                roles: [],
-                repliedUser: false
-            }
-        }).then(msg => this.#lastMessage = msg)
-    }
+    #isTypingInterval: null | {interval: NodeJS.Timeout, timeout: NodeJS.Timeout} = null;
     _currentDate: Date | null = null
     _actionRowQueue: ActionRowBuilder<ButtonBuilder>[] = [];
     private client: Client;
@@ -157,550 +184,402 @@ export class GPTTextChannel extends AIConversation {
         channel: TextBasedChannel,
         client: Client
     ) {
-        super(messages, [
-                {
-                    type: "function",
-                    function: {
-                        name: "generate_image",
-                        description: "Generate an image using DALL-E. Only use if explicitly asked for.",
-                        parse: JSON.parse,
-                        function: async (
-                            props: {
-                                description: string,
-                                size?: ImageGenerateParams["size"],
-                                style?: ImageGenerateParams["style"],
-                                quality?: ImageGenerateParams["quality"]
-                            }
-                        ) => {
-                            let image = await generateAIImage({
-                                prompt: props.description,
-                                model: "dall-e-3",
-                                response_format: "url",
-                                quality: props.quality,
-                                size: props.size
-                            })
-                            this._imageAttachmentQueue.push(image.data[0].url ?? '')
-                            return "Image will be attached to your response"
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                description: {
-                                    type: "string",
-                                    description: "Ensure you use detailed descriptions, include context and elements, adhere to OpenAI policies, avoid listing, and use clear language"
-                                },
-                                size: {
-                                    type: "string",
-                                    enum: ['1024x1024', '1792x1024', '1024x1792']
-                                },
-                                style: {
-                                    type: "string",
-                                    enum: ['vivid', 'natural']
-                                },
-                                quality: {
-                                    type: "string",
-                                    enum: ['standard', 'hd']
-                                }
-                            },
-                            required: ["description"]
-                        },
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "get_now",
-                        description: "Get the current date and time",
-                        parse: JSON.parse,
-                        function: async () => {
-                            return GPTTextChannel.toAIDate(new Date(), true)
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {}
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "get_points",
-                        description: "Get the level and points of the current user/player",
-                        parse: JSON.parse,
-                        function: async ({username}: { username: string }) => {
-                            if (!username) return "You didn't specify a username"
-                            let user_id = this.#knownUserMappings.get(username.toLowerCase())
-                            if (!user_id) return "Unknown user. User may not exist, may not have joined the conversation, or may have another issue with their points."
-
-                            let points = await PointsModule.getPoints(user_id);
-                            return `Level: ${points.level}, Points: ${points.points}/${PointsModule.calculateLevelGate(points.level + 1)}`
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                username: {
-                                    type: "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "attach_meme",
-                        description: "Attach a meme/post from Reddit to your next message. Only used when explicitly asked for",
-                        parse: JSON.parse,
-                        function: async ({subreddit, allowNSFW, count}: {
-                            subreddit?: string,
-                            allowNSFW: boolean,
-                            count?: number
-                        }) => {
-                            if (!count) count = 1
-
-                            let endpoint = subreddit
-                                ? `http://meme-api.com/gimme/${subreddit.replace("r/", "")}/${count}`
-                                : `http://meme-api.com/gimme/${count}`
-                            let refleshGuild = this.client.guilds.cache.get("892518158727008297")
-
-                            let req = await fetch(endpoint)
-                            let res: Partial<{
-                                memes: {
-                                    postLink: string,
-                                    subreddit: string,
-                                    title: string,
-                                    url: string,
-                                    nsfw: boolean,
-                                    spoiler: boolean,
-                                    author: string,
-                                    ups: number,
-                                    preview: string[]
-                                }[]
-                            }> = await req.json()
-
-                            let results: { title: string, url: string }[] = []
-                            for (let meme of res.memes ?? []) {
-                                if (meme.nsfw && !allowNSFW) {
-                                    console.log("NSFW meme disallowed: GPT did not ask for nsfw")
-                                    return "Fetched meme was NSFW"
-                                }
-                                if (meme.nsfw
-                                    && this.#channel instanceof TextChannel
-                                    && !this.#channel.nsfw
-                                ) {
-                                    console.log("NSFW meme disallowed: User does not have required discord role")
-                                    return "This user is not permitted to access NSFW content"
-                                }
-                                if (meme.nsfw && this.#channel.type !== ChannelType.DM && (this.#channel.type !== ChannelType.GuildText || !this.#channel.nsfw)) {
-                                    console.log("NSFW meme disallowed: Cannot send in a non-nsfw guild channel")
-                                    return "Cannot send NSFW content in this channel"
-                                }
-                                results.push({title: meme.title, url: meme.url})
-                            }
-
-                            for (let item of results) {
-                                this._imageAttachmentQueue.push(item.url)
-                            }
-                            return "Fetched memes with the following names. Will automatically attach these memes to your next message; " + JSON.stringify(results.map(i => i.title))
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                subreddit: {
-                                    type: "string"
-                                },
-                                allowNSFW: {
-                                    type: "boolean"
-                                },
-                                count: {
-                                    type: "number",
-                                    minimum: 1,
-                                    maximum: 10
-                                }
-                            },
-                            required: ["allowNSFW"]
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "create_event",
-                        description: "Create a new event.",
-                        parse: JSON.parse,
-                        function: async (props: {
-                            activity: keyof typeof EVENT_ID_MAPPINGS,
-                            description: string,
-                            timestamp: string,
-                            // timeZoneOffset: number
-                            timeZoneCode: string,
-                            maximumPlayers?: number,
-                            minimumPlayers?: number
-                        }) => {
-                            // convert the timestamp
-                            let date = moment(props.timestamp)
-                                .tz(props.timeZoneCode, true)
-                                .utc()
-
-                            if (date.toDate().getTime() < Date.now()) {
-                                return "Events cannot be created for the past."
-                            }
-
-                            let activity = EVENT_ID_MAPPINGS[props.activity]
-                            if (typeof activity === "undefined") {
-                                throw new Error(`Unknown activity; ${props.activity}`)
-                                // return `Unknown activity; ${props.activity}`
-                            }
-                            let sessionHandler = GameSessionModule.sessionBindings.get(activity)
-                            if (!sessionHandler) {
-                                console.error(new Error("INTERNAL ERROR; No session handler has been bound for that activity type: " + activity))
-                                return "INTERNAL ERROR; No session handler has been bound for that activity type: " + activity
-                            }
-
-                            let message = await this.#channel.send("`creating an event...`")
-                            let session = await sessionHandler.createNewGameSession(
-                                date.toDate(),
-                                props.description,
-                                message.channel.id,
-                                message.id
-                            )
-                            // this._embedQueue.push(
-                            //     new EmbedBuilder()
-                            //         .setTitle("New event created")
-                            //         .setDescription(props.description)
-                            //         .addFields([
-                            //             {name: "timestamp", value: `<t:${date.toDate().getTime() / 1000}:R>`},
-                            //             {name: "timestamp", value: props.timestamp},
-                            //             {name: "timezone", value: props.timeZoneCode},
-                            //             {name: "maximum players", value: props.maximumPlayers?.toString() ?? "N/A"},
-                            //             {name: "minimum players", value: props.minimumPlayers?.toString() ?? "N/A"},
-                            //         ])
-                            // )
-
-                            let gameData: GameSessionData = {
-                                id: session,
-                                start: date.toDate(),
-                                game_id: activity,
-                                hidden_discord_channel: null,
-                                description: props.description
-                            }
-                            await message.edit({
-                                content: "",
-                                embeds: [sessionHandler.buildInviteEmbed(gameData)],
-                                components: [sessionHandler.buildInviteComponents(gameData)]
-                            })
-
-                            return {
-                                result: "Created new event",
-                                // eventId: res.recordset[0].NewRecordID
-                            }
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                activity: {
-                                    type: "string",
-                                    enum: Object.keys(EVENT_ID_MAPPINGS)
-                                },
-                                description: {
-                                    type: "string"
-                                },
-                                timeZoneCode: {
-                                    type: "string",
-                                    description: "Standard IANA format Region/Country. If not specified, assume Auckland/Pacific"
-                                },
-                                // timeZoneOffset: {
-                                //     type: "number",
-                                //     description: "The timezone offset (minutes) for the timezone in which this event is occurring. Consider daylight savings when applicable. If not specified, assume New Zealand."
-                                // },
-                                timestamp: {
-                                    type: "string",
-                                    format: "date-time",
-                                    description: "Timestamp for when this event starts."
-                                },
-                                maximumPlayers: {
-                                    type: "number",
-                                    description: "The maximum amount of users allowed to join the event. Can be undefined"
-                                },
-                                minimumPlayers: {
-                                    type: "number",
-                                    description: "The minimum amount of users required to join the event for it to proceed."
-                                }
-                            },
-                            required: ["activity", "description", "timestamp", "timeZoneCode"]
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "get_events",
-                        description: "Get a list of all currently organised events.",
-                        parse: JSON.parse,
-                        function: async () => {
-                            let events = await GameSessionModule.getAllGameSessions()
-                            for (let event of events) {
-                                let handler = GameSessionModule.sessionBindings.get(event.game_id);
-                                if (!handler) continue
-
-                                this._embedQueue.push(handler.buildInviteEmbed(event))
-                            }
-
-                            return events
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {}
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "get_roles",
-                        description: "Get a list of all roles in this Discord server",
-                        parse: JSON.parse,
-                        function: async () => {
-                            if (channel.type === ChannelType.DM) {
-                                return "This function is not available for Discord DM-based communications";
-                            }
-                            let roles = await channel.guild.roles.fetch();
-                            return roles.map((value) => serialiseRole(value))
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {}
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "d2_get_characters",
-                        description: "Get basic information about the given user's D2 characters.",
-                        parse: JSON.parse,
-                        function: async (props: { discordId: string[] }) => {
-                            let result: { [key: string]: DestinyCharacterSerialised[] | string } = {}
-                            for (let discordId of props.discordId) {
-                                let resultData = await getD2Characters(discordId)
-                                if (resultData) result[discordId] = resultData
-                            }
-                            return result
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                discordId: {
-                                    type: "array",
-                                    items: {
-                                        type: "string"
-                                    }
-                                }
-                            },
-                            required: ["discordId"]
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "d2_get_character_inventory",
-                        description: "Get a list of items that the given user has equipped in Destiny 2. Includes subclass and mod info.",
-                        parse: JSON.parse,
-                        function: async (props: { discordId: string, characterId: string }) => {
-                            let destinyOAuthDetails = await getD2AccessToken(props.discordId)
-                            if (!destinyOAuthDetails) return "Either this user does not exist, or they have not linked their D2 account"
-
-                            let client = getClient(destinyOAuthDetails.accessToken)
-                            let profile = await getCharacter(client, {
-                                characterId: props.characterId,
-                                components: [
-                                    DestinyComponentType.Characters,
-                                    DestinyComponentType.CharacterEquipment,
-                                    DestinyComponentType.ItemSockets
-                                ],
-                                destinyMembershipId: destinyOAuthDetails.membershipId,
-                                membershipType: destinyOAuthDetails.membershipType
-                            })
-
-                            let output: DestinyCharacterSerialised[] = []
-                            let equipment = profile.Response.equipment.data
-                            if (!equipment) return "No equipment data was returned by the Bungie.NET API"
-                            if (!profile.Response.itemComponents.sockets.data) return "No item socket data returned by the Bungie.NET API"
-                            let itemSocketComponents = profile.Response.itemComponents.sockets.data
-                            if (!profile.Response.plugSets.data?.plugs) return "No plug data returned by the Bungie.NET API"
-                            // let plugs = profile.Response.plugSets.data?.plugs
-
-                            let character = profile.Response.character.data;
-                            if (!character) return "No character data returned by the Bungie.NET API"
-                            let characterData: DestinyCharacterSerialised = serialiseDestinyCharacter(character)
-
-                            // Process equipped items
-                            let preFetchedItems = await MANIFEST_SEARCH.items.byHash(equipment.items.map(i => i.itemHash))
-
-                            // Pre-fetch plugs
-                            let plugIds = equipment.items
-                                .map(
-                                    item => item.itemInstanceId ? itemSocketComponents[item.itemInstanceId]?.sockets.map(socket => socket.plugHash) : []
-                                )
-                                .flat(1)
-                                .filter(i => !!i) as number[]
-                            let plugs = await MANIFEST_SEARCH.items.byHash(plugIds)
-
-                            for (let item of equipment.items) {
-                                characterData.items.push(await serialiseDestinyEquippedItem(
-                                    item,
-                                    preFetchedItems,
-                                    item.itemInstanceId ? itemSocketComponents[item.itemInstanceId]?.sockets : undefined,
-                                    plugs
-                                ))
-                            }
-                            output.push(characterData)
-
-                            console.log(JSON.stringify(output))
-                            return output
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                discordId: {
-                                    type: "string"
-                                },
-                                characterId: {
-                                    type: "string",
-                                    description: "The user's Destiny 2 character ID"
-                                }
-                            },
-                            required: ["discordId", "characterId"]
-                        }
-                    }
-                },
-                {
-                    type: "function",
-                    function: {
-                        name: "d2_get_all_inventory",
-                        description: "Get all items a player currently has",
-                        parse: JSON.parse,
-                        parameters: {
-                            type: "object",
-                            description: "A return type of 'limited: true' indicates your search was too broad and the result set was limited",
-                            properties: {
-                                discordId: {
-                                    type: "string"
-                                },
-                                fetchOnlyTypes: {
-                                    type: "array",
-                                    description: "The types of items to fetch. Is required otherwise too many items will be returned.",
-                                    items: {
-                                        type: "integer",
-                                        description: "0: None, 1: Currency, 2: Armor, 3: Weapon, 7: Message, 8: Engram, 9: Consumable, 10: ExchangeMaterial, 11: MissionReward, 12: QuestStep, 13: QuestStepComplete, 14: Emblem, 15: Quest, 16: Subclass, 17: ClanBanner, 18: Aura, 19: Mod, 20: Dummy, 21: Ship, 22: Vehicle, 23: Emote, 24: Ghost, 25: Package, 26: Bounty, 27: Wrapper, 28: SeasonalArtifact, 29: Finisher, 30: Pattern",
-                                        enum: [
-                                            0,  // None
-                                            1,  // Currency
-                                            2,  // Armor
-                                            3,  // Weapon
-                                            7,  // Message
-                                            8,  // Engram
-                                            9,  // Consumable
-                                            10, // ExchangeMaterial
-                                            11, // MissionReward
-                                            12, // QuestStep
-                                            13, // QuestStepComplete
-                                            14, // Emblem
-                                            15, // Quest
-                                            16, // Subclass
-                                            17, // ClanBanner
-                                            18, // Aura
-                                            19, // Mod
-                                            20, // Dummy
-                                            21, // Ship
-                                            22, // Vehicle
-                                            23, // Emote
-                                            24, // Ghost
-                                            25, // Package
-                                            26, // Bounty
-                                            27, // Wrapper
-                                            28, // SeasonalArtifact
-                                            29, // Finisher
-                                            30  // Pattern
-                                        ]
-                                    },
-                                    minItems: 1,
-                                    maxItems: 3,
-                                    uniqueItems: true
-                                }
-
-                            },
-                            required: ["discordId", "fetchOnlyTypes"]
-                        },
-                        function: async ({discordId, fetchOnlyTypes}: { discordId: string, fetchOnlyTypes: (typeof DestinyItemType)[keyof typeof DestinyItemType][] }) => {
-                            let items = await fetchAllItemsInInventory(discordId)
-                            if (items === null) return "User has not linked their Bungie.NET account"
-                            console.log("Fetching ", fetchOnlyTypes)
-
-                            // Get item details from manifest
-                            let itemHashes: number[] = []
-                            for (let item of items) itemHashes.push(item[1].itemHash)
-                            let manifestItems = await MANIFEST_SEARCH.items.byHash(itemHashes)
-
-                            let res: {
-                                id: string,
-                                hash: number,
-                                name: string,
-                                type: (typeof DestinyItemType)[keyof typeof DestinyItemType],
-                                subType: (typeof DestinyItemSubType)[keyof typeof DestinyItemSubType]
-                            }[] = []
-                            let limited = false
-                            for (let item of items) {
-                                let manifestItem = manifestItems.find(i => i.hash === item[1].itemHash)
-                                if (!manifestItem) continue
-                                if (!manifestItem.itemType || !fetchOnlyTypes.includes(manifestItem.itemType)) continue
-                                res.push({
-                                    id: item[0],
-                                    hash: item[1].itemHash,
-                                    name: manifestItem.displayProperties.name,
-                                    type: manifestItem.itemType,
-                                    subType: manifestItem.itemSubType
-                                })
-                                if (res.length >= 100) {
-                                    limited = true
-                                    break
-                                }
-                            }
-                            return {DestinyItemType, DestinyItemSubType, res, limited}
-                        }
-                    }
-                },
-                // {
-                //     type: "function",
-                //     function: {
-                //         name: "d2_generate_dim_loadout",
-                //         description: "Generates a DIM loadout. PLAN THE LOADOUT WITH THE USER FIRST. Be as detailed as you can. Include mods, shaders, and everything that you feasibly can.",
-                //         parse: JSON.parse,
-                //         parameters: JSONLoadoutSchema,
-                //         function: async (loadout: Loadout) => {
-                //             console.log(loadout)
-                //             console.log(`https://app.destinyitemmanager.com/loadouts?loadout=${encodeURIComponent(JSON.stringify(loadout))}`)
-                //             return "loadout has been generated and sent to the user!"
-                //         }
-                //     }
-                // }
-            ],
-            "channel_" + channel.id
-        );
-        this.#channel = channel
+        super(messages, "channel_" + channel.id);
+        this.channel = channel
         this.client = client
-        this.on("onAIResponse", this._aiResponseHandler)
+        this.on("message_stop", async message => {
+            let content = typeof message.content === "string"
+                ? message.content
+                : message.content?.map(item => item.type === "text" ? item.text : `> ${item.refusal}`).join("\n") ?? ""
+            while (content.length > 2000) {
+                await this.channel.send({
+                    content: content.substring(0, 2000),
+                    allowedMentions: {
+                        parse: [],
+                        users: [],
+                        roles: [],
+                        repliedUser: false
+                    },
+                })
+                content = content.substring(2000)
+            }
+
+            let embeds: EmbedBuilder[] = []
+            for (let tool_call of message.tool_calls ?? []) {embeds.push(
+                new EmbedBuilder()
+                    .setDescription(`Running tool: ${tool_call.function.name}`)
+            )}
+            if (message.refusal) embeds.push(new EmbedBuilder()
+                .setColor("Red")
+                .setDescription(message.refusal)
+            )
+
+            if (content.length !== 0 || embeds.length !== 0) this.channel.send({
+                content,
+                embeds,
+                allowedMentions: {
+                    parse: [],
+                    users: [],
+                    roles: [],
+                    repliedUser: false
+                },
+            })
+        })
+        this.on("error", error => {
+            void this.channel.send({
+                embeds: [new EmbedBuilder()
+                    .setDescription(
+                        `We encountered an error while processing your request. Please try again later.\n\n\`\`\`${error}\`\`\``
+                    )
+                    .setColor("Red")
+                ],
+                allowedMentions: {
+                    parse: [],
+                    users: [],
+                    roles: [],
+                    repliedUser: false
+                },
+            })
+        })
+    }
+
+    @AIToolCallWithStatus("generate_image", "Generate an image from the given text. Only use if explicitly asked for", GenerateImageSchema, {
+        start: () => "Generating image...",
+        error: (data, e) => `Failed to generate image:\n` + "```" + e + "```",
+    })
+    async generateImage(props: z.infer<typeof GenerateImageSchema>): Promise<string> {
+        let image = await generateAIImage({
+            prompt: props.description,
+            model: "dall-e-3",
+            response_format: "url",
+            quality: props.quality,
+            size: props.size
+        })
+        if (!image.data[0].url) throw new Error("No image returned by the API")
+        await this.channel.send({
+            files: [new AttachmentBuilder(image.data[0].url, {
+                name: "image.webp"
+            })],
+        })
+        return "Image has been sent to the user"
+    }
+
+    @AIToolCallWithStatus("get_now", "Get the current date and time", EmptySchema, {end: () => "Crash Bot fetched the system time"})
+    async getNow(data: z.infer<typeof EmptySchema>): Promise<string> {
+        return GPTTextChannel.toAIDate(new Date(), true)
+    }
+
+    @AIToolCallWithStatus("get_points", "Get the points for a given user", BasicDiscordUserSchema, {end: (data) => `Crash Bot fetched the points for <@${data.discord_id}>`})
+    async getDate(data: z.infer<typeof BasicDiscordUserSchema>): Promise<string> {
+        let points = await PointsModule.getPoints(data.discord_id);
+        return `Level: ${points.level}, Points: ${points.points}/${PointsModule.calculateLevelGate(points.level + 1)}`
+    }
+
+    @AIToolCallWithStatus(
+        "send_memes",
+        "Send random memes from Reddit to the conversation channel",
+        RedditMemeSchema,
+        {
+            start: ({subreddit, allowNSFW, count}) => `Crash Bot is fetching ${count || 1} memes from ${subreddit ? `r/${subreddit}` : "Reddit"}`,
+        }
+    )
+    async sendMemes({subreddit, allowNSFW, count}: z.infer<typeof RedditMemeSchema>): Promise<string> {
+        if (!count) count = 1
+
+        let endpoint = subreddit
+            ? `http://meme-api.com/gimme/${subreddit.replace("r/", "")}/${count}`
+            : `http://meme-api.com/gimme/${count}`
+        // let refleshGuild = this.client.guilds.cache.get("892518158727008297")
+
+        let req = await fetch(endpoint)
+        let res = await req.json() as Partial<{
+            memes: {
+                postLink: string,
+                subreddit: string,
+                title: string,
+                url: string,
+                nsfw: boolean,
+                spoiler: boolean,
+                author: string,
+                ups: number,
+                preview: string[]
+            }[]
+        }>
+
+        let results: { title: string, url: string }[] = []
+        for (let meme of res.memes ?? []) {
+            if (meme.nsfw && !allowNSFW) {
+                console.log("NSFW meme disallowed: GPT did not ask for nsfw")
+                return "Fetched meme was NSFW"
+            }
+            if (meme.nsfw
+                && this.channel instanceof TextChannel
+                && !this.channel.nsfw
+            ) {
+                console.log("NSFW meme disallowed: User does not have required discord role")
+                return "This user is not permitted to access NSFW content"
+            }
+            if (meme.nsfw && this.channel.type !== ChannelType.DM && (this.channel.type !== ChannelType.GuildText || !this.channel.nsfw)) {
+                console.log("NSFW meme disallowed: Cannot send in a non-nsfw guild channel")
+                return "Cannot send NSFW content in this channel"
+            }
+            results.push({title: meme.title, url: meme.url})
+        }
+
+        for (let item of results) {
+            await this.channel.send({
+                files: [new AttachmentBuilder(item.url, {})]
+            })
+        }
+        return "Fetched memes with the following names and sent them to the conversation channel; " + JSON.stringify(results.map(i => i.title))
+    }
+
+    @AIToolCallWithStatus("create_event", "Create a new event", EventSchema, {})
+    async createEvent(props: z.infer<typeof EventSchema>): Promise<string> {
+        // convert the timestamp
+        let date = moment(props.timestamp)
+            .tz(props.timeZoneCode, true)
+            .utc()
+
+        if (date.toDate().getTime() < Date.now()) {
+            return "Events cannot be created for the past."
+        }
+
+        let activity = EVENT_ID_MAPPINGS[props.activity]
+        if (typeof activity === "undefined") {
+            throw new Error(`Unknown activity; ${props.activity}`)
+            // return `Unknown activity; ${props.activity}`
+        }
+        let sessionHandler = GameSessionModule.sessionBindings.get(activity)
+        if (!sessionHandler) {
+            console.error(new Error("INTERNAL ERROR; No session handler has been bound for that activity type: " + activity))
+            return "INTERNAL ERROR; No session handler has been bound for that activity type: " + activity
+        }
+
+        let message = await this.channel.send("`creating an event...`")
+        let session = await sessionHandler.createNewGameSession(
+            date.toDate(),
+            props.description,
+            message.channel.id,
+            message.id
+        )
+        // this._embedQueue.push(
+        //     new EmbedBuilder()
+        //         .setTitle("New event created")
+        //         .setDescription(props.description)
+        //         .addFields([
+        //             {name: "timestamp", value: `<t:${date.toDate().getTime() / 1000}:R>`},
+        //             {name: "timestamp", value: props.timestamp},
+        //             {name: "timezone", value: props.timeZoneCode},
+        //             {name: "maximum players", value: props.maximumPlayers?.toString() ?? "N/A"},
+        //             {name: "minimum players", value: props.minimumPlayers?.toString() ?? "N/A"},
+        //         ])
+        // )
+
+        let gameData: GameSessionData = {
+            id: session,
+            start: date.toDate(),
+            game_id: activity,
+            hidden_discord_channel: null,
+            description: props.description
+        }
+        await message.edit({
+            content: "",
+            embeds: [sessionHandler.buildInviteEmbed(gameData)],
+            components: [sessionHandler.buildInviteComponents(gameData)]
+        })
+
+        return "Created new event"
+    }
+
+    @AIToolCallWithStatus("get_events", "Get all events", EmptySchema, {
+        start: data => "Fetching all events...",
+        end: data => "Fetched all events"
+    })
+    async getEvents(props: {}): Promise<string> {
+        let events = await GameSessionModule.getAllGameSessions()
+        for (let event of events) {
+            let handler = GameSessionModule.sessionBindings.get(event.game_id);
+            if (!handler) continue
+
+            // this._embedQueue.push(handler.buildInviteEmbed(event))
+        }
+
+        let statusMessage = await this.channel.send({
+            embeds: [new EmbedBuilder().setColor("Blue").setDescription(`Crash Bot fetched all events`)],
+        })
+        return JSON.stringify(events)
+    }
+
+    @AIToolCallWithStatus("get_roles", "Get a list of all roles in this Discord server", EmptySchema, {
+        start: data => "Fetching all Discord roles...",
+        end: data => "Fetched all Discord roles"
+    })
+    async getRoles(props: {}): Promise<string> {
+        if (this.channel.type === ChannelType.DM) {
+            return "This function is not available for Discord DM-based communications";
+        }
+        let roles = await this.channel.guild.roles.fetch();
+        let statusMessage = await this.channel.send({
+            embeds: [new EmbedBuilder().setColor("Blue").setDescription(`Crash Bot fetched all Discord roles in this server`)],
+        })
+        return JSON.stringify(roles.map((value) => serialiseRole(value)))
+    }
+
+    @AIToolCallWithStatus("d2_get_character", "Get a user's Destiny 2 character", BasicDiscordUserSchema, {
+        start: data => `Fetching Destiny 2 character for <@${data.discord_id}>`,
+        end: data => `Fetched Destiny 2 character for <@${data.discord_id}>`,
+        error: (data, err) => `Failed to fetch Destiny 2 character for <@${data.discord_id}>` + "\n```Errors for Bungie.NET are hidden. Try running /destiny2 login to resolve issues.```"
+    })
+    async getD2Character(data: z.infer<typeof BasicDiscordUserSchema>): Promise<string> {
+        let character = await getD2Characters(data.discord_id)
+        if (!character) return "User has not linked their Bungie.NET account"
+        return JSON.stringify(character)
+    }
+
+    @AIToolCallWithStatus("d2_get_character_inventory", "Get a list of items that the given user has equipped in Destiny 2. Includes subclass and mod info.", DestinyCharacterFetchSchema, {
+        start: data => `Fetching Destiny 2 character for <@${data.discord_id}>`,
+        end: data => `Fetched Destiny 2 character for <@${data.discord_id}>`,
+        error: (data, err) => `Failed to fetch Destiny 2 character for <@${data.discord_id}>` + "\n```Errors for Bungie.NET are hidden. Try running /destiny2 login to resolve issues.```"
+    })
+    async getD2CharacterItems(props: z.infer<typeof DestinyCharacterFetchSchema>): Promise<string> {
+        let destinyOAuthDetails = await getD2AccessToken(props.discord_id)
+        if (!destinyOAuthDetails) return "Either this user does not exist, or they have not linked their D2 account"
+
+        let client = getClient(destinyOAuthDetails.accessToken)
+        let profile = await getCharacter(client, {
+            characterId: props.characterId,
+            components: [
+                DestinyComponentType.Characters,
+                DestinyComponentType.CharacterEquipment,
+                DestinyComponentType.ItemSockets
+            ],
+            destinyMembershipId: destinyOAuthDetails.membershipId,
+            membershipType: destinyOAuthDetails.membershipType
+        })
+
+        let output: DestinyCharacterSerialised[] = []
+        let equipment = profile.Response.equipment.data
+        if (!equipment) throw new Error("No equipment data was returned by the Bungie.NET API")
+        if (!profile.Response.itemComponents.sockets.data) throw new Error("No item socket data returned by the Bungie.NET API")
+        let itemSocketComponents = profile.Response.itemComponents.sockets.data
+        if (!profile.Response.plugSets.data?.plugs) throw new Error("No plug data returned by the Bungie.NET API")
+        // let plugs = profile.Response.plugSets.data?.plugs
+
+        let character = profile.Response.character.data;
+        if (!character) throw new Error("No character data returned by the Bungie.NET API")
+        let characterData: DestinyCharacterSerialised = serialiseDestinyCharacter(character)
+
+        // Process equipped items
+        let preFetchedItems = await MANIFEST_SEARCH.items.byHash(equipment.items.map(i => i.itemHash))
+
+        // Pre-fetch plugs
+        let plugIds = equipment.items
+            .map(
+                item => item.itemInstanceId ? itemSocketComponents[item.itemInstanceId]?.sockets.map(socket => socket.plugHash) : []
+            )
+            .flat(1)
+            .filter(i => !!i) as number[]
+        let plugs = await MANIFEST_SEARCH.items.byHash(plugIds)
+
+        for (let item of equipment.items) {
+            characterData.items.push(await serialiseDestinyEquippedItem(
+                item,
+                preFetchedItems,
+                item.itemInstanceId ? itemSocketComponents[item.itemInstanceId]?.sockets : undefined,
+                plugs
+            ))
+        }
+        output.push(characterData)
+
+        console.log(JSON.stringify(output))
+        return JSON.stringify(output)
+    }
+
+    @AIToolCallWithStatus("d2_get_all_inventory", "Get all items a player currently has", DestinyFetchVaultSchema, {
+        start: data => `Fetching Destiny 2 character for <@${data.discord_id}>`,
+        end: data => `Fetched Destiny 2 character for <@${data.discord_id}>`,
+        error: (data, err) => `Failed to fetch Destiny 2 character for <@${data.discord_id}>` + "\n```Errors for Bungie.NET are hidden. Try running /destiny2 login to resolve issues.```"
+    })
+    async getD2AllInventory(props: z.infer<typeof DestinyFetchVaultSchema>): Promise<string> {
+        let items = await fetchAllItemsInInventory(props.discord_id)
+        if (items === null) return "User has not linked their Bungie.NET account"
+        console.log("Fetching ", props.fetchOnlyTypes)
+
+        // Get item details from manifest
+        let itemHashes: number[] = []
+        for (let item of items) itemHashes.push(item[1].itemHash)
+        let manifestItems = await MANIFEST_SEARCH.items.byHash(itemHashes)
+
+        let res: {
+            id: string,
+            hash: number,
+            name: string,
+            type: (typeof DestinyItemType)[keyof typeof DestinyItemType],
+            subType: (typeof DestinyItemSubType)[keyof typeof DestinyItemSubType]
+        }[] = []
+        let limited = false
+        for (let item of items) {
+            let manifestItem = manifestItems.find(i => i.hash === item[1].itemHash)
+            if (!manifestItem) continue
+            if (!manifestItem.itemType || !props.fetchOnlyTypes.includes(manifestItem.itemType)) continue
+            res.push({
+                id: item[0],
+                hash: item[1].itemHash,
+                name: manifestItem.displayProperties.name,
+                type: manifestItem.itemType,
+                subType: manifestItem.itemSubType
+            })
+            if (res.length >= 100) {
+                limited = true
+                break
+            }
+        }
+        return JSON.stringify({DestinyItemType, DestinyItemSubType, res, limited})
+    }
+
+    @AIToolCallWithStatus("d2_plan_build", "Read the guide on how to plan a build. ALWAYS READ FIRST BEFORE FETCHING ANY DATA WHEN MAKING A BUILD!", EmptySchema, {
+        end: data => "Got instructions for how to plan a Destiny 2 build",
+    })
+    async planD2Build(data: {}): Promise<string> {
+        return `Follow these steps to plan a Destiny 2 build:
+    When fetching data about the character, always fetch the character first, then the inventory. This ensures you have all required information.
+    ALWAYS RUN 'd2_get_all_inventory' ONCE PER SLOT IN THE BUILD! This should end up being used 7 times (3 weapons, 4 armour).
+        
+<WeaponsGuide>Pick exactly 1 exotic weapon that the user already has, and plan the build around it. You need to pick 1 weapon per slot (Primary, Secondary, and Heavy), including the exotic</WeaponsGuide>
+<ArmourGuide>Pick 1 armour piece for each of the following slots. Armour piece must match the user's desired class. YOU must also pick a shader and up to 5 mods for each armour piece. Mods must adhere to the build rules and constraints for Destiny 2:
+- Head
+- Chest
+- Arms
+- Legs
+</ArmourGuide>
+<ClassGuide>You need to pick ALL options that link to a player's class. This includes:
+- Class (Solar, Arc, Void, etc)
+- Sub-class (Dawnblade, etc)
+- Melee
+- Grenade
+- Character ability (ie rift/barrier/dodge)
+- Aspects
+- Fragments
+</ClassGuide>
+ALWAYS SEND THE RESULT AS A DIM BUILD UNLESS SPECIFICALLY REQUESTED!
+        `
+    }
+
+    @AIToolCallWithStatus("dim_create_build", "Convert a Destiny 2 build object into a URL. Always perfer this over sharing the actual Destiny 2 build", DIMLoadoutSchema, {})
+    async createDIMLoadout(data: z.infer<typeof DIMLoadoutSchema>): Promise<string> {
+        this.channel.send(`https://app.destinyitemmanager.com/loadouts?loadout=${encodeURIComponent(JSON.stringify(data))}`)
+        return "Created DIM loadout and sent it to the user"
     }
 
     unload() {
-        this.removeListener("onAIResponse", this._aiResponseHandler)
+        this.removeAllListeners()
     }
 
     async processMessage([msg]: [Message], messageContent: string, character: Character | null) {
         if (msg.author.id === this.client.user?.id) return
         this.#knownUserMappings.set((msg.author.displayName ?? msg.author.username).toLowerCase(), msg.author.id)
-        await this.saveMessage({
+        this.appendMessage({
             role: "user",
             name: character?.name || (msg.author.displayName ?? msg.author.username).replaceAll(/[^A-z]/g, ""),
             content: JSON.stringify({discordId: msg.author.id, message: messageContent})
@@ -709,18 +588,17 @@ export class GPTTextChannel extends AIConversation {
         return
     }
 
-    async saveMessage(message: ChatCompletionMessageParam, ignoreDateCheck ?: boolean):
-        Promise<void> {
+    appendMessage(message: ChatCompletionMessageParam, ignoreDateCheck ?: boolean) {
         this.controller?.abort("Received a new message")
-        if (this._currentDate?.getDate() !== (new Date()).getDate()
-        ) {
+        if (this._currentDate?.getDate() !== (new Date()).getDate()) {
+            this._currentDate = new Date()
             // Day has changed,
-            await super.saveMessage({
+            super.appendMessage({
                 role: "system",
                 content: `The current date is: ${GPTTextChannel.toAIDate(new Date())}`
             })
         }
-        await super.saveMessage(message);
+        return super.appendMessage(message);
     }
 
     delayedSendToAI() {
@@ -730,14 +608,28 @@ export class GPTTextChannel extends AIConversation {
         }, 1500)
     }
 
-    async sendToAI()
-        :
-        Promise<ChatCompletionMessageParam> {
-        let interval = setInterval(() => {
-            void this.#channel.sendTyping()
-        }, 3000)
+    async sendToAI() {
+        if (!this.#isTypingInterval) {
+            void this.channel.sendTyping()
+            let interval = setInterval(() => {
+                void this.channel.sendTyping()
+            }, 3000)
+            // In case for any odd reason an error occurs, the following timeout ensures that the bot doesn't remain in an 'is typing' state forever.
+            let timeout: NodeJS.Timeout
+            const clear = () => {
+                clearInterval(interval)
+                clearTimeout(timeout)
+                this.#isTypingInterval = null
+                this.removeListener("message_stop", clear)
+                this.removeListener("error", clear)
+            }
+            timeout = setTimeout(() => clear(), 30000)
+            this.#isTypingInterval = {interval, timeout}
+
+            this.once("message_stop", clear)
+            this.once("error", clear)
+        }
         return super.sendToAI()
-            .finally(() => clearInterval(interval))
     }
 }
 
@@ -908,4 +800,69 @@ function serialiseDestinyCharacter(character: DestinyCharacterComponent): Destin
         items: []
 
     }
+}
+
+export function AIToolCallWithStatus<SCHEMA extends z.Schema<any>>(
+    toolName: string,
+    description: string,
+    schema: SCHEMA,
+    messageBuilders: {
+        start?: (data: z.infer<SCHEMA>) => string | false,
+        end?: (data: z.infer<SCHEMA>, res: unknown) => string | false,
+        error?: (data: z.infer<SCHEMA>, e: unknown) => string | false,
+    }
+) {
+    function decorator<CLASS extends GPTTextChannel>(originalMethod: (data: z.infer<SCHEMA>) => Promise<string>, context: ClassMethodDecoratorContext<CLASS>) {
+        async function newMethod (this: CLASS, data: z.infer<SCHEMA>) {
+            let statusMessage: Message | undefined
+            const updateStatusMessage = async (builder:  (builder: EmbedBuilder) => EmbedBuilder) => {
+                if (!statusMessage) statusMessage = await this.channel.send({embeds: [builder(new EmbedBuilder())]})
+                else statusMessage.edit({embeds: [builder(new EmbedBuilder())]})
+            }
+
+            try {
+                if (messageBuilders.start) {await updateStatusMessage(b => b
+                    .setColor("Yellow")
+                    // @ts-expect-error
+                    .setDescription(messageBuilders.start(data))
+                )}
+                let res = await originalMethod.call(this, data)
+                if (messageBuilders.end) {void updateStatusMessage(b => b
+                    .setColor("Green")
+                    // @ts-expect-error
+                    .setDescription(messageBuilders.end(data, res))
+                )}
+                else if (statusMessage) {
+                    void statusMessage.delete()
+                }
+                return res
+            } catch (e) {
+                if (messageBuilders.error) {void updateStatusMessage(b => b
+                    .setColor("Red")
+                    // @ts-expect-error
+                    .setDescription(messageBuilders.error(data, e))
+                )}
+                else {
+                    // Show a standard error for all tools that fail
+                    void updateStatusMessage(b => b
+                        .setColor("Red")
+                        .setDescription(`Tool ${toolName} failed:` + "\n```" + (e as Error).toString().substring(0, 200) + "```")
+                    )
+                }
+                throw e
+            }
+        }
+
+        context.addInitializer(function init(this: CLASS) {
+            this.functions.set(toolName, {
+                schema,
+                description,
+                func: newMethod.bind(this)
+            })
+        })
+
+        return originalMethod
+    }
+
+    return decorator
 }

@@ -3,7 +3,7 @@ import {EmbedBuilder, TextChannel, Webhook, WebhookClient} from "discord.js";
 import SafeQuery from "../../services/SQL.js";
 import mssql from "mssql";
 import path from "path";
-import {AIConversation} from "../../services/ChatGPT.js";
+import {AIConversation} from "../../services/ChatGPT/ChatGPT.js";
 import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 
 interface AINarration {

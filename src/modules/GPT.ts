@@ -16,19 +16,15 @@ import {
     SlashCommandBuilder,
     SlashCommandNumberOption,
     SlashCommandStringOption,
-    SlashCommandSubcommandBuilder,
     SlashCommandUserOption
 } from "@discordjs/builders";
-import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
-import openai, {AIConversation, generateAIImage, UnsavedAIConversation} from "../services/ChatGPT.js";
+import openai, {AIConversation, generateAIImage, UnsavedAIConversation} from "../services/ChatGPT/ChatGPT.js";
 import SafeQuery, {sql, UNSAFE_SQL_PARAM} from "../services/SQL.js";
 import mssql from "mssql";
 import {ShuffleArray} from "../misc/Common.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
-import {TWAGGER_POST_CHANNEL} from "../misc/sendTwaggerPost.js";
 import {PointsModule} from "./Points.js";
-import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 import {Character, OnSpeechModeAdjustmentComplete} from "./Speech.js";
 import {GPTTextChannel} from "./GPTTextChannel.js";
 
@@ -102,9 +98,6 @@ export class GPTModule extends BaseModule {
                 .setDescription("The number of hours to look back for topics")
             ),
         new SlashCommandBuilder()
-            .setName("become_a_111_operator")
-            .setDescription("Simulate a bullshit 111 call, with you as the operator"),
-        new SlashCommandBuilder()
             .setName('combine')
             .setDescription('Combine two users into one')
             .addUserOption(option => option
@@ -116,10 +109,7 @@ export class GPTModule extends BaseModule {
                 .setName('user2')
                 .setDescription('Second user')
                 .setRequired(true)
-            ),
-        new SlashCommandSubcommandBuilder()
-            .setName("topgear")
-            .setDescription("Introduce Re-Flesh, as if we're all presenters in TopGear")
+            )
     ]
     activeConversations = new Map<string, GPTTextChannel>()
 
@@ -127,140 +117,9 @@ export class GPTModule extends BaseModule {
         super(client);
     }
 
-    private generateChatGPTFunctions(msg: Message, mutateResultMessage: (type: "attachment", data: string) => void) {
-        let funcs: RunnableToolFunction<any>[] = [
-            {
-                type: "function",
-                function: {
-                    name: "get_points",
-                    description: "Get the level and points of the current user/player",
-                    parse: JSON.parse,
-                    function: async ({}) => {
-                        let points = await PointsModule.getPoints(msg.author.id);
-                        return `Level: ${points.level}, Points: ${points.points}/${PointsModule.calculateLevelGate(points.level + 1)}`
-                    },
-                    parameters: {
-                        type: "object",
-                        properties: {}
-                    }
-                }
-            },
-            {
-                type: "function",
-                function: {
-                    name: "attach_meme",
-                    description: "Attach a meme/post from Reddit to your next message. Only used when explicitly asked for",
-                    parse: JSON.parse,
-                    function: async ({subreddit, allowNSFW, count}: {subreddit?: string, allowNSFW: boolean, count?: number}) => {
-                        if (!count) count = 1
-
-                        let endpoint = subreddit
-                            ? `http://meme-api.com/gimme/${subreddit.replace("r/", "")}/${count}`
-                            : `http://meme-api.com/gimme/${count}`
-                        let refleshGuild = this.client.guilds.cache.get("892518158727008297")
-                        let allowNSFWForThisUser = false
-
-                        let req = await fetch(endpoint)
-                        let res: Partial<{
-                            memes: {
-                                postLink: string,
-                                subreddit: string,
-                                title: string,
-                                url: string,
-                                nsfw: boolean,
-                                spoiler: boolean,
-                                author: string,
-                                ups: number,
-                                preview: string[]
-                            }[]
-                        }> = await req.json()
-
-                        let results: { title: string, url: string }[] = []
-                        for (let meme of res.memes ?? []) {
-                            if (meme.nsfw && !allowNSFW) {
-                                console.log("NSFW meme disallowed: GPT did not ask for nsfw")
-                                return "Fetched meme was NSFW"
-                            }
-                            if (meme.nsfw && !allowNSFWForThisUser) {
-                                // Check that the user has the relevant nsfw role
-                                try {
-                                    let member = await refleshGuild?.members.fetch(msg.author.id)
-                                    allowNSFWForThisUser = !!member?.roles.cache.has("957575439214313572")
-                                }
-                                catch(e) {
-                                    console.error(e)
-                                }
-
-                                if (!allowNSFWForThisUser) {
-                                    console.log("NSFW meme disallowed: User does not have required discord role")
-                                    return "This user is not permitted to access NSFW content"
-                                }
-                            }
-                            if (meme.nsfw && msg.channel.type !== ChannelType.DM && (msg.channel.type !== ChannelType.GuildText || !msg.channel.nsfw)) {
-                                console.log("NSFW meme disallowed: Cannot send in a non-nsfw guild channel")
-                                return "Cannot send NSFW content in this channel"
-                            }
-                            results.push({title: meme.title, url: meme.url})
-                        }
-
-                        for (let item of results) mutateResultMessage("attachment", item.url)
-                        return "Fetched memes with the following names. Will automatically attach these memes to your next message; " + JSON.stringify(results.map(i => i.title))
-                    },
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            subreddit: {
-                                type: "string"
-                            },
-                            allowNSFW: {
-                                type: "boolean"
-                            },
-                            count: {
-                                type: "number",
-                                minimum: 1,
-                                maximum: 10
-                            }
-                        },
-                        required: ["allowNSFW"]
-                    }
-                }
-            }
-        ]
-        if (msg.channel.type === ChannelType.DM) {
-            funcs.push({
-                type: "function",
-                function: {
-                    name: "clear",
-                    description: "Delete all saved messages",
-                    parse: JSON.parse,
-                    function: async () => {
-                        let channel = msg.channel
-                        if (channel.type !== ChannelType.DM) return "failed"
-                        let messages = await channel.messages.fetch({limit: 100})
-                        while (true) {
-                            for (let message of messages) {
-                                if (message[1].deletable) await message[1].delete()
-                            }
-                            if (messages.size >= 100) await channel.messages.fetch({limit: 100})
-                        }
-                        return "done"
-                    },
-                    parameters: {
-                        type: "object",
-                        properties: {}
-                    }
-                }
-            })
-        }
-        return funcs
-    }
-
     @OnSpeechModeAdjustmentComplete()
     async onMessage([msg]: [Message], messageContent: string, character: Character | null) {
         if ((msg.author.bot && !msg.webhookId) || !this.client.user) return
-        else if (msg.channel.type === ChannelType.PublicThread && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
-            askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
-        }
         else if (msg.mentions.users.has(this.client.user.id) || this.activeConversations.has(msg.channelId) || msg.channel.type === ChannelType.DM) {
             console.log("HERE!")
             let conversation = this.activeConversations.get(msg.channelId) as GPTTextChannel
@@ -369,7 +228,7 @@ Humorous/Jokes
                     attachments: m.attachments
                 })))},
         ])
-        let res = await conversation.sendToAI()
+        let res = await conversation.sendToAIAndWait()
 
         // let gpt_response = await openai.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
         // @ts-ignore
@@ -644,21 +503,21 @@ Humorous/Jokes
                 let top = await this.getTopWords(member.id)
                 let conversation = AIConversation.new()
                 let theme = interaction.options.getString("theme")
-                await conversation.saveMessage({
+                conversation.appendMessage({
                     role: "system",
                     content: `These words have been programmatically determined as a given users most common words. Use these words to create a suitable catchphrase. Swears ARE OK!`
                 })
                 if (theme) {
-                    await conversation.saveMessage({
+                    conversation.appendMessage({
                         role: "system",
                         content: `The catchphrase must match this theme: ${theme}`
                     })
                 }
-                await conversation.saveMessage({
+                conversation.appendMessage({
                     role: 'system',
                     content: "words: " + top.map(i => i.word).join(", ")
                 })
-                let response = await conversation.sendToAI()
+                let response = await conversation.sendToAIAndWait()
                 let embed = new EmbedBuilder()
                 // console.log("Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
 
@@ -684,61 +543,9 @@ Humorous/Jokes
             })
     }
 
-    @InteractionChatCommandResponse("become_a_111_operator")
-    async becomeAnEmergencyOperator(interaction: ChatInputCommandInteraction) {
-        if (!interaction.channel) return
-
-        let conversation = await this.#getConversationForChannel(interaction.channel)
-        await conversation.saveMessage({
-            role: "system",
-            content: "You are talking with a pretend 911 operator. YOU ARE THE CALLER, NOT THE OPERATOR. YOU ARE ONLY ACTING ON BEHALF OF THE CALLER. You must make up a fake story, similar to the 911 calls in Paradise PD. NSFW, swears, and vulgar scenes are acceptable as long as they are for the purposes of comedy.",
-        })
-        interaction.reply("Ready to start the call!")
-    }
-
-    @InteractionChatCommandResponse("topgear")
-    async topgear(interaction: ChatInputCommandInteraction) {
-        if (!interaction.channel) return
-
-        let conversation = await this.#getConversationForChannel(interaction.channel)
-        await conversation.saveMessage({
-            role: "system",
-            content: `Create a humorous Top Gear style intro for the following characters:
-
-${ShuffleArray([`<633083986968576031>Tall skinny brunette furry. Often has trouble making decisions.</633083986968576031>`,
-`<291063946008592388>Short stubby quiet music fan who loves good BBQs, geography, and local music. Loves New Zealand.</291063946008592388>`,
-`<818419566874853386>South African man who loves Warframe and welding, and being too nice</818419566874853386>`,
-`<780912275313000502>Student of biology, talks too much and loves D&D</780912275313000502>`,
-`<404507305510699019>Tall man who loves IT, very quiet, but sometimes says mildly inappropriate things</404507305510699019>`,
-`<115681738918854658>Tall skinny man who loves D&D. Often says things subtly racist and falls asleepArr</115681738918854658>`,
-`<339252444632449025>Often just depressed. Could probably map out every restaurant in a 30km distance.</339252444632449025>`,
-`<358045259726323716>Very heavy. Destiny 2 fanboy who is often not very smart. Proudly Australian.</358045259726323716>`,
-`<388165624926306306>Outspoken and creative artist. Probably the smartest of the bunch.</388165624926306306>`,
-`<684506859482382355>A potentially autistic Australian paramedic. Loves real-time strategy games.</684506859482382355>`,
-`<1042366532526809098>Tall skinny furry currently in a relationship with Mason. Loves IT. Particularly VR</1042366532526809098>`,
-`<393955339550064641>A skinny autistic man who loves his video games. Not much more than he loves his footy.</393955339550064641>`,
-`<741149173595766824>Short well manored and buff man. Not the brightest in the bunch, but everyone enjoys him being there</741149173595766824>`]).slice(0,3).join("\n")}
-
-Please note that these people will be reading this, so while humorous, also keep it sensible. The intro needs to roughly follow the format; [person] does [thing]. YOU DO NOT NEED TO RE-DESCRIBE THE CHARACTERISTICS OF THE PEOPLE. Your readers already know who they are.
-You are not introducing the characters. You are introducing made-up things that 'happen' during the episode. Pretend that the name of the show is 'Re-Flesh' and not 'Top Gear'.
-The numbers provided are Discord IDs. Whenever mentioning someone, you must use the format <@number>`,
-        })
-        await interaction.reply("> Get ready! We're going live in 5, 4, 3, 2, 1!")
-        let result = await conversation.sendToAI()
-        // interaction.channel.send({
-        //     content: result.content?.toString(),
-        //     allowedMentions: {
-        //         parse: [],
-        //         users: [],
-        //         roles: [],
-        //         repliedUser: false
-        //     }
-        // })
-    }
-
     async combineUsers(user1: User, user2: User) {
         let aiConversation = AIConversation.new()
-        await aiConversation.saveMessage({
+        aiConversation.appendMessage({
             role: "system",
             content: "Create a fake person's online profile based on data from these profiles. KEEP IT SHORT, AND PRIORITISE COMEDY OVER REALISM. Age 18+ humour is more than acceptable.\n\n" +
                 JSON.stringify(await Promise.all([user1, user2].map(async user => {
@@ -752,12 +559,12 @@ The numbers provided are Discord IDs. Whenever mentioning someone, you must use 
                     }
                 })))
         })
-        let bioResult = await aiConversation.sendToAI()
-        await aiConversation.saveMessage({
+        let bioResult = await aiConversation.sendToAIAndWait()
+        aiConversation.appendMessage({
             role: "system",
             content: "Write a prompt to generate a profile picture for the imaginary user."
         })
-        let imagePromptResult = await aiConversation.sendToAI()
+        let imagePromptResult = await aiConversation.sendToAIAndWait()
         if (!imagePromptResult.content) throw new Error("AI did not respond")
 
         let image = await generateAIImage({

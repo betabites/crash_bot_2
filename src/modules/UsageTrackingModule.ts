@@ -51,7 +51,7 @@ VALUES (${handlerId}, ${this.id}, ${funcName}, 'in progress')`
             result = await func() ?? "no result returned (undefined)"
         } catch (e) {
             if (e instanceof Error && e.stack) result = e.stack
-            else result = `${e}`
+            else result = `${e}`.substring(0, 1000)
             console.error(e)
         }
 

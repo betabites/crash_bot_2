@@ -8,7 +8,7 @@ import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {AICharacterData, CharacterData} from "../utilities/roleplay/CharacterData.js";
 import {Conversation} from "../utilities/roleplay/conversation.js";
-import {AIConversation} from "../services/ChatGPT.js";
+import {AIConversation} from "../services/ChatGPT/ChatGPT.js";
 
 const SUPPORTED_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png"]
 

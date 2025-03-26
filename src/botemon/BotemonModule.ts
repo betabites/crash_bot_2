@@ -4,15 +4,19 @@ import {SlashCommandBuilder, SlashCommandStringOption} from "@discordjs/builders
 import {AutocompleteInteraction, ChatInputCommandInteraction} from "discord.js";
 import {TestBot} from "./bots/TestBot.js";
 import SafeQuery, {sql} from "../services/SQL.js";
-import {TestBot2} from "./bots/TestBot2.js";
 import {InventoryItem} from "./items/abstracts/InventoryItem.js";
+import {Niraspid} from "./bots/hayden/Niraspid.js";
+import {PreistBot} from "./bots/PreistBot.js";
+import {ProstoBot} from "./bots/ProstoBot.js";
 
 type REGISTRY_KEYS<REGISTRY> = REGISTRY extends ItemRegistry<infer T> ? keyof T : never
 
 export class BotemonModule extends BaseModule {
     registry = new ItemRegistry({
+        "botemon:niraspid": Niraspid,
+        "botemon:preist_bot": PreistBot,
+        "botemon:prosto_bot": ProstoBot,
         "botemon:testbot": TestBot,
-        "botemon:testbot_two": TestBot2
     });
     commands = [
         new SlashCommandBuilder()
@@ -23,6 +27,13 @@ export class BotemonModule extends BaseModule {
                 new SlashCommandStringOption()
                     .setName("item")
                     .setDescription("Select the item you'd like to use")
+                    .setRequired(true)
+                    .setAutocomplete(true)
+            )
+            .addStringOption(
+                new SlashCommandStringOption()
+                    .setName("action")
+                    .setDescription("The action you'd like to perform on the item")
                     .setRequired(true)
                     .setAutocomplete(true)
             ),
@@ -42,15 +53,43 @@ export class BotemonModule extends BaseModule {
         })
     }
 
+    async #getItem(discordId: string | null, instanceId: string) {
+        let res = await SafeQuery<{
+            id: string,
+            parent: number | null,
+            owner: string | null,
+            itemType: string,
+            attributes: string
+        }>(sql`SELECT * FROM InventoryItems WHERE owner = ${discordId} AND id = ${instanceId}`)
+        return res.recordset.map(record => {
+            let attributes = JSON.parse(record.attributes)
+            let constructor = this.registry.getConstructor(record.itemType)
+            return new constructor(record.id, record.itemType, attributes)
+        })[0]
+    }
+
     @InteractionAutocompleteResponse("use")
     async onItemAutocomplete(interaction: AutocompleteInteraction) {
-        // Get the user's inventory
-        let inventory = (await this.#getAllItemsForUser(interaction.user.id)).filter(item => item instanceof InventoryItem)
-        await interaction.respond(inventory.map(item => ({
-            name: item.display.name,
-            value: item.instanceId
-        })))
+        let autoCompleteField = interaction.options.getFocused(true)
+        if (autoCompleteField.name === "item") {
+            // Get the user's inventory
+            let inventory = (await this.#getAllItemsForUser(interaction.user.id)).filter(item => item instanceof InventoryItem)
+            await interaction.respond(inventory.map(item => ({
+                name: item.display.name,
+                value: item.instanceId
+            })))
+        }
+        else {
+            console.log(interaction.options.getString("item"))
+            let item = await this.#getItem(interaction.user.id, interaction.options.getString("item", true))
 
+            // Get the user's inventory
+            let inventory = (await this.#getAllItemsForUser(interaction.user.id)).filter(item => item instanceof InventoryItem)
+            await interaction.respond(inventory.map(item => ({
+                name: item.display.name,
+                value: item.instanceId
+            })))
+        }
     }
 
     @InteractionChatCommandResponse("test")

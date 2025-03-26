@@ -70,6 +70,7 @@ import {QuotesModule} from "./modules/Quotes.js";
 import {Pterodactyl} from "./modules/Pterodactyl.js";
 import {LethalCompanyModule} from "./modules/LethalCompanyModule.js";
 import {BotemonModule} from "./botemon/BotemonModule.js";
+import {Valheim} from "./modules/Valheim.js";
 // import {MusicPlayerModule} from "./newVoice/modules/MusicPlayerModule.js";
 
 console.log(`Node.js version: ${process.version}`);
@@ -112,6 +113,7 @@ const moduleClasses = [
     Pterodactyl,
     LethalCompanyModule,
     BotemonModule,
+    Valheim,
     //MusicPlayerModule,
     ...eventSessionHandlers
 ]

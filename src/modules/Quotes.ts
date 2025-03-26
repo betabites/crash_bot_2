@@ -10,7 +10,7 @@ import {
 import SafeQuery, {sql} from "../services/SQL.js";
 import mssql from "mssql";
 import {getUserData} from "../utilities/getUserData.js";
-import {AIConversation} from "../services/ChatGPT.js";
+import {AIConversation} from "../services/ChatGPT/ChatGPT.js";
 
 const QUOTE_CHANNELS = ["910649212264386583", "892518396166569994"]
 

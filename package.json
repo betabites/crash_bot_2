@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.14.4",
+    "@google-cloud/logging": "^11.2.0",
     "@google-cloud/pubsub": "^4.9.0",
     "@google-cloud/tasks": "^5.5.2",
     "archiver": "^5.3.2",
@@ -42,7 +43,8 @@
     "youtube-dl-exec": "^2.4.17",
     "yt-search": "^2.10.4",
     "ytpl": "^2.3.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.24.1"
   },
   "nodemonConfig": {
     "ignore": [
