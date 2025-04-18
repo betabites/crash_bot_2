@@ -153,11 +153,17 @@ export class GPTTextChannel extends AIConversation {
     _actionRowQueue: ActionRowBuilder<ButtonBuilder>[] = [];
     private client: Client;
 
-    static async load(channel: TextBasedChannel, client: Client) {
+    static async load(channel: TextBasedChannel, client: Client, system_message?: string) {
         let messages = await SafeQuery<{ content: string }>(sql`SELECT content
                                                                 FROM AiConversationHistory
                                                                 WHERE conversation_id = ${"channel_" + channel.id}`);
-        let messages_parsed: ChatCompletionMessageParam[] = messages.recordset.map(record => JSON.parse(record.content))
+
+        let messages_parsed: ChatCompletionMessageParam[]
+        if (system_message) messages_parsed = [
+            {role: "system", content: system_message},
+            ...messages.recordset.map(record => JSON.parse(record.content))
+        ]
+        else messages_parsed = messages.recordset.map(record => JSON.parse(record.content))
         return new GPTTextChannel(
             messages_parsed,
             channel,

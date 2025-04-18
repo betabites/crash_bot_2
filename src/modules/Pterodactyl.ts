@@ -85,7 +85,7 @@ export class Pterodactyl extends BaseModule {
             if (data.incident.state === "closed") {
                 // Check that the machine is still running first
 
-                await this.#scheduleShutdown(72 * 60)
+                await this.#scheduleShutdown(72 * 60 * 60)
                 // channel.send(`The previous automatic shutdown has been cancelled. The server will now shut down <t:${Math.round(Date.now() / 1000) + 21600}:R> unless inactivity occurs.\n> If this is incorrect, please alert @BetaBites.`)
             }
             else {

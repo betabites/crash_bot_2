@@ -8,6 +8,7 @@ import {
     Colors,
     EmbedBuilder,
     GuildMember,
+    GuildTextBasedChannel,
     Message,
     TextBasedChannel,
     User
@@ -144,13 +145,19 @@ export class GPTModule extends BaseModule {
         }
     }
 
-    async #getConversationForChannel(channel: TextBasedChannel) {
+    async #getConversationForChannel(channel: TextBasedChannel | GuildTextBasedChannel) {
         let conversation = this.activeConversations.get(channel.id)
         if (conversation) return conversation
-
-        conversation = await GPTTextChannel.load(channel, this.client)
-        this.activeConversations.set(channel.id, conversation)
-        return conversation
+        if (channel.isDMBased()) {
+            conversation = await GPTTextChannel.load(channel, this.client)
+            this.activeConversations.set(channel.id, conversation)
+            return conversation
+        } else {
+            let nickname = await channel.guild.members.fetch(this.client.user?.id ?? "").then(i => i.nickname)
+            conversation = await GPTTextChannel.load(channel, this.client, `You must act like you're ${nickname}`)
+            this.activeConversations.set(channel.id, conversation)
+            return conversation
+        }
     }
 
     @InteractionChatCommandResponse("tldr")

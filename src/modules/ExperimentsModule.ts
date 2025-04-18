@@ -236,8 +236,15 @@ export class ExperimentsModule extends BaseModule {
         }
         else if (msg.content.toLowerCase().startsWith("i am")) {
             if (!msg.member) return
-            msg.member.setNickname(msg.content.toLowerCase().replace("i am", "").trim())
+            msg.member.setNickname(msg.content.toLowerCase().replace("i am", "").trim().substring(0, 32))
             msg.reply(`Hi <@${msg.member?.id}>!`)
+        }
+        else if (msg.content.toLowerCase().startsWith("i alone am")) {
+            if (!msg.member || !msg.guild) return
+            msg.guild.members.fetch(this.client.user?.id ?? "").then(me =>
+                me.setNickname(msg.content.toLowerCase().replace("i alone am", "").trim().substring(0, 32))
+            )
+            msg.reply("fax")
         }
         else {
             // Do word count
