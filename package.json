@@ -70,5 +70,12 @@
     "@types/node-schedule": "^2.1.7",
     "@types/uuid": "^9.0.8",
     "@types/yt-search": "^2.10.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "protobufjs",
+      "sqlite3",
+      "youtube-dl-exec"
+    ]
   }
 }
