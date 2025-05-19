@@ -3,7 +3,8 @@ module.exports = {
     name: "Crash Bot",
     script: 'dist/index.js',
     node_args: "--enable-source-maps",
-    watch: '.',
+    watch: true,
+    ignore_watch: ["node_modules", "assets"],
     // interpreter: '/home/ubscontrol/.nvm/versions/node/v23.7.0/bin/node',
   }],
 
