@@ -80,6 +80,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@discordjs/opus",
       "protobufjs",
       "sqlite3",
       "youtube-dl-exec"
