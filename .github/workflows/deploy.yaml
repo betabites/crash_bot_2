@@ -29,8 +29,7 @@ jobs:
 #      - name: Shutdown production
 #        run: pm2 stop all
       - name: Update permissions
-        run: chown github-actions-runner:github-actions-admin -R * &&
-          | chmod 770 * -R
+        run: chown github-actions-runner:github-actions-admin -R * && chmod 770 * -R
 
       - name: Deploy
         run: rm -rf /opt/crash_bot/* && mv -f ./* /opt/crash_bot/
