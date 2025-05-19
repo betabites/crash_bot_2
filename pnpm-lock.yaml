@@ -11,9 +11,12 @@ importers:
       '@discordjs/builders':
         specifier: ^1.11.2
         version: 1.11.2
+      '@discordjs/opus':
+        specifier: ^0.10.0
+        version: 0.10.0(encoding@0.1.13)
       '@discordjs/voice':
         specifier: ^0.18.0
-        version: 0.18.0
+        version: 0.18.0(@discordjs/opus@0.10.0(encoding@0.1.13))
       '@distube/ytdl-core':
         specifier: ^4.14.4
         version: 4.16.10
@@ -293,6 +296,14 @@ packages:
   '@discordjs/formatters@0.6.1':
     resolution: {integrity: sha512-5cnX+tASiPCqCWtFcFslxBVUaCetB0thvM/JyavhbXInP1HJIEU+Qv/zMrnuwSsX3yWH2lVXNJZeDK3EiP4HHg==}
     engines: {node: '>=16.11.0'}
+
+  '@discordjs/node-pre-gyp@0.4.5':
+    resolution: {integrity: sha512-YJOVVZ545x24mHzANfYoy0BJX5PDyeZlpiJjDkUBM/V/Ao7TFX9lcUvCN4nr0tbr5ubeaXxtEBILUrHtTphVeQ==}
+    hasBin: true
+
+  '@discordjs/opus@0.10.0':
+    resolution: {integrity: sha512-HHEnSNrSPmFEyndRdQBJN2YE6egyXS9JUnJWyP6jficK0Y+qKMEZXyYTgmzpjrxXP1exM/hKaNP7BRBUEWkU5w==}
+    engines: {node: '>=12.0.0'}
 
   '@discordjs/rest@2.5.0':
     resolution: {integrity: sha512-PWhchxTzpn9EV3vvPRpwS0EE2rNYB9pvzDU/eLLW3mByJl0ZHZjHI2/wA8EbH2gRMQV7nu+0FoDF84oiPl8VAQ==}
@@ -824,6 +835,11 @@ packages:
   archiver@5.3.2:
     resolution: {integrity: sha512-+25nxyyznAXF7Nef3y0EbBeqmGZgeN/BxHX29Rs39djAfaFalmQ89SE6CWyDCHzGL0yt/ycBtNOmGTW0FyGWNw==}
     engines: {node: '>= 10'}
+
+  are-we-there-yet@2.0.0:
+    resolution: {integrity: sha512-Ci/qENmwHnsYo9xKIcUJN5LeDKdJ6R1Z1j9V/J5wyq8nh/mYPEpIKJbBZXtZjG04HiK7zV/p6Vs9952MrMeUIw==}
+    engines: {node: '>=10'}
+    deprecated: This package is no longer supported.
 
   are-we-there-yet@3.0.1:
     resolution: {integrity: sha512-QZW4EDmGwlYur0Yyf/b2uGucHQMa8aFUP7eu9ddR73vvhFyt4V0Vl3QHPcTNJ8l6qYOBdxgXdnBXQrHilfRQBg==}
@@ -1551,6 +1567,11 @@ packages:
   functions-have-names@1.2.3:
     resolution: {integrity: sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==}
 
+  gauge@3.0.2:
+    resolution: {integrity: sha512-+5J6MS/5XksCuXq++uFRsnUd7Ovu1XenbeuIuNRJxYWjgQbPuFhT14lAvsWfqfAmnwluf1OwMjz39HjfLPci0Q==}
+    engines: {node: '>=10'}
+    deprecated: This package is no longer supported.
+
   gauge@4.0.4:
     resolution: {integrity: sha512-f9m+BEN5jkg6a0fZjleidjN51VE1X+mPFQ2DJ0uv1V39oCLCbsGe6yjbBnp7eK7z/+GAon99a3nHuqbuuthyPg==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
@@ -2103,6 +2124,10 @@ packages:
   magic-bytes.js@1.12.1:
     resolution: {integrity: sha512-ThQLOhN86ZkJ7qemtVRGYM+gRgR8GEXNli9H/PMvpnZsE44Xfh3wx9kGJaldg314v85m+bFW6WBMaVHJc/c3zA==}
 
+  make-dir@3.1.0:
+    resolution: {integrity: sha512-g3FeP20LNwhALb/6Cz6Dd4F2ngze0jz7tbzrD2wAV+o9FeNHe4rL+yK2md0J/fiSf1sa1ADhXqi5+oVwOM/eGw==}
+    engines: {node: '>=8'}
+
   make-fetch-happen@9.1.0:
     resolution: {integrity: sha512-+zopwDy7DNknmwPQplem5lAZX/eCOzSvSNNcSKm5eVwTkOBzoktEfXsa9L23J/GIRhxRsaxzkPEhrJEpE2F4Gg==}
     engines: {node: '>= 10'}
@@ -2260,6 +2285,10 @@ packages:
   node-addon-api@7.1.1:
     resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
 
+  node-addon-api@8.3.1:
+    resolution: {integrity: sha512-lytcDEdxKjGJPTLEfW4mYMigRezMlyJY8W4wxJK8zE533Jlb8L8dRuObJFWg2P+AuOIxoCgKF+2Oq4d4Zd0OUA==}
+    engines: {node: ^18 || ^20 || >= 21}
+
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
@@ -2314,6 +2343,10 @@ packages:
   npm-run-path@5.3.0:
     resolution: {integrity: sha512-ppwTtiJZq0O/ai0z7yfudtBpWIoxM8yE6nHi1X47eFR2EWORqfbu6CnPlNsjeN683eT0qG6H/Pyf9fCcvjnnnQ==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
+  npmlog@5.0.1:
+    resolution: {integrity: sha512-AqZtDUWOMKs1G/8lwylVjrdYgqA4d9nu8hc+0gzRxlDb1I10+FHBGMXs6aiQHFdCUUlqH99MUMuLfzWDNDtfxw==}
+    deprecated: This package is no longer supported.
 
   npmlog@6.0.2:
     resolution: {integrity: sha512-/vBvz5Jfr9dT/aFWd0FIRf+T/Q2WBsLENygUaFUqstqsycmZAP/t5BvFJTK0viFmSUxiUKTUplWy5vt+rvKIxg==}
@@ -2692,6 +2725,10 @@ packages:
   semver-truncate@3.0.0:
     resolution: {integrity: sha512-LJWA9kSvMolR51oDE6PN3kALBNaUdkxzAGcexw8gjMA8xr5zUqK0JiR3CgARSqanYF3Z1YHvsErb1KDgh+v7Rg==}
     engines: {node: '>=12'}
+
+  semver@6.3.1:
+    resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
+    hasBin: true
 
   semver@7.7.2:
     resolution: {integrity: sha512-RF0Fw+rO5AMf9MAyaRXI4AV0Ulj5lMHqVxxdSgiVbixSCXoEmmX/jk0CuJw4+3SqroYO9VoUh+HcuJivvtJemA==}
@@ -3432,6 +3469,29 @@ snapshots:
     dependencies:
       discord-api-types: 0.38.8
 
+  '@discordjs/node-pre-gyp@0.4.5(encoding@0.1.13)':
+    dependencies:
+      detect-libc: 2.0.4
+      https-proxy-agent: 5.0.1
+      make-dir: 3.1.0
+      node-fetch: 2.7.0(encoding@0.1.13)
+      nopt: 5.0.0
+      npmlog: 5.0.1
+      rimraf: 3.0.2
+      semver: 7.7.2
+      tar: 6.2.1
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+
+  '@discordjs/opus@0.10.0(encoding@0.1.13)':
+    dependencies:
+      '@discordjs/node-pre-gyp': 0.4.5(encoding@0.1.13)
+      node-addon-api: 8.3.1
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+
   '@discordjs/rest@2.5.0':
     dependencies:
       '@discordjs/collection': 2.1.1
@@ -3446,11 +3506,11 @@ snapshots:
 
   '@discordjs/util@1.1.1': {}
 
-  '@discordjs/voice@0.18.0':
+  '@discordjs/voice@0.18.0(@discordjs/opus@0.10.0(encoding@0.1.13))':
     dependencies:
       '@types/ws': 8.18.1
       discord-api-types: 0.37.120
-      prism-media: 1.3.5
+      prism-media: 1.3.5(@discordjs/opus@0.10.0(encoding@0.1.13))
       tslib: 2.8.1
       ws: 8.18.2
     transitivePeerDependencies:
@@ -4052,8 +4112,7 @@ snapshots:
 
   '@vladfrangu/async_event_emitter@2.4.6': {}
 
-  abbrev@1.1.1:
-    optional: true
+  abbrev@1.1.1: {}
 
   abort-controller@3.0.0:
     dependencies:
@@ -4103,8 +4162,7 @@ snapshots:
 
   any-base@1.1.0: {}
 
-  aproba@2.0.0:
-    optional: true
+  aproba@2.0.0: {}
 
   archiver-utils@2.1.0:
     dependencies:
@@ -4141,6 +4199,11 @@ snapshots:
       readdir-glob: 1.1.3
       tar-stream: 2.2.0
       zip-stream: 4.1.1
+
+  are-we-there-yet@2.0.0:
+    dependencies:
+      delegates: 1.0.0
+      readable-stream: 3.6.2
 
   are-we-there-yet@3.0.1:
     dependencies:
@@ -4456,8 +4519,7 @@ snapshots:
 
   color-name@1.1.4: {}
 
-  color-support@1.1.3:
-    optional: true
+  color-support@1.1.3: {}
 
   combined-stream@1.0.8:
     dependencies:
@@ -4487,8 +4549,7 @@ snapshots:
       json-schema-typed: 8.0.1
       semver: 7.7.2
 
-  console-control-strings@1.1.0:
-    optional: true
+  console-control-strings@1.1.0: {}
 
   content-disposition@0.5.4:
     dependencies:
@@ -4618,8 +4679,7 @@ snapshots:
 
   delayed-stream@1.0.0: {}
 
-  delegates@1.0.0:
-    optional: true
+  delegates@1.0.0: {}
 
   depd@2.0.0: {}
 
@@ -5040,6 +5100,18 @@ snapshots:
 
   functions-have-names@1.2.3: {}
 
+  gauge@3.0.2:
+    dependencies:
+      aproba: 2.0.0
+      color-support: 1.1.3
+      console-control-strings: 1.1.0
+      has-unicode: 2.0.1
+      object-assign: 4.1.1
+      signal-exit: 3.0.7
+      string-width: 4.2.3
+      strip-ansi: 6.0.1
+      wide-align: 1.1.5
+
   gauge@4.0.4:
     dependencies:
       aproba: 2.0.0
@@ -5229,8 +5301,7 @@ snapshots:
     dependencies:
       has-symbols: 1.1.0
 
-  has-unicode@2.0.1:
-    optional: true
+  has-unicode@2.0.1: {}
 
   hasown@2.0.2:
     dependencies:
@@ -5690,6 +5761,10 @@ snapshots:
 
   magic-bytes.js@1.12.1: {}
 
+  make-dir@3.1.0:
+    dependencies:
+      semver: 6.3.1
+
   make-fetch-happen@9.1.0:
     dependencies:
       agentkeepalive: 4.6.0
@@ -5843,6 +5918,8 @@ snapshots:
 
   node-addon-api@7.1.1: {}
 
+  node-addon-api@8.3.1: {}
+
   node-domexception@1.0.0: {}
 
   node-fetch@2.7.0(encoding@0.1.13):
@@ -5893,7 +5970,6 @@ snapshots:
   nopt@5.0.0:
     dependencies:
       abbrev: 1.1.1
-    optional: true
 
   normalize-package-data@3.0.3:
     dependencies:
@@ -5911,6 +5987,13 @@ snapshots:
   npm-run-path@5.3.0:
     dependencies:
       path-key: 4.0.0
+
+  npmlog@5.0.1:
+    dependencies:
+      are-we-there-yet: 2.0.0
+      console-control-strings: 1.1.0
+      gauge: 3.0.2
+      set-blocking: 2.0.0
 
   npmlog@6.0.2:
     dependencies:
@@ -6092,7 +6175,9 @@ snapshots:
       tar-fs: 2.1.2
       tunnel-agent: 0.6.0
 
-  prism-media@1.3.5: {}
+  prism-media@1.3.5(@discordjs/opus@0.10.0(encoding@0.1.13)):
+    optionalDependencies:
+      '@discordjs/opus': 0.10.0(encoding@0.1.13)
 
   process-nextick-args@2.0.1: {}
 
@@ -6284,7 +6369,6 @@ snapshots:
   rimraf@3.0.2:
     dependencies:
       glob: 7.2.3
-    optional: true
 
   run-applescript@7.0.0: {}
 
@@ -6323,6 +6407,8 @@ snapshots:
     dependencies:
       semver: 7.7.2
 
+  semver@6.3.1: {}
+
   semver@7.7.2: {}
 
   send@0.19.0:
@@ -6352,8 +6438,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  set-blocking@2.0.0:
-    optional: true
+  set-blocking@2.0.0: {}
 
   set-function-length@1.2.2:
     dependencies:
@@ -6907,7 +6992,6 @@ snapshots:
   wide-align@1.1.5:
     dependencies:
       string-width: 4.2.3
-    optional: true
 
   wrap-ansi@7.0.0:
     dependencies:
