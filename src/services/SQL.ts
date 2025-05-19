@@ -21,6 +21,15 @@ const sql_config: config = {
     }
 }
 
+class SQLParameterOverride {
+    readonly data: any;
+    readonly type: ISqlType;
+    constructor(type: mssql.ISqlType, data: any) {
+        this.data = data
+        this.type = type
+    }
+
+}
 type SQLParameter = string | number | Date | null | boolean
 type SQLParameterWithUnsafe = SQLParameter | UnsafeParam
 type SQLQueryObject = {
@@ -66,15 +75,15 @@ export default async function SafeQuery<T = any>(query: SQLQueryObject | string,
     return res
 }
 
-type SafeTransactionFunc<T = unknown> = (sql: SQLQueryObject) => Promise<pkg.IResult<T>>
+export type SafeTransactionQueryFunc<T = unknown> = (sql: SQLQueryObject) => Promise<pkg.IResult<T>>
 type MaybePromise<T> = Promise<T> | T
 
-export async function SafeTransaction(handler: (queryFunc: SafeTransactionFunc) => MaybePromise<false | void>) {
+export async function SafeTransaction(handler: (queryFunc: SafeTransactionQueryFunc) => MaybePromise<false | void>) {
     let pool = await connect(sql_config)
     let transaction = pool.transaction()
     await transaction.begin()
 
-    const queryFunc: SafeTransactionFunc = <T = unknown>(query: SQLQueryObject): Promise<pkg.IResult<T>> => {
+    const queryFunc: SafeTransactionQueryFunc = <T = unknown>(query: SQLQueryObject): Promise<pkg.IResult<T>> => {
         let request = pool.request()
         for (let param of query.params) request.input(param.name, param.type, param.data)
         return request.query(query.query)
@@ -115,26 +124,48 @@ function determineSqlType(item: SQLParameterWithUnsafe): PreparedArgumentUnsafe[
     }
 }
 
-export function sql(strings: TemplateStringsArray, ...args: (SQLParameterWithUnsafe | SQLParameter[])[]): SQLQueryObject {
+export function override(type: ISqlType, data: any) {
+    return new SQLParameterOverride(type, data)
+}
+
+export function sql(strings: TemplateStringsArray, ...args: (SQLParameterWithUnsafe | SQLParameterOverride | (SQLParameter | SQLParameterOverride)[])[]): SQLQueryObject {
     let params: (PreparedArgumentUnsafe | PreparedArgument[])[] = []
     args.forEach((arg, index) => {
         if (Array.isArray(arg)) {
             params.push(arg.map((subArg, subIndex) => {
-                let type = determineSqlType(subArg)
-                if (type === UnsafeSymbol) throw new Error("Cannot parse unsafe parameters in an input array")
-                return {
-                    name: `param${index}_${subIndex}`,
-                    type,
-                    data: subArg
-                };
+                if (subArg instanceof SQLParameterOverride) {
+                    return {
+                        name: `param${index}_${subIndex}`,
+                        type: subArg.type,
+                        data: subArg.data
+                    };
+                }
+                else {
+                    let type = determineSqlType(subArg)
+                    if (type === UnsafeSymbol) throw new Error("Cannot parse unsafe parameters in an input array")
+                    return {
+                        name: `param${index}_${subIndex}`,
+                        type,
+                        data: subArg
+                    };
+                }
             }))
         }
         else {
-            params.push({
-                name: `param${index}`,
-                type: determineSqlType(arg),
-                data: arg
-            });
+            if (arg instanceof SQLParameterOverride) {
+                params.push({
+                    name: `param${index}`,
+                    type: arg.type,
+                    data: arg.data
+                });
+            }
+            else {
+                params.push({
+                    name: `param${index}`,
+                    type: determineSqlType(arg),
+                    data: arg
+                });
+            }
         }
     });
     let query = ""
@@ -198,17 +229,17 @@ export class PutOperation<T extends IPutColumns> {
         this.rows = []
     }
 
-    async buildQuery() {
+    async #buildQueryPart(rows: T[]) {
         let existing_items = await SafeQuery<any>(`SELECT ${
             (this.rowKey ? [...this.keys, this.rowKey] : this.keys).join(", ")
         }
                                                    FROM dbo.UserAchievements
                                                    WHERE ${(this.keys as string[]).map(
-            key => key + " IN (" + makeUnique(this.rows.map(rows => convertToSQLValue(rows[key]))).join(",") + ")"
+            key => key + " IN (" + makeUnique(rows.map(rows => convertToSQLValue(rows[key]))).join(",") + ")"
         ).join(" AND ")}`, [])
         let update_items: T[] = []
         let insert_items: T[] = []
-        for (let row of this.rows) {
+        for (let row of rows) {
             let existing_item = existing_items.recordset.find(i => {
                 let matches = true
                 for (let key of this.keys) if (i[key] !== row[key]) {
@@ -229,30 +260,10 @@ export class PutOperation<T extends IPutColumns> {
         }
 
         let sql: string[] = []
-        // if (this.rowKey) for (let item of update_items) {
-        //     sql.push(`UPDATE ${this.tableName}
-        //               SET ${
-        //                           Object.keys(item).map(key => {
-        //                               return key + "=" + item[key]
-        //                           }).join(", ")
-        //                   }
-        //               WHERE ${this.rowKey} = ${convertToSQLValue(item[this.rowKey])}
-        //     `)
-        // }
-        // else for (let item of update_items) {
-        //     sql.push(`UPDATE ${this.tableName}
-        //               SET ${
-        //         Object.keys(item).map(key => {
-        //             return key + "=" + item[key]
-        //         }).join(", ")
-        //     }
-        //               WHERE ${(this.keys as string[]).map(key => key + " = " + item[key]).join(" AND ")}
-        //     `)
-        // }
 
         if (update_items.length !== 0 && this.rowKey) {
             sql.push(`UPDATE dbo.${this.tableName}
-                      SET ${Object.keys(this.rows[0]).filter(i => i !== this.rowKey).map(field => field + " = t." + field).join(", ")}
+                      SET ${Object.keys(rows[0]).filter(i => i !== this.rowKey).map(field => field + " = t." + field).join(", ")}
                       FROM dbo.${this.tableName} AS e
                                INNER JOIN (VALUES ${update_items.map(item => "(" + Object.values(item).join(", ") + ")")}) t (${Object.keys(update_items[0]).join(", ")})
                                           ON t.id = e.id
@@ -268,7 +279,15 @@ export class PutOperation<T extends IPutColumns> {
             }).join(", ")}
             `)
         }
+        return sql
+    }
 
+    async buildQuery() {
+        let sql: string[] = []
+        while (this.rows.length !== 0) {
+            let results = await this.#buildQueryPart(this.rows.splice(0, 1000))
+            results.forEach(result => sql.push(result))
+        }
         return sql.join("; ")
     }
 }

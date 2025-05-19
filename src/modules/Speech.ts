@@ -1,68 +1,20 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {ChatInputCommandInteraction, ClientEvents, GuildMember, Message, TextChannel} from "discord.js";
+import {ChatInputCommandInteraction, ClientEvents, Message, TextChannel} from "discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
-import openai from "../services/ChatGPT.js";
-import bad_baby_words from "../../badwords.json" assert {type: "json"};
-import {sendImpersonateMessage} from "../services/Discord.js";
+import openai from "../services/ChatGPT/ChatGPT.js";
+import {deleteAllWebhooksForUser, JimpProfilePictureModification, sendImpersonateMessage} from "../services/Discord.js";
 import {PointsModule} from "./Points.js";
+import Jimp from "jimp";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
-const SPEECH_ALT_CHARACTERS = {
-    cheese: {
-        name: "Cheese",
-        avatar: "https://cdn2.bigcommerce.com/server5900/ohhf8/product_images/uploaded_images/gouda.jpg"
-    },
-    bread: {
-        name: "Bread",
-        avatar: "https://www.thespruceeats.com/thmb/ZJyWw36nZ1lLNi5FHOKRy9daQqs=/940x0/filters:no_upscale():max_bytes(150000):strip_icc():format(webp)/loaf-of-bread-182835505-58a7008c5f9b58a3c91c9a14.jpg"
-    },
-    butter: {
-        name: "Butter",
-        avatar: "https://cdn.golfmagic.com/styles/scale_1536/s3/field/image/butter.jpg"
-    },
-    jam: {
-        name: "Jam",
-        avatar: "https://media.istockphoto.com/photos/closeup-of-toast-with-homemade-strawberry-jam-on-table-picture-id469719908?k=20&m=469719908&s=612x612&w=0&h=X4Gzga0cWuFB5RfLh-o7s1OCTbbRNsZ8avyVSK9cgaY="
-    },
-    peanutbutter: {
-        name: "Peanut Butter",
-        avatar: "https://s3.pricemestatic.com/Images/RetailerProductImages/StRetailer2362/0046010017_ml.jpg"
-    },
-    shaggy: {
-        name: "Shaggy",
-        avatar: "https://yt3.ggpht.com/a/AATXAJwB8Yy8BB3RMOPC3FnAAR27H0m63Thq6eHOkw=s900-c-k-c0xffffffff-no-rj-mo"
-    },
-    keesh: {
-        name: "Keesh",
-        avatar: "https://images.squarespace-cdn.com/content/v1/60477f6253b7b439babec327/aaf9b622-9ecc-47dd-825b-3b3287f17488/Lakewood+Advocate+Keesh+photo.jpeg"
-    },
-    taniks: {
-        name: "Taniks",
-        avatar: "https://wowvendor.com/app/uploads/2021/09/buy-taniks-boss-kill-boost-carry-service.jpg"
-    }
-}
+const SPEECH_ALT_CHARACTERS = {}
+
 const SPEECH_LEVEL_GATES: {
     [key in SPEECH_MODES]?: number
-} = {
-    [SPEECH_MODES.SWIFTIE]: 4,
-    [SPEECH_MODES.DRUNK]: 4,
-    [SPEECH_MODES.BREAD]: 5,
-    [SPEECH_MODES.CHEESE]: 5,
-    [SPEECH_MODES.PEANUT_BUTTER]: 6,
-    [SPEECH_MODES.BUTTER]: 6,
-    [SPEECH_MODES.SHAGGY]: 8,
-    [SPEECH_MODES.JAM]: 8,
-    [SPEECH_MODES.GERMAN_CHEESE]: 10,
-    [SPEECH_MODES.WHITE_TRASH_BREAD]: 13,
-    [SPEECH_MODES.PEANUT_NUTTER]: 16,
-    [SPEECH_MODES.ALCOHOLIC_BUTTER]: 16,
-    [SPEECH_MODES.TANIKS]: 16,
-    [SPEECH_MODES.SMART_TANIKS]: 18,
-    [SPEECH_MODES.WOOD_PALLETS]: 19
-}
+} = {}
 
 const WOOD_PALLET_MESSAGES = [
     "Wood pallets",
@@ -74,7 +26,10 @@ const WOOD_PALLET_MESSAGES = [
     ""
 ]
 
-export type Character = { name: string, avatar: string }
+export type Character = {
+    name?: string | undefined,
+    avatar?: string | JimpProfilePictureModification | undefined,
+}
 type SpeechListener = (originalEvent: ClientEvents["messageCreate"], replacementMessage: string, character: Character | null) => any
 const SpeechListeners = new Map<BaseModule, SpeechListener[]>()
 
@@ -97,100 +52,88 @@ export class SpeechModule extends BaseModule {
                                 value: SPEECH_MODES.NORMAL
                             },
                             {
-                                name: "KEESH",
-                                value: SPEECH_MODES.KEESH,
+                                name: "Shakespearean",
+                                value: SPEECH_MODES.SHAKESPEAREAN,
                             },
                             {
-                                name: "Baby speak",
-                                value: SPEECH_MODES.BABY_SPEAK,
+                                name: "Pirate",
+                                value: SPEECH_MODES.PIRATE,
                             },
                             {
-                                name: "Simpleton",
-                                value: SPEECH_MODES.SIMPLETON
+                                name: "Emoji",
+                                value: SPEECH_MODES.EMOJI
                             },
                             {
-                                name: "Smart-Ass",
-                                value: SPEECH_MODES.SMART_ASS
+                                name: "Reverse",
+                                value: SPEECH_MODES.REVERSE
                             },
                             {
-                                name: "Colourful",
-                                value: SPEECH_MODES.COLOURFUL
+                                name: "Baby",
+                                value: SPEECH_MODES.BABY
                             },
                             {
-                                name: "Lisp",
-                                value: SPEECH_MODES.LISP
+                                name: "Edgy Teen",
+                                value: SPEECH_MODES.EDGY_TEEN
                             },
                             {
-                                name: "Furry",
-                                value: SPEECH_MODES.FURRY
-                            },
-                            {
-                                name: "Flightless Bird (Kiwi)",
-                                value: SPEECH_MODES.KIWI
-                            },
-                            {
-                                name: "Linux Chad",
-                                value: SPEECH_MODES.LINUX_CHAD
-                            },
-                            {
-                                name: "Swiftie (Requires level 4)",
-                                value: SPEECH_MODES.SWIFTIE
-                            },
-                            {
-                                name: "Drunk (Requires level 4)",
+                                name: "Drunk",
                                 value: SPEECH_MODES.DRUNK
                             },
                             {
-                                name: "Bread (Requires level 5)",
-                                value: SPEECH_MODES.BREAD
+                                name: "Formal",
+                                value: SPEECH_MODES.FORMAL
                             },
                             {
-                                name: "Cheese (Requires level 5)",
-                                value: SPEECH_MODES.CHEESE
+                                name: "Yoda",
+                                value: SPEECH_MODES.YODA
                             },
                             {
-                                name: "Butter (Requires level 6)",
-                                value: SPEECH_MODES.BUTTER
+                                name: "Valley Girl",
+                                value: SPEECH_MODES.VALLEY_GIRL
                             },
                             {
-                                name: "Peanut Butter (Requires level 6)",
-                                value: SPEECH_MODES.PEANUT_BUTTER
+                                name: "Superhero",
+                                value: SPEECH_MODES.SUPERHERO
                             },
                             {
-                                name: "Shaggy (Requires level 8)",
-                                value: SPEECH_MODES.SHAGGY
+                                name: "Haiku",
+                                value: SPEECH_MODES.HAIKU
                             },
                             {
-                                name: "Jam (Requires level 8)",
-                                value: SPEECH_MODES.JAM
+                                name: "Conspiracy Theorist",
+                                value: SPEECH_MODES.CONSPIRACY_THEORIST
                             },
                             {
-                                name: "German Cheese (Requires level 10)",
-                                value: SPEECH_MODES.GERMAN_CHEESE
+                                name: "Cowboy",
+                                value: SPEECH_MODES.COWBOY
                             },
                             {
-                                name: "White Trash Bread (Requires level 13)",
-                                value: SPEECH_MODES.WHITE_TRASH_BREAD
+                                name: "Kaomoji",
+                                value: SPEECH_MODES.KAOMOJI
                             },
                             {
-                                name: "Peanut Nutter (Requires level 16)",
-                                value: SPEECH_MODES.PEANUT_NUTTER
+                                name: "Robot",
+                                value: SPEECH_MODES.ROBOT
                             },
                             {
-                                name: "Alcoholic Butter (Requires level 16)",
-                                value: SPEECH_MODES.ALCOHOLIC_BUTTER
+                                name: "Shouty",
+                                value: SPEECH_MODES.SHOUTY
                             },
                             {
-                                name: "Taniks (Requires level 16)",
-                                value: SPEECH_MODES.TANIKS
+                                name: "Eldritch horror",
+                                value: SPEECH_MODES.ELDRITCH_HORROR
                             },
                             {
-                                name: "Smart Taniks (Requires level 18)",
-                                value: SPEECH_MODES.SMART_TANIKS
+                                name: "Textbook",
+                                value: SPEECH_MODES.TEXTBOOK
                             },
                             {
-                                name: "Wood Pallets (Requires level 19)",
-                                value: SPEECH_MODES.WOOD_PALLETS
+                                name: "Fantasy Bard",
+                                value: SPEECH_MODES.FANTASY_BARD
+                            },
+                            {
+                                name: "Jolly",
+                                value: SPEECH_MODES.JOLLY
                             }
                         )
                         return opt
@@ -200,72 +143,87 @@ export class SpeechModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     private async onMessage(msg: Message) {
-        if (!msg.member || msg.author.bot) return
+        if (msg.author.bot) return
+        if (!msg.member) {
+            this.emitAlteredMessageEvent(msg, msg.content, null)
+            return
+        }
         let message = msg.content
 
         if (msg.reference) {
             message = `> Replied to: https://discord.com/channels/${msg.reference.guildId}/${msg.reference.channelId}/${msg.reference.messageId}\n` + message
         }
-        let [alteredMessage, character] = await this.alterMessage(message, msg.member)
-
-        if (!alteredMessage) {
-            this.emitAlteredMessageEvent(msg, msg.content, character)
+        const userData = await getUserData(msg.member)
+        if (userData.speech_mode === SPEECH_MODES.NORMAL) {
+            this.emitAlteredMessageEvent(msg, msg.content, null)
             return
         }
+        try {
+            let [alteredMessage, character] = await this.alterMessage(message, userData)
 
-        let channel = msg.channel as TextChannel
-        if (character) {
-            const webhooks = await channel.fetchWebhooks()
-            let hook = webhooks.find(item => item.name === character?.name) ||
-                await channel.createWebhook({
-                    name: character.name,
-                    avatar: character.avatar
+            if (!alteredMessage) {
+                this.emitAlteredMessageEvent(msg, msg.content, character)
+                return
+            }
+
+            let channel = msg.channel as TextChannel
+            if (character) {
+                await sendImpersonateMessage(
+                    channel,
+                    msg.member,
+                    {
+                        content: alteredMessage,
+                        allowedMentions: {
+                            parse: [],
+                            users: [],
+                            roles: [],
+                            repliedUser: false
+                        },
+                        files: msg.attachments.map(i => i.url)
+                    },
+                    character.name,
+                    character.avatar ?? undefined
+                )
+            }
+            else {
+                await sendImpersonateMessage(channel, msg.member, {
+                    content: alteredMessage,
+                    allowedMentions: {
+                        parse: [],
+                        users: [],
+                        roles: [],
+                        repliedUser: false
+                    },
+                    files: msg.attachments.map(i => i.url)
                 })
-
-            await hook.send({
-                content: alteredMessage,
-                allowedMentions: {
-                    parse: [],
-                    users: [],
-                    roles: [],
-                    repliedUser: false
-                },
-                files: msg.attachments.map(i => i.url)
+            }
+            void msg.delete()
+            void PointsModule.grantPointsWithInChannelResponse({
+                userDiscordId: msg.member.id,
+                points: 1,
+                responseChannel: msg.channel,
+                discordClient: this.client,
+                reason: "Discord text message (speech enabled)"
             })
+            this.emitAlteredMessageEvent(msg, alteredMessage, character)
         }
-        else {
-            await sendImpersonateMessage(channel, msg.member, {
-                content: alteredMessage,
-                allowedMentions: {
-                    parse: [],
-                    users: [],
-                    roles: [],
-                    repliedUser: false
-                },
-                files: msg.attachments.map(i => i.url)
-            })
+        catch(e) {
+            console.error(e)
+            await SafeQuery(`UPDATE CrashBot.dbo.Users
+                         SET speech_mode = 0
+                         WHERE discord_id = @discordid`, [{
+                name: "discordid", type: mssql.TYPES.VarChar(20), data: msg.member.id
+            }])
+            await msg.member.send("There was an error processing your speech mode. Because of this, we've reset your speech mode to normal. Please try again later.")
+            throw e
         }
-        void msg.delete()
-        void PointsModule.grantPointsWithInChannelResponse({
-            userDiscordId: msg.member.id,
-            points: 1,
-            responseChannel: msg.channel,
-            discordClient: this.client
-        })
-        this.emitAlteredMessageEvent(msg, alteredMessage, character)
     }
 
-    private async alterMessage(msg: string, author: GuildMember): Promise<[string, null | Character]> {
+    private async alterMessage(msg: string, userData: Awaited<ReturnType<typeof getUserData>>): Promise<[string, null | Character]> {
         if (msg.startsWith("b - ")) return ["", null]
 
-        const userData = await getUserData(author)
         const speechMode = userData.speech_mode;
-        let character:
-            null |
-            {
-                name: string,
-                avatar: string
-            }
+        let character: null | Character
             = null
         let alteredMessage = ""
 
@@ -273,98 +231,65 @@ export class SpeechModule extends BaseModule {
         switch (speechMode) {
             case SPEECH_MODES.NORMAL:
                 return ["", null]
-            case SPEECH_MODES.BABY_SPEAK:
-                // Talk like a 5-year-old
-
-                let _words = msg.split(" ")
-
-                for (let i in _words) {
-                    if (_words[i].startsWith("http") || _words[i].startsWith("<") || _words[i].startsWith(">") || _words[i].startsWith("`")) continue
-                    if (_words[i] in bad_baby_words.words) _words[i] = "dumb"
-                    // @ts-ignore
-                    if (Math.random() < .1) _words[i] = randomWords(1)[0]
-
-                    let letters = _words[i].split("")
-                    for (let r in letters) {
-                        if (Math.random() < .1) letters[r] = baby_alphabet[Math.floor(Math.random() * baby_alphabet.length)]
+            case SPEECH_MODES.SHAKESPEAREAN:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (await openai.sendMessage(`Rewrite the following message as if it were written by William Shakespeare, using old-timey English and dramatic flair: ${msg}`)).text
+                break
+            case SPEECH_MODES.PIRATE:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (await openai.sendMessage(`Transform the following message into pirate lingo, adding nautical terms, pirate expressions, and a hearty seafaring vibe: ${msg}`)).text
+                break
+            case SPEECH_MODES.EMOJI:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Reimagine the following message with an excessive and humorous use of emojis that match the tone and content of the text: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.REVERSE:
+                alteredMessage += msg.split("").reverse().join("")
+                character = {
+                    name: author.displayName.split("").reverse().join(""),
+                    avatar: async (profilePicture: Jimp) => {
+                        profilePicture.flip(true, false)
+                        profilePicture.invert()
+                        return profilePicture
                     }
-                    _words[i] = letters.join("")
-                    console.log(_words[i])
                 }
-
-                if (Math.random() < .1) {
-                    _words = ([] as string[]).concat(_words.map(word => word.toUpperCase()), ["\n", "sorry.", "I", "left", "caps", "lock", "on"])
-                }
-                alteredMessage += _words.join(' ')
                 break
-            case SPEECH_MODES.SIMPLETON:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (await openai.sendMessage(`Simplify this message so that it uses as few words as possible. Make it as simple and short as possible and avoid long words at all costs. Even if removing detail. Text speech and emojis may be used: ${msg}`)).text
-                break
-            case SPEECH_MODES.SMART_ASS:
+            case SPEECH_MODES.FORMAL:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like a smart-arse: ${msg}`)
+                    await openai.sendMessage(`Rewrite the following message in an overly polite, formal, or corporate-sounding manner: ${msg}`)
                 ).text
                 break
-            case SPEECH_MODES.COLOURFUL:
+            case SPEECH_MODES.BABY:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound more colourful: ${msg}`)
+                    await openai.sendMessage(`Convert the following message into baby talk, using simple words, cute expressions, and toddler-like speech patterns: ${msg}`)
                 ).text
                 break
-            case SPEECH_MODES.LISP:
+            case SPEECH_MODES.EDGY_TEEN:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like I have a lisp: ${msg}`)
-                ).text
-                break
-            case SPEECH_MODES.FURRY:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like a furry: ${msg}`)
-                ).text
-                break
-            case SPEECH_MODES.KIWI:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message using Kiwi slang. Make sure to excessively use 'yeah nah': ${msg}`)
-                ).text
-                break
-            case SPEECH_MODES.LINUX_CHAD:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that everything I say overly communicates how much I love Linux, and hate everything else: ${msg}`)
-                ).text
-                break
-            case SPEECH_MODES.SWIFTIE:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that i sound like a hardcore Taylor Swift fan (swifitie): ${msg}`)
+                    await openai.sendMessage(`Rewrite the following message with the tone of an overly dramatic and sarcastic teenager: ${msg}`)
                 ).text
                 break
             case SPEECH_MODES.DRUNK:
@@ -373,145 +298,178 @@ export class SpeechModule extends BaseModule {
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound drunk. Make sure to slur my sentences: ${msg}`)
+                    await openai.sendMessage(`Simulate a drunk person typing the following message by introducing random typos, slurred phrasing, and an inconsistent tone: ${msg}`)
                 ).text
+                character = {
+                    avatar: async (profilePicture: Jimp) => {
+                        let size = profilePicture.bitmap.width
+                        let wavyImage = profilePicture.clone()
+                        wavyImage.scan(0, 0, profilePicture.bitmap.width, profilePicture.bitmap.width, function (x, y, idx) {
+                            // Calculate the offset using a sine wave
+                            const offset = Math.round(10 * Math.sin(.1 * y));
+
+                            // Calculate the new x-coordinate
+                            const newX = x + offset;
+
+                            // Ensure newX is within image bounds
+                            if (newX >= 0 && newX < size) {
+                                // Get the pixel color from the original position
+                                const color = profilePicture.getPixelColor(newX, y);
+
+                                // Set the pixel color to the new position
+                                wavyImage.setPixelColor(color, x, y);
+                            }
+                        });
+                        return wavyImage
+                    }
+                }
                 break
-            case SPEECH_MODES.GERMAN_CHEESE:
+            case SPEECH_MODES.YODA:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like I'm a talking block of cheese with a german accent: ${msg}`)
+                    await openai.sendMessage(`Rewrite the following message in Yoda's distinctive speech pattern, where word order is often reversed or unconventional: ${msg}`)
                 ).text
-                character = SPEECH_ALT_CHARACTERS.cheese
+                character = {
+                    async avatar(profilePicture: Jimp) {
+                        profilePicture.scan(0, 0, profilePicture.bitmap.width, profilePicture.bitmap.height, function (x, y, idx) {
+                            // idx is the start of this pixel's data in the bitmap (RGBA)
+                            // const red = this.bitmap.data[idx];      // Red channel
+                            const green = this.bitmap.data[idx + 1]; // Green channel
+                            // const blue = this.bitmap.data[idx + 2];  // Blue channel
+
+                            // Set red and blue channels to 0, keep green as-is
+                            profilePicture.bitmap.data[idx] = 0;      // Red channel
+                            profilePicture.bitmap.data[idx + 1] = green; // Green channel (unchanged)
+                            profilePicture.bitmap.data[idx + 2] = 0;      // Blue channel
+                        });
+                        return profilePicture
+                    }
+                }
                 break
-            case SPEECH_MODES.WHITE_TRASH_BREAD:
+            case SPEECH_MODES.VALLEY_GIRL:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like white trash: ${msg}`)
+                    await openai.sendMessage(`Transform the following message into the stereotypical speech of a 'Valley Girl,' adding words like 'like,' 'totally,' and a dramatic tone: ${msg}`)
                 ).text
-                character = SPEECH_ALT_CHARACTERS.bread
                 break
-            case SPEECH_MODES.PEANUT_NUTTER:
+            case SPEECH_MODES.SUPERHERO:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`paraphrase this so that I sound like a doped-up teenager with extreme hormones: ${msg}`)
+                    await openai.sendMessage(`Rewrite the following message as if it were spoken by a superhero, adding dramatic flair and a sense of justice or adventure: ${msg}`)
                 ).text
-                character = SPEECH_ALT_CHARACTERS.bread
                 break
-            case SPEECH_MODES.BREAD:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg
-                character = SPEECH_ALT_CHARACTERS.bread
-                break
-            case SPEECH_MODES.CHEESE:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg
-                character = SPEECH_ALT_CHARACTERS.cheese
-                break
-            case SPEECH_MODES.PEANUT_BUTTER:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg
-                character = SPEECH_ALT_CHARACTERS.peanutbutter
-                break
-            case SPEECH_MODES.BUTTER:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg
-                character = SPEECH_ALT_CHARACTERS.butter
-                break
-            case SPEECH_MODES.SHAGGY:
+            case SPEECH_MODES.HAIKU:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`paraphrase this so that I sound like Shaggy: ${msg}`)
+                    await openai.sendMessage(`Reformat the following message into a haiku, adhering to the 5-7-5 syllable structure while keeping the essence of the text: ${msg}`)
                 ).text
-                character = SPEECH_ALT_CHARACTERS.shaggy
                 break
-            case SPEECH_MODES.JAM:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += msg
-                character = SPEECH_ALT_CHARACTERS.jam
-                break
-            case SPEECH_MODES.ALCOHOLIC_BUTTER:
+            case SPEECH_MODES.CONSPIRACY_THEORIST:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`paraphrase this so that I sound like a talking stick of butter who is incredibly drunk and sluring their words: ${msg}`)
+                    await openai.sendMessage(`Rewrite the following message with the tone of a paranoid conspiracy theorist, adding suspicion and dramatic questioning: ${msg}`)
                 ).text
-                character = SPEECH_ALT_CHARACTERS.bread
                 break
-            case SPEECH_MODES.KEESH:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage += "keesh"
-                    .split("")
-                    .map(char => {
-                        let random = Math.random()
-                        return random > .5 ? char.toUpperCase() : char
-                    })
-                    .join("")
-                character = SPEECH_ALT_CHARACTERS.keesh
-                break
-            case SPEECH_MODES.TANIKS:
-                if (msg.length > 1500) {
-                    // Message is too long
-                    break
-                }
-                alteredMessage = msg
-                    .split(" ")
-                    .map((text, index) => index % 2 ? "taniks" : text)
-                    .join(" ")
-                character = SPEECH_ALT_CHARACTERS.taniks
-                break
-            case SPEECH_MODES.SMART_TANIKS:
+            case SPEECH_MODES.COWBOY:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Paraphrase this message so that I sound like a smart-arse: ${msg
-                        .split(" ")
-                        .map((text, index) => index % 2 ? "taniks" : text)
-                        .join(" ")}`)
+                    await openai.sendMessage(`Transform the following message into cowboy slang, using Old West expressions and a rugged tone: ${msg}`)
                 ).text
-                character = SPEECH_ALT_CHARACTERS.taniks
                 break
-            case SPEECH_MODES.WOOD_PALLETS:
+            case SPEECH_MODES.KAOMOJI:
                 if (msg.length > 1500) {
                     // Message is too long
                     break
                 }
                 alteredMessage += (
-                    await openai.sendMessage(`Repeat this message. However, replace bad grammar (if any) with 'wood pallets': ${msg}`)
+                    await openai.sendMessage(`Add adorable Japanese-style emoticons (kaomoji) to the following message to make it more expressive and cute: ${msg}`)
                 ).text
+                break
+            case SPEECH_MODES.ROBOT:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Rewrite the following message as if spoken by a robot, using mechanical tones, punctuation emphasis, and robotic phrasing: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.SHOUTY:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Transform the following message into shouty caps, adding excessive excitement and over-the-top punctuation: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.ELDRITCH_HORROR:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Rewrite the following message in the tone of Lovecraftian horror, adding ominous and mysterious imagery: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.TEXTBOOK:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Rewrite the following message in the style of an academic textbook, using formal language and complex phrasing: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.FANTASY_BARD:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Transform the following message into the tone of a medieval fantasy bard, using poetic language and storytelling flair: ${msg}`)
+                ).text
+                break
+            case SPEECH_MODES.JOLLY:
+                if (msg.length > 1500) {
+                    // Message is too long
+                    break
+                }
+                alteredMessage += (
+                    await openai.sendMessage(`Rewrite the following message in a cheerful and jolly tone, replacing any harmful, negative, or aggressive language with positive, happy, and festive expressions. If the original message is already neutral or positive, leave its tone unchanged. Always make the rewritten message sound joyful and uplifting, like a holiday spirit meme. Here’s the message: ${msg}`)
+                ).text
+                character = {
+                    async avatar(profilePicture: Jimp) {
+                        let wreath = await Jimp.read("./assets/character_avatars/christmas_wreath.png")
+                        wreath.resize(profilePicture.bitmap.width, profilePicture.bitmap.width)
+
+                        // Create a canvas, and place both images on it.
+                        profilePicture.composite(wreath, 0, 0, {
+                            mode: Jimp.BLEND_SOURCE_OVER,
+                            opacitySource: 1,
+                            opacityDest: 1
+                        })
+                        return profilePicture
+                    }
+                }
                 break
             default:
                 return ["", null]
@@ -540,6 +498,8 @@ export class SpeechModule extends BaseModule {
 
     @InteractionChatCommandResponse("speech")
     async onSpeechCommand(interaction: ChatInputCommandInteraction) {
+        void deleteAllWebhooksForUser(interaction.user.id)
+
         const mode = interaction.options.getInteger("mode", true) as SPEECH_MODES;
         let level_gate = SPEECH_LEVEL_GATES[mode] || 0
 

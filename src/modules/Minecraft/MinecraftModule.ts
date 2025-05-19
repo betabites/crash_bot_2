@@ -27,15 +27,16 @@ import mssql from "mssql";
 import RemoteStatusServer, {Connection as ServerConnection} from "../../misc/RemoteStatusServer.js";
 import {sendImpersonateMessage} from "../../services/Discord.js";
 import {PointsModule} from "../Points.js";
-import deathMessages from "./deathMessages.json" assert {type: "json"}
+// import deathMessages from "./deathMessages.json" assert {type: "json"}
 import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.js";
+// const deathMessages: any = {}
 
 RemoteStatusServer.io.on("connection", () => {
     console.log("Client connected")
 })
 
-// const MC_CHAT_CHANNEL = "968298113427206195"
 const MC_CHAT_CHANNEL = "968298113427206195"
+// const MC_CHAT_CHANNEL = "892518396166569994"
 const COORDINATES_SHARE_REGEX = /\[name:(?<name>".*"), x:(?<x>[-0-9]*), y:(?<y>[-0-9]*), z:(?<z>[-0-9]*), dim:(?<dim>.*)]/g
 
 export class MinecraftModule extends BaseModule {
@@ -72,7 +73,8 @@ export class MinecraftModule extends BaseModule {
                     .setRequired(true)
             )
     ]
-    deathMessages: string[] = [...deathMessages]
+    deathMessages: string[] = ["placeholder death message"]
+    messagesEnabled = true
 
     constructor(client: Client) {
         super(client);
@@ -90,20 +92,23 @@ export class MinecraftModule extends BaseModule {
                 }, 1000)
 
                 ServerConnection.on("serverConnect", () => {
-                    const embed = new EmbedBuilder()
-                    embed.setDescription(`Connected to server`)
-                    embed.setColor(Colors.Green)
-                    channel.send({embeds: [embed]})
+                    // if (!this.messagesEnabled) return
+                    // const embed = new EmbedBuilder()
+                    // embed.setDescription(`Connected to server`)
+                    // embed.setColor(Colors.Green)
+                    // channel.send({embeds: [embed]})
                 })
 
                 ServerConnection.on("serverDisconnect", () => {
+                    if (!this.messagesEnabled) return
                     const embed = new EmbedBuilder()
                     embed.setDescription(`Server connection lost`)
                     embed.setColor(Colors.Red)
-                    channel.send({embeds: [embed]})
+                    // channel.send({embeds: [embed]})
                 })
 
                 ServerConnection.on("message", async (message: string, player: any) => {
+                    if (!this.messagesEnabled) return
                     SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id},
                     ])
@@ -140,6 +145,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerConnect", async (player) => {
+                    if (!this.messagesEnabled) return
                     if (!player.username) return
 
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
@@ -184,6 +190,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerDisconnect", async player => {
+                    if (!this.messagesEnabled) return
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                     ])
@@ -226,6 +233,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerDataUpdate", async player => {
+                    if (!this.messagesEnabled) return
                     await SafeQuery(sql`UPDATE dbo.Users
                                         SET mc_x                    = ${player.position[0]},
                                             mc_y                    = ${player.position[1]},
@@ -378,6 +386,7 @@ export class MinecraftModule extends BaseModule {
                 })
 
                 ServerConnection.on("playerAdvancementEarn", async (advancement, player) => {
+                    if (!this.messagesEnabled) return
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                     ])
@@ -416,12 +425,14 @@ export class MinecraftModule extends BaseModule {
                         PointsModule.grantPoints({
                             userDiscordId: member.id,
                             points: 1,
+                            reason: "Minecraft advancement"
                         })
                         channel.send({content: ' ', embeds: [embed]})
                     }
                 })
 
                 ServerConnection.on("playerDeath", async (player) => {
+                    if (!this.messagesEnabled) return
                     let data = await SafeQuery("SELECT * FROM dbo.Users WHERE mc_id = @mcid", [
                         {name: "mcid", type: mssql.TYPES.VarChar(100), data: player.id}
                     ])
@@ -470,14 +481,18 @@ export class MinecraftModule extends BaseModule {
             let allPlayersInACall = await SafeQuery<{ discord_id: string }>(sql`
                 SELECT discord_id
                 FROM Users
-                WHERE mc_voiceConnectionGroup IS NOT NULL AND mc_connected = 1
-                GROUP BY mc_voiceConnectionGroup
-                HAVING COUNT(*) >= 2`)
+                WHERE mc_connected = 1
+                  AND mc_voiceConnectionGroup IN (SELECT mc_voiceConnectionGroup
+                                                  FROM Users
+                                                  GROUP BY mc_voiceConnectionGroup
+                                                  HAVING COUNT(*) >= 0)
+            `)
             for (let player of allPlayersInACall.recordset) {
                 PointsModule.grantPointsWithDMResponse({
                     discordClient: this.client,
                     userDiscordId: player.discord_id,
                     points: 1,
+                    reason: "Minecraft voice chat"
                 })
             }
         }, 300_000)
@@ -521,7 +536,10 @@ export class MinecraftModule extends BaseModule {
             let postfix = character ? "as " + character.name : "via Discord"
             RemoteStatusServer.broadcastCommand(`tellraw @a ${JSON.stringify([
                 "",
-                {text: `[${msg.member?.nickname || msg.member?.user.username} ${postfix}]`, color: msg.member?.displayHexColor},
+                {
+                    text: `[${msg.member?.nickname || msg.member?.user.username} ${postfix}]`,
+                    color: msg.member?.displayHexColor
+                },
                 {text: " " + messageContent}
             ])}`)
         }

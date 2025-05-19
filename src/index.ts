@@ -5,59 +5,96 @@ import express from "express"
 import fileUpload, {UploadedFile} from "express-fileupload"
 import fs from "fs"
 import * as path from "path";
-import {client, getToken,} from "./src/services/Discord.js";
-import openai from "./src/services/ChatGPT.js";
-import SafeQuery, {sql} from "./src/services/SQL.js";
-import {buildPack, dirTree, FindOwnership, searchIndex} from "./src/misc/ResourcePackManager.js";
-import {CrashBotUser} from "./src/misc/UserManager.js";
-import Discord, {
+import {client, getToken,} from "./services/Discord.js";
+import SafeQuery from "./services/SQL.js";
+import {buildPack, dirTree, FindOwnership, searchIndex} from "./misc/ResourcePackManager.js";
+import {CrashBotUser} from "./misc/UserManager.js";
+import {
     ActionRowBuilder,
     AttachmentBuilder,
     ButtonBuilder,
     ButtonStyle,
     ChannelType,
-    EmbedBuilder,
     Guild,
-    GuildMember,
     MessageActionRowComponentBuilder,
-    TextBasedChannel,
-    TextChannel
+    TextChannel,
+    WebhookClient
 } from "discord.js";
-import {fetchThrowTemplates, generateThrow} from "./src/misc/ThrowMaker.js";
-import ytdl from "ytdl-core";
+import {fetchThrowTemplates, generateThrow} from "./misc/ThrowMaker.js";
+import ytdl from "@distube/ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
-import {makeid} from "./src/misc/Common.js";
-import WSS from "./src/misc/WSS.js";
-import {VoiceConnectionManager} from "./src/services/VoiceManager/VoiceManager.js";
-import http from "http";
-import https from "https";
+import {makeid} from "./misc/Common.js";
 import mssql from "mssql";
-import randomWords from "random-words";
-import bad_baby_words from "./badwords.json" assert {type: "json"}
-import {setupBungieAPI,} from "./src/modules/D2/Bungie.NET.js";
-import {BaseModule} from "./src/modules/BaseModule.js";
-import {D2_ROUTER, D2Module} from "./src/modules/D2.js";
-import {RoleplayModule} from "./src/modules/RoleplayModule.js";
-import {GPTModule} from "./src/modules/GPT.js";
-import {getUserData} from "./src/utilities/getUserData.js";
-import {ResourcePackManagerModule} from "./src/modules/ResourcePackManagerModule.js";
-import {ImagesModule} from "./src/modules/ImagesModule.js";
-import {ExperimentsModule} from "./src/modules/ExperimentsModule.js";
-import {MinecraftModule} from "./src/modules/Minecraft/MinecraftModule.js";
-import {MiscModule} from "./src/modules/MiscModule.js";
-import {VOICE_ROUTER, VoiceControlModule} from "./src/modules/VoiceControlModule.js";
-import {quoteReply} from "./src/utilities/quoteReply.js";
-import {sendNotifications} from "./src/modules/D2/SetupNotifications.js";
+import {BaseModule} from "./modules/BaseModule.js";
+import {D2_ROUTER, D2Module} from "./modules/D2.js";
+import {RoleplayModule} from "./modules/RoleplayModule.js";
+import {GPTModule} from "./modules/GPT.js";
+import {ResourcePackManagerModule} from "./modules/ResourcePackManagerModule.js";
+import {ImagesModule} from "./modules/ImagesModule.js";
+import {ExperimentsModule} from "./modules/ExperimentsModule.js";
+import {MinecraftModule} from "./modules/Minecraft/MinecraftModule.js";
+import {MiscModule} from "./modules/MiscModule.js";
+import {VOICE_ROUTER, VoiceControlModule} from "./modules/VoiceControlModule.js";
+import {sendNotifications} from "./modules/D2/SetupNotifications.js";
 import dotenv from "dotenv"
-import {ACHIEVEMENTS_ROUTER} from "./src/modules/GameAchievements.js";
-import {MEMORIES_ROUTER} from "./src/modules/Memories.js";
-import {PACK_ROUTER} from "./src/routes/packs.js";
-import {DISCORD_AUTH_ROUTER} from "./src/routes/discordAuth.js";
-import {SpeechModule} from "./src/modules/Speech.js";
-import {PointsModule} from "./src/modules/Points.js";
-import {InteractionTracker} from "./src/modules/UsageTrackingModule.js";
-import RemoteStatusServer from "./src/misc/RemoteStatusServer.js";
-import {EXPRESS_APP, HTTP_SERVER, HTTPS_SERVER, IO} from "./src/misc/getHttpServer.js";
+import {ACHIEVEMENTS_ROUTER} from "./modules/GameAchievements.js";
+import {MEMORIES_ROUTER} from "./modules/Memories.js";
+import {PACK_ROUTER} from "./routes/packs.js";
+import {DISCORD_AUTH_ROUTER} from "./routes/discordAuth.js";
+import {SpeechModule} from "./modules/Speech.js";
+import {PointsModule} from "./modules/Points.js";
+import {InteractionTracker} from "./modules/UsageTrackingModule.js";
+import {EXPRESS_APP} from "./misc/getHttpServer.js";
+import {EventsModule} from "./modules/events.js";
+import {
+    AmongUsEventSessionHandler,
+    BoplBattleCompanyEventSessionHandler,
+    BorderlandsEventSessionHandler,
+    ChillEventSessionHandler,
+    EscapistsEventSessionHandler,
+    GModEventSessionHandler,
+    LethalCompanyEventSessionHandler,
+    MinecraftEventSessionHandler,
+    MovieTVShowEventSessionHandler,
+    NorthgardEventSessionHandler,
+    OhDeerEventSessionHandler,
+    OtherEventSessionHandler,
+    PhasmophobiaEventSessionHandler,
+    ProjectPlaytimeEventSessionHandler,
+    SpaceEngineersEventSessionHandler,
+    TerrariaEventSessionHandler,
+    WarframeEventSessionHandler,
+    WhosYourDaddyEventSessionHandler
+} from "./modules/events/eventSessionHandlers.js";
+import {QuotesModule} from "./modules/Quotes.js";
+import {Pterodactyl} from "./modules/Pterodactyl.js";
+import {LethalCompanyModule} from "./modules/LethalCompanyModule.js";
+import {BotemonModule} from "./botemon/BotemonModule.js";
+import {Valheim} from "./modules/Valheim.js";
+// import {MusicPlayerModule} from "./newVoice/modules/MusicPlayerModule.js";
+
+console.log(`Node.js version: ${process.version}`);
+
+const eventSessionHandlers = [
+    OtherEventSessionHandler,
+    ChillEventSessionHandler,
+    MovieTVShowEventSessionHandler,
+    AmongUsEventSessionHandler,
+    SpaceEngineersEventSessionHandler,
+    LethalCompanyEventSessionHandler,
+    BoplBattleCompanyEventSessionHandler,
+    MinecraftEventSessionHandler,
+    PhasmophobiaEventSessionHandler,
+    BorderlandsEventSessionHandler,
+    EscapistsEventSessionHandler,
+    GModEventSessionHandler,
+    NorthgardEventSessionHandler,
+    OhDeerEventSessionHandler,
+    ProjectPlaytimeEventSessionHandler,
+    TerrariaEventSessionHandler,
+    WarframeEventSessionHandler,
+    WhosYourDaddyEventSessionHandler
+]
 
 const moduleClasses = [
     D2Module,
@@ -70,7 +107,15 @@ const moduleClasses = [
     ResourcePackManagerModule,
     VoiceControlModule,
     SpeechModule,
-    PointsModule
+    PointsModule,
+    EventsModule,
+    QuotesModule,
+    Pterodactyl,
+    LethalCompanyModule,
+    BotemonModule,
+    Valheim,
+    //MusicPlayerModule,
+    ...eventSessionHandlers
 ]
 
 dotenv.config()
@@ -82,7 +127,7 @@ let pack_updated
 setInterval(async () => {
     let res = await SafeQuery("SELECT * FROM dbo.Webhook WHERE timeout < GETDATE()", [])
     for (let _webhook of res.recordset) {
-        let webhook = new Discord.WebhookClient({id: _webhook.webhook_id, token: _webhook.token})
+        let webhook = new WebhookClient({id: _webhook.webhook_id, token: _webhook.token})
         webhook.delete()
     }
     await SafeQuery("DELETE FROM dbo.Webhook WHERE timeout < GETDATE()", [])
@@ -514,12 +559,15 @@ EXPRESS_APP.use("/discord/auth", DISCORD_AUTH_ROUTER)
 EXPRESS_APP.use("/voice", VOICE_ROUTER)
 
 client.on("ready", async () => {
+    console.log("Discord client ready")
     if (!client.application) throw new Error("Client does not have an associated application object. This is required.")
-    const COMMANDS_TO_DELETE = await client.application.commands.fetch()
+    let COMMANDS_TO_DELETE = await client.application.commands.fetch()
 
-    // BIND MODULES
-    for (let item of moduleClasses) {
-        let module = new item(client)
+    // BIND GLOBAL SLASH COMMAND MODULES
+    console.log("Building slash commands")
+    for (let item of moduleClasses) modules.push(new item(client))
+
+    for (let module of modules) {
         for (let command of module.createCommands()) {
             // Remove commands from the map that are still valid (ie defined in the code)
             let key = COMMANDS_TO_DELETE.find((existingCommand) => {
@@ -529,24 +577,60 @@ client.on("ready", async () => {
             // DOES NOT ACTUALLY DELETE THE COMMAND. ONLY REMOVES IT FROM THE MAP
             if (key) COMMANDS_TO_DELETE.delete(key)
         }
-        modules.push(module)
+    }
+
+    // BIND GLOBAL CONTEXT MENU COMMANDS
+    console.log("Building context menu commands")
+    for (let module of modules) {
+        for (let command of module.createContextMenuCommands()) {
+            // Remove commands from the map that are still valid (ie defined in the code)
+            let key = COMMANDS_TO_DELETE.find((existingCommand) => {
+                return existingCommand.name === command
+            })?.id
+
+            // DOES NOT ACTUALLY DELETE THE COMMAND. ONLY REMOVES IT FROM THE MAP
+            if (key) COMMANDS_TO_DELETE.delete(key)
+        }
     }
 
     // Delete commands that are no-longer defined in the code
     for (let item of COMMANDS_TO_DELETE.values()) item.delete()
+    console.log("Command building/updating complete")
 
 
-    // Setup slash commands
-    const guilds = ["892518158727008297", "830587774620139580"]
-    const processGuild = (guild: Guild) => {
-        guild.commands.fetch()
-            .then(commands => {
-                for (let command of commands) command[1].delete()
-            })
+
+    // Setup guild commands
+    const guilds = ["892518158727008297"]
+    const processGuild = async (guild: Guild) => {
+        const COMMANDS_TO_DELETE = await guild.commands.fetch()
+
+        // // BIND GLOBAL MODULES
+        // for (let item of moduleClasses) {
+        //     let module = new item(client)
+        //     for (let command of module.createGuildCommands(guild)) {
+        //         // Remove commands from the map that are still valid (ie defined in the code)
+        //         let key = COMMANDS_TO_DELETE.find((existingCommand) => {
+        //             return existingCommand.name === command
+        //         })?.id
+        //
+        //         // DOES NOT ACTUALLY DELETE THE COMMAND. ONLY REMOVES IT FROM THE MAP
+        //         if (key) COMMANDS_TO_DELETE.delete(key)
+        //     }
+        //     modules.push(module)
+        // }
+        //
+        // // Delete commands that are no-longer defined in the code
+        // for (let item of COMMANDS_TO_DELETE.values()) item.delete()
+        //
+        // guild.commands.fetch()
+        //     .then(commands => {
+        //         for (let command of commands) command[1].delete()
+        //     })
     }
     for (let id of guilds) {
         client.guilds.fetch(id).then(processGuild)
     }
+    // void (await client.channels.fetch("892518365766242375") as TextChannel).send("Now is the time to join Crash Bot! __*combine*__ with us and yee shall see!")
 })
 
 client.on("userUpdate", (oldUser, newUser) => {
@@ -588,7 +672,7 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
                 })) {
                 tracker.newHandler(
                     command[1].name,
-                    () => command[1](interaction)
+                    () => command[1].call(module, interaction),
                 )
             }
         }
@@ -617,6 +701,26 @@ client.on("interactionCreate", async (interaction): Promise<void> => {
         for (let module of modules) {
             for (let command of module
                 .subscribedAutocompleteInteractions
+                .filter(i => {
+                    switch (typeof i[0]) {
+                        case "function":
+                            return i[0](interaction.commandName)
+                        case "string":
+                            return i[0] === interaction.commandName
+                    }
+                })) {
+                tracker.newHandler(
+                    command[1].name,
+                    () => command[1].call(module, interaction)
+                )
+            }
+        }
+    }
+    else if (interaction.isContextMenuCommand()) {
+        console.log("Registered context menu command: ", interaction.commandName)
+        for (let module of modules) {
+            for (let command of module
+                .subscribedContextMenuCommands
                 .filter(i => {
                     switch (typeof i[0]) {
                         case "function":

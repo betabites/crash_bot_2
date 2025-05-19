@@ -1,12 +1,16 @@
-import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.js";
-import Discord, {
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {
+    AttachmentBuilder,
     ChannelType,
     ChatInputCommandInteraction,
     Client,
+    Collection,
     Colors,
     EmbedBuilder,
     GuildMember,
+    GuildTextBasedChannel,
     Message,
+    TextBasedChannel,
     User
 } from "discord.js";
 import {
@@ -15,19 +19,15 @@ import {
     SlashCommandStringOption,
     SlashCommandUserOption
 } from "@discordjs/builders";
-import {askGPTQuestion} from "../utilities/askGPTQuestion.js";
-import openai, {AIConversation} from "../services/ChatGPT.js";
-import {removeAllMentions} from "../utilities/removeAllMentions.js";
+import openai, {AIConversation, generateAIImage, UnsavedAIConversation} from "../services/ChatGPT/ChatGPT.js";
 import SafeQuery, {sql, UNSAFE_SQL_PARAM} from "../services/SQL.js";
 import mssql from "mssql";
 import {ShuffleArray} from "../misc/Common.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
-import {TWAGGER_POST_CHANNEL} from "../misc/sendTwaggerPost.js";
 import {PointsModule} from "./Points.js";
-import {ChatCompletionMessageParam} from "openai/resources/index";
-import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 import {Character, OnSpeechModeAdjustmentComplete} from "./Speech.js";
+import {GPTTextChannel} from "./GPTTextChannel.js";
 
 export class GPTModule extends BaseModule {
     commands = [
@@ -76,236 +76,97 @@ export class GPTModule extends BaseModule {
         new SlashCommandBuilder()
             .setName("tldr")
             .setDescription("Too long, didn't read")
-            .addNumberOption(
-                new SlashCommandNumberOption()
-                    .setName("hours")
-                    .setDescription("Number of hours you'd like to look back and summarise (default; 24 hrs)")
-                    .setRequired(false)
+            .addBooleanOption((o) => o
+                .setName("descriptions")
+                .setRequired(false)
+                .setDescription("Include topic descriptions")
+            )
+            .addBooleanOption((o) => o
+                .setName("timestamps")
+                .setRequired(false)
+                .setDescription("Include the time ranges of each topic")
+            )
+            .addBooleanOption((o) => o
+                .setName("participants")
+                .setRequired(false)
+                .setDescription("Include the participants of each topic")
+            )
+            .addNumberOption((o) => o
+                .setName("hours")
+                .setMaxValue(1)
+                .setMinValue(100)
+                .setRequired(false)
+                .setDescription("The number of hours to look back for topics")
+            ),
+        new SlashCommandBuilder()
+            .setName('vs')
+            .setDescription('Make one character vs another. Who will win?')
+            .addStringOption(option => option
+                .setName('champion1')
+                .setDescription('Your first champion')
+                .setRequired(true)
+            )
+            .addUserOption(option => option
+                .setName('champion2')
+                .setDescription('Your second champion')
+                .setRequired(true)
             )
     ]
-    activeConversations = new Map<string, AIConversation>()
+    activeConversations = new Map<string, GPTTextChannel>()
 
     constructor(client: Client) {
         super(client);
     }
 
-    private generateChatGPTFunctions(msg: Message, mutateResultMessage: (type: "attachment", data: string) => void) {
-        let funcs: RunnableToolFunction<any>[] = [
-            {
-                type: "function",
-                function: {
-                    name: "get_points",
-                    description: "Get the level and points of the current user/player",
-                    parse: JSON.parse,
-                    function: async ({}) => {
-                        let points = await PointsModule.getPoints(msg.author.id);
-                        return `Level: ${points.level}, Points: ${points.points}/${PointsModule.calculateLevelGate(points.level + 1)}`
-                    },
-                    parameters: {
-                        type: "object",
-                        properties: {}
-                    }
-                }
-            },
-            {
-                type: "function",
-                function: {
-                    name: "attach_meme",
-                    description: "Attach a meme/post from Reddit to your next message. Only used when explicitly asked for",
-                    parse: JSON.parse,
-                    function: async ({subreddit, allowNSFW, count}: {subreddit?: string, allowNSFW: boolean, count?: number}) => {
-                        if (!count) count = 1
-
-                        let endpoint = subreddit
-                            ? `http://meme-api.com/gimme/${subreddit.replace("r/", "")}/${count}`
-                            : `http://meme-api.com/gimme/${count}`
-                        let refleshGuild = this.client.guilds.cache.get("892518158727008297")
-                        let allowNSFWForThisUser = false
-
-                        let req = await fetch(endpoint)
-                        let res: Partial<{
-                            memes: {
-                                postLink: string,
-                                subreddit: string,
-                                title: string,
-                                url: string,
-                                nsfw: boolean,
-                                spoiler: boolean,
-                                author: string,
-                                ups: number,
-                                preview: string[]
-                            }[]
-                        }> = await req.json()
-
-                        let results: { title: string, url: string }[] = []
-                        for (let meme of res.memes ?? []) {
-                            if (meme.nsfw && !allowNSFW) {
-                                console.log("NSFW meme disallowed: GPT did not ask for nsfw")
-                                return "Fetched meme was NSFW"
-                            }
-                            if (meme.nsfw && !allowNSFWForThisUser) {
-                                // Check that the user has the relevant nsfw role
-                                try {
-                                    let member = await refleshGuild?.members.fetch(msg.author.id)
-                                    allowNSFWForThisUser = !!member?.roles.cache.has("957575439214313572")
-                                }
-                                catch(e) {
-                                    console.error(e)
-                                }
-
-                                if (!allowNSFWForThisUser) {
-                                    console.log("NSFW meme disallowed: User does not have required discord role")
-                                    return "This user is not permitted to access NSFW content"
-                                }
-                            }
-                            if (meme.nsfw && msg.channel.type !== ChannelType.DM && (msg.channel.type !== ChannelType.GuildText || !msg.channel.nsfw)) {
-                                console.log("NSFW meme disallowed: Cannot send in a non-nsfw guild channel")
-                                return "Cannot send NSFW content in this channel"
-                            }
-                            results.push({title: meme.title, url: meme.url})
-                        }
-
-                        for (let item of results) mutateResultMessage("attachment", item.url)
-                        return "Fetched memes with the following names. Will automatically attach these memes to your next message; " + JSON.stringify(results.map(i => i.title))
-                    },
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            subreddit: {
-                                type: "string"
-                            },
-                            allowNSFW: {
-                                type: "boolean"
-                            },
-                            count: {
-                                type: "number",
-                                minimum: 1,
-                                maximum: 10
-                            }
-                        },
-                        required: ["allowNSFW"]
-                    }
-                }
-            }
-        ]
-        if (msg.channel.type === ChannelType.DM) {
-            funcs.push({
-                type: "function",
-                function: {
-                    name: "clear",
-                    description: "Delete all saved messages",
-                    parse: JSON.parse,
-                    function: async () => {
-                        let channel = msg.channel
-                        if (channel.type !== ChannelType.DM) return "failed"
-                        let messages = await channel.messages.fetch({limit: 100})
-                        while (true) {
-                            for (let message of messages) {
-                                if (message[1].deletable) await message[1].delete()
-                            }
-                            if (messages.size >= 100) await channel.messages.fetch({limit: 100})
-                        }
-                        return "done"
-                    },
-                    parameters: {
-                        type: "object",
-                        properties: {}
-                    }
-                }
-            })
-        }
-        return funcs
-    }
-
     @OnSpeechModeAdjustmentComplete()
     async onMessage([msg]: [Message], messageContent: string, character: Character | null) {
-        console.log(this)
         if ((msg.author.bot && !msg.webhookId) || !this.client.user) return
-        else if (msg.channel.type === ChannelType.PublicThread && msg.channel.parent?.id === TWAGGER_POST_CHANNEL) {
-            askGPTQuestion(msg.author.username + " replied to your post saying: " + msg.content + "\nPlease reply using a short twitter-response like message", msg.channel)
-        }
         else if (msg.mentions.users.has(this.client.user.id) || this.activeConversations.has(msg.channelId) || msg.channel.type === ChannelType.DM) {
+            console.log("HERE!")
+            let conversation = this.activeConversations.get(msg.channelId) as GPTTextChannel
             if (msg.content === "reset") {
-                await AIConversation.reset(msg.channelId)
-                msg.reply("Crash Bot's memory has been reset")
+                await conversation.reset()
+                void msg.reply("Crash Bot's memory has been reset")
                 this.activeConversations.delete(msg.channelId)
                 return
             }
 
-            let conversation = this.activeConversations.get(msg.channelId)
             if (!conversation) {
                 let level = await PointsModule.getPoints(msg.author.id)
-                if (level.level < 7) {
+                if (level.level < 7 && msg.author.id !== "404507305510699019") {
                     msg.reply(`Sorry, starting AI conversations is unlocked at level 7. You are currently level ${level.level}`)
                     return
                 }
 
-                let filesAwaitingSend: string[] = []
-                conversation = await AIConversation.fromSaved(msg.channelId, this.generateChatGPTFunctions(msg, (type, data) => {
-                    switch (type) {
-                        case "attachment":
-                            filesAwaitingSend.push(data)
-                            break
-                    }
-                }))
-                if (msg.channel.type !== ChannelType.DM) {
-                    this.activeConversations.set(msg.channelId, conversation)
-                    setTimeout(async () => {
-                        if (!conversation) return
-                        await conversation.saveMessage({
-                            role: "system",
-                            content: "Your conversation has expired. Please say goodbye"
-                        })
-                        try {
-                            await conversation.sendToAI()
-                        } catch (e) {
-                            console.error(e)
-                        }
-                        this.activeConversations.delete(msg.channelId)
-                        conversation.reset()
-                    }, 300000)
-                }
-                conversation.on("onAIResponse", async (message: ChatCompletionMessageParam) => {
-                    let ai_res = message.content?.toString()
-                    let embeds: EmbedBuilder[] = []
-                    let files: string[] = JSON.parse(JSON.stringify(filesAwaitingSend))
-                    filesAwaitingSend.length = 0
-
-                    for (let file of files) {
-                        embeds.push(new EmbedBuilder().setImage(file))
-                    }
-                    if (!ai_res) return
-                    let response = await msg.channel.send({
-                        content: ai_res,
-                        files: filesAwaitingSend,
-                        embeds,
-                        allowedMentions: {
-                            parse: [],
-                            users: [],
-                            roles: [],
-                            repliedUser: false
-                        },
-                    })
-                })
-                await conversation.saveMessage({
-                    role: "system",
-                    content: "You are a bot by the name of `Crash Bot`. You act Gangsta and help people out within a Discord server."
-                })
+                conversation = await this.#getConversationForChannel(msg.channel)
             }
 
-            await conversation.saveMessage({
-                role: "user",
-                name: character?.name || msg.author.displayName.replace(/[^A-z]/g, ""),
-                content: messageContent
-            })
-            conversation.delayedSendToAI()
+            void conversation.processMessage([msg], messageContent, character)
+        }
+    }
+
+    async #getConversationForChannel(channel: TextBasedChannel | GuildTextBasedChannel) {
+        let conversation = this.activeConversations.get(channel.id)
+        if (conversation) return conversation
+        if (channel.isDMBased()) {
+            conversation = await GPTTextChannel.load(channel, this.client)
+            this.activeConversations.set(channel.id, conversation)
+            return conversation
+        } else {
+            let nickname = await channel.guild.members.fetch(this.client.user?.id ?? "").then(i => i.nickname)
+            conversation = await GPTTextChannel.load(channel, this.client, `You must act like you're ${nickname}`)
+            this.activeConversations.set(channel.id, conversation)
+            return conversation
         }
     }
 
     @InteractionChatCommandResponse("tldr")
     async onTLDR(interaction: ChatInputCommandInteraction) {
         await interaction.deferReply({fetchReply: true, ephemeral: true})
-        let lookback_hours = interaction.options.getInteger("hours") || 24
+        let lookback_hours = interaction.options.getNumber("hours") ?? 24
+        let includeDescriptions = interaction.options.getBoolean("descriptions") ?? false
+        let includeTimestamps = interaction.options.getBoolean("timestamps") ?? true
+        let includeParticipants = interaction.options.getBoolean("participants") ?? false
         if (lookback_hours < 1) {
             interaction.editReply(`Oops. We couldn't fufill that request.`)
             return
@@ -313,31 +174,159 @@ export class GPTModule extends BaseModule {
 
         let lookback_until = Date.now() - (lookback_hours * 60 * 60 * 1000)
 
-        let messages: Discord.Collection<string, Discord.Message<boolean>> = new Discord.Collection([])
-        let last_message: Discord.Message<boolean> | undefined
+        let messages: Collection<string, Message<boolean>> = new Collection([])
+        let last_message: Message<boolean> | undefined
         while (messages.size < 150 || (messages.last()?.createdTimestamp || 0) >= lookback_until) {
             let new_messages = await interaction.channel?.messages.fetch({
                 limit: 100,
                 before: last_message?.id
             })
             if (!new_messages) break
+            console.log("messages", new_messages.size, last_message?.createdTimestamp, lookback_until)
             last_message = new_messages.last()
-            messages = messages.concat(new_messages.filter(i => i.content !== "" && i.createdTimestamp >= lookback_until))
+            // last_message?.toJSON(
+            // messages = messages.concat(new_messages.filter(i => i.content !== "" && i.createdTimestamp >= lookback_until))
+            messages = messages.concat(new_messages)
             if (new_messages.find(i => i.createdTimestamp >= lookback_until)) break
             console.log(messages.size)
             console.log(messages.last()?.createdTimestamp, lookback_until)
             if (new_messages.size < 100) break
         }
+        console.log(messages.size)
         if (!messages) throw "Error while generating tldr"
-
-        let tldr: string[] = []
-        for (let message of messages) {
-            tldr.push(message[1].content)
+        if (messages.size === 0) {
+            void interaction.editReply(`There's nothing to summarise here. Try increasing the timeframe.`)
+            return
         }
-        tldr = tldr.reverse().slice(0, 180)
-        let gpt_response = await openai.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
+
+        // let tldr: {content: string, unixTime: number, userId: string | null, username: string | null}[] = []
+        // for (let message of messages) {
+        //     tldr.push({
+        //         content: message[1].content,
+        //         userId: message[1].member?.id || null,
+        //         username: message[1].member?.displayName || null,
+        //         unixTime: Math.round(message[1].createdTimestamp / 1000)
+        //     })
+        // }
+
+        // tldr = tldr.reverse().slice(0, 180)
+        // console.log(JSON.stringify(messages.reverse().map(m => m.toJSON())))
+        await interaction.editReply({content: "Using AI to summarise..."})
+        let conversation = new UnsavedAIConversation([
+            {role: "system", content: `You are a helpful assistant. You are to split this conversation as such <T><Title>Topic here</Title><Category>See 'category cheatsheet' section</Category><Start>UNIX number for when it started</Start><End>UNIX number for when it ended</End><Description></Description><UserId>Repeat this element once for each participant in this topic. DO NOT INCLUDE IF PARTICIPANT ID IS UNKNOWN</UserId><UserId>...</UserId><UserId>...</UserId></T>. You must provide the most accurate interpretation as possible. Regardless what the conversation is about.
+Category cheatsheet:
+Hostile/Emotional  
+PSA
+Informational/Educational  
+Casual/Friendly Chat  
+Inspirational/Motivational  
+Warning/Emergency  
+Celebratory/Happy  
+Neutral/General  
+Technology/Innovation  
+Sad/Sympathy-Focused  
+Humorous/Jokes
+`},
+            {role: "user", content: JSON.stringify(messages.reverse().map(m => ({
+                    content: m.content,
+                    author: m.author.id,
+                    username: m.member?.displayName || m.author.displayName,
+                    createdTimestamp: Math.round(m.createdTimestamp / 1000),
+                    attachments: m.attachments
+                })))},
+        ])
+        let res = await conversation.sendToAIAndWait()
+
+        // let gpt_response = await openai.sendMessage("Please write an overview of this conversation:\n" + JSON.stringify(tldr))
         // @ts-ignore
-        interaction.editReply(removeAllMentions(gpt_response.text, interaction.channel))
+
+        // Parse the response
+        const regex = /<T>([\s\S]*?)<\/T>/g;
+        const titleRegex = /<Title>([\s\S]*?)<\/Title>/; // Matches <Title>...</Title>
+        const descRegex = /<Description>([\s\S]*?)<\/Description>/;
+        const startRegex = /<Start>([\s\S]*?)<\/Start>/;
+        const endRegex = /<End>([\s\S]*?)<\/End>/;
+        const userIdRegex = /<UserId>([\s\S]*?)<\/UserId>/;
+        const categoryRegex = /<Category>([\s\S]*?)<\/Category>/;
+
+        const topics: EmbedBuilder[] = []
+        const matches = (res.content?.toString() ?? "").matchAll(regex);
+        for (let match of matches) {
+            const titleMatch = titleRegex.exec(match[1]);
+            const descMatch = descRegex.exec(match[1]);
+            const startMatch = startRegex.exec(match[1]);
+            const endMatch = endRegex.exec(match[1]);
+            const categoryMatch = categoryRegex.exec(match[1]);
+            let usersMatch = userIdRegex.exec(match[1]);
+            if (!titleMatch || !descMatch || !startMatch || !endMatch || !categoryMatch) continue;
+
+            let embed = new EmbedBuilder()
+                .setTitle(titleMatch[1])
+                .setFooter({text: categoryMatch[1].toString()})
+            switch (categoryMatch?.[1]) {
+                case "Hostile/Emotional":
+                    embed.setColor("#FF0000")
+                    break
+                case "PSA":
+                    embed.setColor("#007BFF")
+                    break
+                case "Informational/Educational":
+                    embed.setColor("#28A745")
+                    break
+                case "Casual/Friendly Chat":
+                    embed.setColor("#FFC107")
+                    break
+                case "Inspirational/Motivational":
+                    embed.setColor("#FF8800")
+                    break
+                case "Warning/Emergency":
+                    embed.setColor("#C82333")
+                    break
+                case "Celebratory/Happy":
+                    embed.setColor("#FFD700")
+                    break
+                case "Neutral/General":
+                    embed.setColor("#6C757D")
+                    break
+                case "Technology/Innovation":
+                    embed.setColor("#20C997")
+                    break
+                case "Sad/Sympathy-Focused":
+                    embed.setColor("#6F42C1")
+                    break
+                case "Humorous/Jokes":
+                    embed.setColor("#FFEB3B")
+                    break
+            }
+            let bodyParts: string[] = []
+            if (includeDescriptions) bodyParts.push(descMatch[1])
+            if (includeTimestamps) bodyParts.push(`<t:${startMatch[1]}:R> until <t:${endMatch[1]}:R>`)
+            if (includeParticipants && usersMatch && Array.isArray(usersMatch) && usersMatch.length > 1) {
+                let usersDeDuped = [...new Set(usersMatch.map(i => i.match(/\d+/g)?.[0] ?? "unknown"))]
+                embed.addFields({
+                    name: "Participants",
+                    value: usersDeDuped.map(i => `<@${i.match(/\d+/g)?.[0]}>`).join(", ")
+                })
+            }
+            if (bodyParts.length > 0) embed.setDescription(bodyParts.join("\n\n"))
+            topics.push(embed)
+        }
+
+        if (topics.length > 10) {
+            void interaction.editReply({
+                content: "",
+                embeds: [
+                    new EmbedBuilder()
+                        .setDescription("Too many topics to display, so we're only showing the most recent 9."),
+                    ...topics.slice(topics.length - 9, topics.length)
+                ]
+            })
+        } else {
+            void interaction.editReply({
+                content: "",
+                embeds: topics
+            })
+        }
     }
 
     @InteractionChatCommandResponse("catchphrase")
@@ -472,6 +461,36 @@ export class GPTModule extends BaseModule {
             })
     }
 
+    async getTopWords(discordId: string, sampleSize: number = 50) {
+        let res = await SafeQuery<{
+            word: string,
+            count: number,
+            userUniqueness: number,
+            daysSinceUsed: number
+        }>(sql`
+                    SELECT TOP ${UNSAFE_SQL_PARAM(Math.round(sampleSize * 1.5))} word                                              AS 'word',
+                                                                                  count                                             AS 'count',
+                                                                                  CAST(count as DECIMAL(10, 2)) /
+                                                                                  (SELECT SUM(count)
+                                                                                   FROM CrashBot.dbo.WordsExperiment
+                                                                                   WHERE WMS.discord_id = ${discordId})             AS 'userUniqueness',
+                                                                                  CAST(last_appeared - (GETDATE() - 90) AS TINYINT) AS 'daysSinceUsed'
+                    FROM CrashBot.dbo.WordsExperiment AS WMS
+                    WHERE discord_id = ${discordId}
+                      AND WMS.word NOT IN (SELECT stopword FROM EnglishStopWords)
+                      AND DATEADD(MONTH, -3, GETDATE()) < WMS.last_appeared
+                    ORDER BY userUniqueness DESC
+                `)
+
+        let top: {
+            word: string,
+            percentage: number
+        }[] = ShuffleArray(res.recordset).slice(0, sampleSize).map((i) => {
+            return {word: i.word, percentage: i.userUniqueness}
+        })
+        return top
+    }
+
     @InteractionChatCommandResponse("catchphrase2")
     async onCatchphrase2(interaction: ChatInputCommandInteraction) {
         getUserData(interaction.member as GuildMember)
@@ -487,58 +506,25 @@ export class GPTModule extends BaseModule {
 
                 if (sample_size < 1 || sample_size > 1000) sample_size = 50
                 await interaction.deferReply()
-                let res = await SafeQuery<{
-                    word: string,
-                    count: number,
-                    userUniqueness: number,
-                    daysSinceUsed: number
-                }>(sql`
-                    SELECT TOP ${UNSAFE_SQL_PARAM(Math.round(sample_size * 1.5))} word                                              AS 'word',
-                                                                                  count                                             AS 'count',
-                                                                                  CAST(count as DECIMAL(10, 2)) /
-                                                                                  (SELECT SUM(count)
-                                                                                   FROM CrashBot.dbo.WordsExperiment
-                                                                                   WHERE WMS.discord_id = ${member.id})             AS 'userUniqueness',
-                                                                                  CAST(last_appeared - (GETDATE() - 90) AS TINYINT) AS 'daysSinceUsed'
-                    FROM CrashBot.dbo.WordsExperiment AS WMS
-                    WHERE discord_id = ${member.id}
-                      AND WMS.word NOT IN (SELECT stopword FROM EnglishStopWords)
-                      AND DATEADD(MONTH, -3, GETDATE()) < WMS.last_appeared
-                    ORDER BY userUniqueness DESC
-                `)
 
-                //     return SafeQuery("SELECT TOP " + (sample_size * 1.5) + " word, SUM(count + pseudo_addition) as 'sum' FROM WordsExperiment WHERE discord_id = @discordid GROUP BY discord_id, word ORDER BY discord_id DESC, sum DESC", [
-                //         // @ts-ignore
-                //     ])
-                // })
-                // if (res?.recordset.length < 20) {
-                //     interaction.editReply("We don't quite have enough data yet. Keep talking and we'll be able to tell you.")
-                //     return
-                // }
-                let top: {
-                    word: string,
-                    percentage: number
-                }[] = ShuffleArray(res.recordset).slice(0, sample_size).map((i) => {
-                    return {word: i.word, percentage: i.userUniqueness}
-                })
-
+                let top = await this.getTopWords(member.id)
                 let conversation = AIConversation.new()
                 let theme = interaction.options.getString("theme")
-                await conversation.saveMessage({
+                conversation.appendMessage({
                     role: "system",
                     content: `These words have been programmatically determined as a given users most common words. Use these words to create a suitable catchphrase. Swears ARE OK!`
                 })
                 if (theme) {
-                    await conversation.saveMessage({
+                    conversation.appendMessage({
                         role: "system",
                         content: `The catchphrase must match this theme: ${theme}`
                     })
                 }
-                await conversation.saveMessage({
+                conversation.appendMessage({
                     role: 'system',
                     content: "words: " + top.map(i => i.word).join(", ")
                 })
-                let response = await conversation.sendToAI()
+                let response = await conversation.sendToAIAndWait()
                 let embed = new EmbedBuilder()
                 // console.log("Using some of these words, create a catchphrase. Extra words can be added. I've also included a counter for each word, to indicate how often the word has been used before.\n\n" +
 
@@ -562,5 +548,99 @@ export class GPTModule extends BaseModule {
                     ]
                 })
             })
+    }
+
+    async combineUsers(user1: User, user2: User) {
+        let aiConversation = AIConversation.new()
+        aiConversation.appendMessage({
+            role: "system",
+            content: "Create a fake person's online profile based on data from these profiles. KEEP IT SHORT, AND PRIORITISE COMEDY OVER REALISM. Age 18+ humour is more than acceptable.\n\n" +
+                JSON.stringify(await Promise.all([user1, user2].map(async user => {
+                    return {
+                        name: user.username,
+                        createdAt: user.createdAt,
+                        discriminator: user.discriminator,
+                        avatar: user.avatarURL(),
+                        banner: user.bannerURL(),
+                        favouriteWords: await this.getTopWords(user.id)
+                    }
+                })))
+        })
+        let bioResult = await aiConversation.sendToAIAndWait()
+        aiConversation.appendMessage({
+            role: "system",
+            content: "Write a prompt to generate a profile picture for the imaginary user."
+        })
+        let imagePromptResult = await aiConversation.sendToAIAndWait()
+        if (!imagePromptResult.content) throw new Error("AI did not respond")
+
+        let image = await generateAIImage({
+            prompt: imagePromptResult.content?.toString(),
+            model: "dall-e-3",
+            response_format: "url",
+            quality: "standard",
+            size: "1024x1024"
+        })
+        let imageUrl = image.data[0].url
+        if (!imageUrl) throw new Error("Image generation failed")
+        console.log(imageUrl)
+
+        await aiConversation.reset()
+
+
+        return {message: bioResult.content?.toString() ?? "", imageUrl}
+    }
+
+    @InteractionChatCommandResponse("combine")
+    async onCombine(interaction: ChatInputCommandInteraction) {
+        const user1 = interaction.options.getUser('user1', true);
+        const user2 = interaction.options.getUser('user2', true);
+
+        await interaction.deferReply()
+        let result = await this.combineUsers(user1, user2)
+        await interaction.editReply({
+            content: result.message,
+            files: [new AttachmentBuilder(result.imageUrl).setName("image.webp")]
+        })
+    }
+
+    // @InteractionChatCommandResponse("vs")
+    // async onVs(interaction: ChatInputCommandInteraction) {
+    //     const user1 = interaction.options.getUser('user1', true);
+    //     const user2 = interaction.options.getUser('user2', true);
+    //
+    //     await interaction.deferReply()
+    //     let resa
+    // }
+
+    @OnClientEvent("messageCreate")
+    async onTest(msg: Message) {
+        if (msg.author.bot|| !msg.guild) return
+        if (msg.content.toLowerCase() === "combine") {
+            let user1 = await msg.guild.members.fetch("892535864192827392")
+            let result = await this.combineUsers(msg.author, user1.user)
+            void msg.reply({content: result.message, files: [
+                    new AttachmentBuilder(result.imageUrl)
+                        .setName("image.webp")
+                ]})
+        }
+        else if (msg.content.toLowerCase() === "combine harvester") {
+            let image = await generateAIImage({
+                prompt: Math.random() < .5
+                    ? "Kids playing in the fields"
+                    : "A combine harvester",
+                model: "dall-e-3",
+                response_format: "url",
+                quality: "standard",
+                size: "1024x1024"
+            })
+            void msg.reply({
+                content: " ",
+                files: [
+                    new AttachmentBuilder(image.data[0].url ?? "")
+                        .setName("image.webp")
+                ]
+            })
+        }
     }
 }

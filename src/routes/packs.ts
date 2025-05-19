@@ -5,7 +5,7 @@ import {UploadedFile} from "express-fileupload";
 import path from "path";
 import fs from "fs";
 import ffmpeg from "fluent-ffmpeg";
-import ytdl from "ytdl-core";
+import ytdl from "@distube/ytdl-core";
 import archiver from "archiver";
 import cors from "cors"
 

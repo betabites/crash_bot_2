@@ -1,5 +1,16 @@
-import Discord, {Client, GatewayIntentBits, GuildMember, Message, TextChannel, Webhook} from "discord.js";
-import SafeQuery from "./SQL.js";
+import {
+    BaseMessageOptions,
+    Client,
+    GatewayIntentBits,
+    GuildMember,
+    Message,
+    MessagePayload,
+    Partials,
+    TextChannel,
+    WebhookClient,
+    WebhookMessageCreateOptions
+} from "discord.js";
+import SafeQuery, {sql} from "./SQL.js";
 import mssql from "mssql";
 import Jimp from "jimp";
 import {makeid} from "../misc/Common.js";
@@ -20,61 +31,83 @@ export const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessageTyping,
         GatewayIntentBits.GuildMessageTyping,
-        GatewayIntentBits.GuildMembers
-    ], partials: [Discord.Partials.Channel]
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences,
+    ], partials: [Partials.Channel]
 })
 
-export async function sendImpersonateMessage(channel: TextChannel, member: GuildMember, message: string |
-    Discord.MessagePayload |
-    Discord.BaseMessageOptions |
-    Discord.WebhookMessageCreateOptions
+export type JimpProfilePictureModification = (profilePicture: Jimp) => Promise<Jimp>
+
+export async function sendImpersonateMessage(
+    channel: TextChannel,
+    member: GuildMember,
+    message: string |
+        MessagePayload |
+        BaseMessageOptions |
+        WebhookMessageCreateOptions,
+    name?: string,
+    avatar?: string | JimpProfilePictureModification
 ) {
-    SafeQuery("SELECT * FROM dbo.Webhook WHERE channel_id = @channelid AND user_id = @userid", [
-        {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
-        {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
-    ])
-        .then((res: any) => {
-            if (res.recordset.length === 0) throw "Could not find webhook"
+    let nameStr = name || member.nickname || member.user.username
+    try {
+        let res = await SafeQuery("SELECT * FROM dbo.Webhook WHERE channel_id = @channelid AND user_id = @userid", [
+            {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
+            {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
+        ])
+        if (res.recordset.length === 0) throw "Could not find webhook"
 
-            let webhook = new Discord.WebhookClient({id: res.recordset[0].webhook_id, token: res.recordset[0].token})
-            return webhook.send(message)
-        })
-        .catch((e: any) => {
-            // channel.createWebhook(member.nickname || member.user.username, {
-            //     avatar: member.avatarURL() || member.user.avatarURL(),
-            //     reason: "Needed new cheese"
-            // })
+        let webhook = new WebhookClient({id: res.recordset[0].webhook_id, token: res.recordset[0].token})
+        return await webhook.send(typeof message === "string" ? {
+            content: message,
+            allowedMentions: {
+                parse: [],
+                users: [],
+                roles: [],
+                repliedUser: false
+            },
+        } : message)
+    } catch (e) {
+        // channel.createWebhook(member.nickname || member.user.username, {
+        //     avatar: member.avatarURL() || member.user.avatarURL(),
+        //     reason: "Needed new cheese"
+        // })
 
-            SafeQuery("DELETE FROM dbo.Webhook WHERE user_id = @userid AND channel_id = @channelid", [
-                {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
-                {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
-            ]).then(() => {
-                return channel.createWebhook({
-                    name: member.nickname || member.user.username,
-                    avatar: member.avatarURL() || member.user.avatarURL(),
-                    reason: "Needed new cheese"
-                })
-            })
-                .then((webhook: Webhook) => {
-                    webhook.send(typeof message === "string" ? {
-                        content: message,
-                        allowedMentions: {
-                            parse: [],
-                            users: [],
-                            roles: [],
-                            repliedUser: false
-                        },
-                    }: message)
-                    return SafeQuery("INSERT INTO dbo.Webhook (user_id, channel_id, webhook_id, token) VALUES (@userid, @channelid, @webhookid, @token)", [
-                        {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
-                        {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
-                        {name: "webhookid", type: mssql.TYPES.VarChar(100), data: webhook.id},
-                        {name: "token", type: mssql.TYPES.VarChar(100), data: webhook.token}
-                    ])
-                })
-                .then(() => {
-                })
+        void SafeQuery("DELETE FROM dbo.Webhook WHERE user_id = @userid AND channel_id = @channelid", [
+            {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
+            {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id}
+        ])
+        let avatarString =
+            (typeof avatar === "string" && avatar)
+            || member.avatarURL({extension: "png"})
+            || member.user.avatarURL({extension: "png"})
+            || ""
+        if (typeof avatar === "function") {
+            avatarString = await (
+                await avatar(await Jimp.read(avatarString))
+            ).getBase64Async(Jimp.MIME_PNG)
+        }
+
+        let webhook = await channel.createWebhook({
+            name: nameStr,
+            avatar: avatarString,
+            reason: "Needed new cheese"
         })
+        await webhook.send(typeof message === "string" ? {
+            content: message,
+            allowedMentions: {
+                parse: [],
+                users: [],
+                roles: [],
+                repliedUser: false
+            },
+        } : message)
+        return await SafeQuery("INSERT INTO dbo.Webhook (user_id, channel_id, webhook_id, token) VALUES (@userid, @channelid, @webhookid, @token)", [
+            {name: "userid", type: mssql.TYPES.VarChar(100), data: member.id},
+            {name: "channelid", type: mssql.TYPES.VarChar(100), data: channel.id},
+            {name: "webhookid", type: mssql.TYPES.VarChar(100), data: webhook.id},
+            {name: "token", type: mssql.TYPES.VarChar(100), data: webhook.token}
+        ])
+    }
 }
 
 export function downloadDiscordAttachmentWithInfo(msg_id: string, channel_id: string, url: string, extension: string, stream: (filename: string) => Writable): Promise<Buffer | void> {
@@ -174,5 +207,15 @@ export function downloadDiscordAttachment(url: string, fileextension: string, st
 }
 
 export function getToken() {
-    return fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString()
+    return process.env["DISCORD_SECRET"] || fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString()
+}
+
+export async function deleteAllWebhooksForUser(userId: string) {
+    let res = await SafeQuery<{webhook_id: string, token: string}>(sql`SELECT * FROM dbo.Webhook WHERE user_id = ${userId}`)
+    await Promise.all(res.recordset.map(data => {
+        let webhook = new WebhookClient({id: data.webhook_id, token: data.token})
+        return webhook.delete()
+    }))
+
+    if (res.recordset.length === 0) throw "Could not find webhook"
 }

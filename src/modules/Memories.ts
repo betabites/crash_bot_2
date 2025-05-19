@@ -5,7 +5,7 @@ import {makeid, QueueManager} from "../misc/Common.js";
 import {downloadDiscordAttachment, downloadDiscordAttachmentWithInfo} from "../services/Discord.js";
 import fs from "fs";
 import path from "path";
-import ytdl from "ytdl-core";
+import ytdl from "@distube/ytdl-core";
 import ffmpeg from "fluent-ffmpeg";
 import {PassThrough, Writable} from "stream"
 import archiver from "archiver";

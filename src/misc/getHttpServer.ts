@@ -15,3 +15,7 @@ export const HTTPS_SERVER = https.createServer({
 export const IO = new Server(HTTP_SERVER, {
     pingInterval: 120000
 })
+
+IO.on("connection", (socket) => {
+    console.log("Received a socket connection")
+})

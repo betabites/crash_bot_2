@@ -1,6 +1,7 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBooleanOption, SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import Discord, {
+import {
+    ChannelType,
     ChatInputCommandInteraction,
     Colors,
     EmbedBuilder,
@@ -13,7 +14,7 @@ import SafeQuery, {sql} from "../services/SQL.js";
 import mssql from "mssql";
 import {toTitleCase} from "../utilities/toTitleCase.js";
 import {ShuffleArray} from "../misc/Common.js";
-import openai from "../services/ChatGPT.js";
+import openai from "../services/ChatGPT/ChatGPT.js";
 import {client} from "../services/Discord.js";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
@@ -128,7 +129,7 @@ export class ExperimentsModule extends BaseModule {
                 })
         }
         else if (msg.content.toLowerCase().includes("what are some barely spoken words")) {
-            if (msg.channel.type === Discord.ChannelType.DM) {
+            if (msg.channel.type === ChannelType.DM) {
                 msg.reply("Oops. You can't use this phrase in this channel")
                 return
             }
@@ -222,7 +223,7 @@ export class ExperimentsModule extends BaseModule {
                                     })
                                     .catch(e => {
                                         console.log(e)
-                                        let embed = new Discord.EmbedBuilder()
+                                        let embed = new EmbedBuilder()
                                         embed.setTitle("Service unavailable")
                                         embed.setDescription("This service is currently unavailable. Please try again later")
                                         embed.setColor(Colors.Red)
@@ -232,6 +233,18 @@ export class ExperimentsModule extends BaseModule {
                             }
                         })
                 })
+        }
+        else if (msg.content.toLowerCase().startsWith("i am")) {
+            if (!msg.member) return
+            msg.member.setNickname(msg.content.toLowerCase().replace("i am", "").trim().substring(0, 32))
+            msg.reply(`Hi <@${msg.member?.id}>!`)
+        }
+        else if (msg.content.toLowerCase().startsWith("i alone am")) {
+            if (!msg.member || !msg.guild) return
+            msg.guild.members.fetch(this.client.user?.id ?? "").then(me =>
+                me.setNickname(msg.content.toLowerCase().replace("i alone am", "").trim().substring(0, 32))
+            )
+            msg.reply("fax")
         }
         else {
             // Do word count

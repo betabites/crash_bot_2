@@ -12,7 +12,7 @@ import mssql from "mssql";
 import {buildItemEmbed, buildVendorEmbed} from "./Bungie.NET.js";
 import {client} from "../../services/Discord.js";
 import {MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
-import {DestinyVendorDefinition} from "bungie-net-core/lib/models/index.js";
+import {DestinyVendorDefinition} from "bungie-net-core/models";
 
 export enum NotificationTypes {
     ITEM_FOR_SALE,

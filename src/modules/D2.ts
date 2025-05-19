@@ -1,5 +1,4 @@
 import {
-    BaseModule,
     InteractionAutocompleteResponse,
     InteractionButtonResponse,
     InteractionChatCommandResponse,
@@ -13,15 +12,15 @@ import {
     ButtonBuilder,
     ButtonInteraction,
     ButtonStyle,
+    ChannelType,
     ChatInputCommandInteraction,
     Client,
-    Colors,
     EmbedBuilder,
     Message,
     MessageActionRowComponentBuilder,
     SelectMenuInteraction,
     StringSelectMenuBuilder,
-    TextChannel
+    TextChannel,
 } from "discord.js";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {
@@ -31,39 +30,42 @@ import {
     buildTinyVendorEmbed,
     buildVendorMessage,
     getNextWeekday,
-    onlyVendorsThatSellStuff,
-    Weekdays
+    getWeeklyMilestonesMessage,
+    onlyVendorsThatSellStuff
 } from "./D2/Bungie.NET.js";
 import {surfaceFlatten} from "../utilities/surfaceFlatten.js";
 import {groupItemsWithMatchingNames} from "../utilities/groupItemsWithMatchingNames.js";
 import {
-    BungieMembershipType,
-    DestinyActivityDefinition,
-    DestinyComponentType,
-    DestinyInventoryItemDefinition,
-    DestinyItemType,
-    DestinyRecordComponent,
-    DestinyVendorDefinition
-} from "bungie-net-core/lib/models/index.js";
+    type BungieMembershipType,
+    type DestinyActivityDefinition,
+    type DestinyInventoryItemDefinition,
+    type DestinyRecordComponent,
+    type DestinyVendorDefinition,
+} from "bungie-net-core/models";
 import {atSpecificTime, itemAvailableAtVendor} from "./D2/SetupNotifications.js";
 import express from "express";
 import * as console from "console";
 import SafeQuery, {PutOperation, sql} from "../services/SQL.js";
 import cookieParser from "cookie-parser"
-import {getMembershipDataForCurrentUser} from "bungie-net-core/lib/endpoints/User/index.js";
-import {BasicBungieClient} from "bungie-net-core/lib/client.js";
+import {getMembershipDataForCurrentUser} from "bungie-net-core/endpoints/User";
 import fetch from "node-fetch";
-import {getProfile} from "bungie-net-core/lib/endpoints/Destiny2/index.js";
-import {AchievementProgress, GAME_IDS} from "./GameAchievements.js";
-import mssql from "mssql";
+import {AchievementProgress, EVENT_IDS} from "./GameAchievements.js";
 import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
 import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
+import {WeekdayNames, Weekdays} from "./D2/Weekdays.js";
+import {GameSessionData} from "./GameSessionModule.js";
+import {BungieClient} from "./D2/BungieNETConnectionProfile.js";
+import {getProfile} from "bungie-net-core/endpoints/Destiny2";
+import {BasicEventSessionHandler} from "./events/BasicEventSessionHandler.js";
+import {refreshAuthorization} from "bungie-net-core/auth";
+import {client} from "../services/Discord.js";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing
     "935472869129990154", // #dungeon-main
     "1049104983586517092" // #raids-and-dungeon-chat
 ]
+const SESSION_THREAD_PARENT_ID = "1273524114614911067"
 
 interface SqlLiteItem {
     id: number,
@@ -71,12 +73,12 @@ interface SqlLiteItem {
 }
 
 const AUTO_MESSAGE_RESPONSE_EXCLUDE_TYPES = [
-    DestinyItemType.None,
-    DestinyItemType.Currency,
-    DestinyItemType.Dummy,
-    DestinyItemType.Package,
-    DestinyItemType.Emote,
-    DestinyItemType.Mod
+    0,
+    1,
+    20,
+    25,
+    23,
+    19
 ]
 const MOBALYTICS_REGEX = /https:\/\/mobalytics\.gg\/destiny-2\/builds\/([^\/]+)\/[^\/]+\/([^\/]+)/g
 
@@ -85,12 +87,17 @@ export const D2_ROUTER = express.Router()
 /**
  * Represents a module for handling Destiny 2 related commands and functionality.
  */
-export class D2Module extends BaseModule {
+export class D2Module extends BasicEventSessionHandler {
     readonly liveScheduleChannelID = "1049104983586517092"
     readonly liveScheduleID = "1188381813048094732"
     readonly maxFireteamSize = 6
     primaryScheduleMessage: Message | null = null
     private _scheduleMessages: Message[] = []
+
+    embedConfig = {
+        title: "Destiny 2 Event",
+        thumbnail: "https://i1.wp.com/i2-prod.dailystar.co.uk/incoming/article21380006.ece/ALTERNATES/s1200c/0_Destiny-2.jpg"
+    }
 
     readonly commands = [
         (new SlashCommandBuilder())
@@ -128,7 +135,7 @@ export class D2Module extends BaseModule {
                         new SlashCommandStringOption()
                             .setName("name")
                             .setDescription("The name of the activity you are looking for")
-                            .setRequired(true)
+                            .setRequired(false)
                     )
             )
             .addSubcommand(
@@ -149,13 +156,14 @@ export class D2Module extends BaseModule {
     }
 
     constructor(client: Client) {
-        super(client);
+        super(client, 0);
         setTimeout(async () => {
             await this.updateScheduleMessages()
             void syncD2Achievements()
         }, 10000)
         setInterval(async () => {
             await this.updateScheduleMessages()
+            await refreshAccessTokens()
             void syncD2Achievements()
         }, 120000)
 
@@ -176,7 +184,9 @@ export class D2Module extends BaseModule {
                 this.primaryScheduleMessage = message
             })
         })
+        void refreshAccessTokens()
     }
+
 
     async updateScheduleMessages() {
         let embed = await this.generateScheduleMessage()
@@ -240,7 +250,7 @@ export class D2Module extends BaseModule {
                 })
         }
         else if (msg.content.toLowerCase().includes("shut up")) {
-             msg.reply("Never")
+            msg.reply("Never")
         }
 
         // Check if the message references any items and/or vendors
@@ -333,6 +343,14 @@ export class D2Module extends BaseModule {
                     })
                 return
             case "activities":
+                if (!name) {
+                    interaction.reply({
+                        content: '',
+                        embeds: [await getWeeklyMilestonesMessage()]
+                    })
+                    return
+                }
+
                 if (name.length < 3) {
                     interaction.reply({
                         content: "That search is a bit short. Please try something longer"
@@ -370,7 +388,10 @@ export class D2Module extends BaseModule {
                 })
                 break
             case "schedule":
-                interaction.reply(await this.generateScheduleMessage())
+                interaction.reply({
+                    ...await this.generateScheduleMessage(),
+                    ephemeral: true
+                })
                     .then(msg => this._scheduleMessages.push(msg))
         }
     }
@@ -396,69 +417,50 @@ export class D2Module extends BaseModule {
             date: Date
             people: string[]
         }[] = []
-        for (let item of getNextRaidSessions()) {
-            console.log(item)
-            let users = await SafeQuery<{
-                discord_id: string
-            }>("SELECT discord_id FROM dbo.userGameSessionsSchedule WHERE session_time = @date", [
-                {name: "date", type: mssql.TYPES.DateTime2(), data: item}
-            ])
+        for (let item of getNextRaidSessionTimes()) {
+            let session = await this.getGameSession(item)
+            let users = session ? await this.getUsersSubscribedToSession(session.id) : []
             let usernames: string[] = []
-            for (let user of users.recordset) {
-                const discordUser = await this.client.users.fetch(user.discord_id)
+            for (let user of users) {
+                const discordUser = await this.client.users.fetch(user)
                 if (!discordUser) continue
                 usernames.push(discordUser.username)
             }
             sessions.push({
                 date: item,
-                people: users.recordset.map(user => user.discord_id)
+                people: users
             })
         }
 
 
         return {
-            embeds: [new EmbedBuilder()
-                .setTitle("🗳️ Re-Flesh Raids Voting (BETA)")
-                .setDescription("Use the buttons below to vote for the next raid")
-                .addFields([
-                    {
-                        name: "Raid votes",
-                        value: raids
-                                .sort((a, b) => {
-                                    return (a.votes || 0) > (b.votes || 0) ? -1 : 1
-                                })
-                                .slice(0, 3)
-                                .map((raid, index) => {
-                                    return (index + 1) + ". " + raid.originalDisplayProperties.name + " " + (raid.votes || 0) + "/" + totalVotes
-                                })
-                                .join("\n") +
-                            "\n..."
-                    }
-                ]),
+            embeds: [
                 new EmbedBuilder()
-                    .setTitle("🛡️ Re-Flesh Raids Sessions (BETA)")
-                    .setDescription("Below is a list of raiding sessions over the next 2 weeks. Use the buttons below to mark yourself as available for sessions of your choice.")
+                    .setTitle("🛡️ Re-Flesh Raids Sessions")
+                    .setDescription("Raids typically start at about 7PM NZ time")
+                    // .setDescription("Below is a list of raiding sessions over the next 2 weeks. Use the buttons below to mark yourself as available for sessions of your choice.")
                     .addFields(sessions.map((session, index) => {
                         const atTime = session.date.getTime()
                         let displayText = ""
-                        if (atTime - Date.now() < (12 * (60 * (60 * 1000)))) displayText = "<t:" + Math.floor(atTime / 1000) + ":R>"
-                        else displayText = "<t:" + Math.floor(atTime / 1000) + ":F>"
+                        displayText =
+                            "<t:" + Math.floor(atTime / 1000) + ":d>"
 
                         return {
-                            name: "Session " + (index + 1) + ":\n" + displayText,
-                            value: session.people.length === 0 ? "*No current attendees*" : "<@" + session.people.join(">\n<@") + ">",
+                            name: WeekdayNames[session.date.getDay()],
+                            value: `${displayText} (${session.people.length}/6)`,
                             inline: true
                         }
                     }))
+                    .setFooter({text: `Weekly raid: Deep Stone Crypt`})
             ],
             components: [
                 new ActionRowBuilder<MessageActionRowComponentBuilder>()
                     .addComponents(
-                        new ButtonBuilder()
-                            .setEmoji("🗳️")
-                            .setLabel("Add/Change Vote")
-                            .setCustomId("d2_raid_change_vote")
-                            .setStyle(ButtonStyle.Secondary),
+                        // new ButtonBuilder()
+                        //     .setEmoji("🗳️")
+                        //     .setLabel("Add/Change Vote")
+                        //     .setCustomId("d2_raid_change_vote")
+                        //     .setStyle(ButtonStyle.Secondary),
                         new ButtonBuilder()
                             .setEmoji("🤝")
                             .setLabel("Make yourself available")
@@ -509,27 +511,14 @@ export class D2Module extends BaseModule {
 
     @InteractionButtonResponse("d2_raid_make_available")
     async onMakeAvailableButtonClick(interaction: ButtonInteraction) {
-        const signedUpSessions = (await SafeQuery<{
-            session_time: Date,
-            discord_id: string
-        }>(sql`SELECT session_time, discord_id
-               FROM dbo.UserGameSessionsSchedule`))
-            .recordset
-        const sessions = getNextRaidSessions()
-            .map(session => {
-                const existingSignups = signedUpSessions.filter(item => session.getTime() === item.session_time.getTime())
-                const isSignedUp = !!signedUpSessions.find(item => session.getTime() === item.session_time.getTime() && interaction.user.id === item.discord_id)
-                return {date: session, existingSignups, isSignedUp}
-            })
-            .map((session, index) => {
-                const isFull = session.existingSignups.length >= this.maxFireteamSize && !session.isSignedUp
-                return {
-                    label: "Session " + (index + 1),
-                    description: (isFull ? "FULL " : "") + session.date.toLocaleDateString() + " UTC",
-                    value: session.date.getTime().toString(),
-                    default: session.isSignedUp,
-                }
-            })
+        const sessions = await this.getAllGameSessions();
+        let sessionsMapped: { users: string[], isSignedUp: boolean, session: GameSessionData }[] = []
+        for (let session of sessions) {
+            console.log(session)
+            let users = await this.getUsersSubscribedToSession(session.id)
+            const isSignedUp = !!users.find(user => user === interaction.user.id)
+            sessionsMapped.push({users, isSignedUp, session})
+        }
 
         if (sessions.length === 0) {
             interaction.reply({
@@ -549,7 +538,15 @@ export class D2Module extends BaseModule {
                             .setMinValues(0)
                             .setCustomId("d2_raid_set_available")
                             .addOptions(
-                                sessions
+                                sessionsMapped.map((session, index) => {
+                                    const isFull = session.users.length >= this.maxFireteamSize && !session.isSignedUp
+                                    return {
+                                        label: "Session " + (index + 1),
+                                        description: (isFull ? "FULL " : "") + session.session.start.toLocaleDateString() + " UTC",
+                                        value: session.session.id,
+                                        default: session.isSignedUp,
+                                    }
+                                })
                             )
                     )
             ]
@@ -558,38 +555,29 @@ export class D2Module extends BaseModule {
 
     @InteractionSelectMenuResponse("d2_raid_set_available")
     async onMakeAvailableSet(interaction: SelectMenuInteraction) {
-        let dates = interaction.values.map(value => parseInt(value)).filter(value => !isNaN(value))
-        await SafeQuery(sql`DELETE
-                            FROM dbo.UserGameSessionsSchedule
-                            WHERE discord_id = ${interaction.user.id}`)
+        let selected_session_ids = interaction.values
+        // NOTE. At the end of this function. The set below will contain ONLY sessions which the user needs to be unsubcribed from
+        let currently_subscribed_session_ids = new Set(await this.getUserSessionSubscriptions(interaction.user.id))
 
-        let fullSessions: Date[] = []
-        let almostFullSessions: Date[] = []
-        for (let date of dates) {
-            // Check that the session is not already full
-            const attendees = (await SafeQuery("SELECT discord_id FROM dbo.UserGameSessionsSchedule WHERE session_time = @date", [
-                {name: "date", type: mssql.TYPES.DateTime2(), data: new Date(date)}
-            ])).recordset
-            if (attendees.length >= this.maxFireteamSize) {
-                fullSessions.push(new Date(date))
+        for (let session_id of selected_session_ids) {
+            if (currently_subscribed_session_ids.has(session_id)) {
+                // User is already subscribed to this session, so ignore
+                currently_subscribed_session_ids.delete(session_id)
                 continue
             }
-            else if (attendees.length === 4) {
-                almostFullSessions.push(new Date(date))
-            }
 
-            await SafeQuery("INSERT INTO dbo.UserGameSessionsSchedule (session_time, game_id, discord_id) VALUES (@date, 0, @discordid)", [
-                {name: "date", type: mssql.TYPES.DateTime2(), data: new Date(date)},
-                {name: "discordid", type: mssql.TYPES.VarChar(100), data: interaction.user.id},
-            ])
+            // Check that the session is not already full
+            const attendees = await this.getUsersSubscribedToSession(session_id)
+            if (attendees.length >= this.maxFireteamSize) {
+                continue
+            }
+            await this.subscribeUserToSession(interaction.user.id, session_id)
         }
 
-        interaction.reply({
+        for (let session of currently_subscribed_session_ids) await this.unsubscribeUserFromSession(interaction.user.id, session)
+
+        void interaction.reply({
             content: "Awesome! We've recorded those dates",
-            embeds: fullSessions.map(fullSession => new EmbedBuilder()
-                .setColor(Colors.Red)
-                .setDescription(`Couldn't add you to this session: <t:${Math.floor(fullSession.getTime() / 1000)}:F>. This session is full`)
-            ),
             ephemeral: true
         })
 
@@ -748,10 +736,8 @@ async function asyncDatabaseQueryWithJSONParse<T = unknown>(sql: string, params:
     return results.map(row => JSON.parse(row.json));
 }
 
-function getClient(access_token: string) {
-    const client = new BasicBungieClient()
-    client.setToken(access_token)
-    return client
+export function getClient(access_token: string) {
+    return new BungieClient(access_token)
 }
 
 export async function syncD2Achievements(discord_id: string | null = null) {
@@ -779,12 +765,12 @@ export async function syncD2Achievements(discord_id: string | null = null) {
         const primaryMembership = currentUser.destinyMemberships.find(i => i.membershipId === currentUser.primaryMembershipId)
         if (!primaryMembership) continue
         let _data = {
-            components: [DestinyComponentType.Records],
+            components: [900],
             destinyMembershipId: currentUser.primaryMembershipId,
             membershipType: primaryMembership.membershipType
         }
         console.log(_data)
-        let profile = await getProfile(_data, client)
+        let profile = await getProfile(client, _data)
         if (profile.Response.profileRecords.data) {
             for (let recordHash of Object.keys(profile.Response.profileRecords.data.records)) {
                 const recordHashNum = parseInt(recordHash)
@@ -826,7 +812,7 @@ function processD2RecordObject(hash: number, record: DestinyRecordComponent, dis
     }, 0) / record.objectives.length
     operation.addRow({
         discord_id: discord_id,
-        game_id: GAME_IDS.DESTINY2,
+        game_id: EVENT_IDS.DESTINY2,
         progress: isNaN(progress) ? 0 : progress,
         achievement_id: hash.toString()
     })
@@ -890,11 +876,15 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
         const d2User = await getMembershipDataForCurrentUser(client)
         console.log(d2User)
 
-        if (!d2User.Response.primaryMembershipId) throw new Error("Bungie account does not have a primary membership ID")
+
+        let membershipId: string = d2User.Response.primaryMembershipId || d2User.Response.destinyMemberships[0].membershipId
+        let primaryMembership = d2User.Response.destinyMemberships.find(i => i.membershipId === membershipId)
+        if (!membershipId || !primaryMembership) throw new Error("Bungie account does not have a primary membership ID")
         await SafeQuery(sql`UPDATE dbo.Users
                             SET D2_AccessToken=${access_token},
                                 D2_RefreshToken=${refresh_token},
-                                D2_MembershipId=${d2User.Response.primaryMembershipId}
+                                D2_MembershipId=${membershipId},
+                                D2_MembershipType=${primaryMembership.membershipType}
                             WHERE discord_id = ${discord_id}`)
         // Save access_token and refresh_token for future use
         console.log(access_token, refresh_token)
@@ -907,7 +897,7 @@ D2_ROUTER.get("/authorised", cookieParser(), async (req, res, next) => {
 })
 
 
-function getNextRaidSessions() {
+function getNextRaidSessionTimes() {
     const defaultTime = [7, 0, 0, 0]
     const now = new Date()
     now.setHours(defaultTime[0])
@@ -928,4 +918,43 @@ function getNextRaidSessions() {
     ].sort((a, b) => {
         return a > b ? 1 : -1
     })
+}
+
+async function refreshAccessTokens() {
+    console.log("Refreshing D2 access tokens")
+    let tokens = (await SafeQuery<{ discord_id: string, D2_RefreshToken: string }>(sql`
+        SELECT discord_id, D2_RefreshToken
+        FROM dbo.Users
+        WHERE D2_RefreshToken IS NOT NULL
+          AND D2_AccessTokenExpiry < SYSDATETIME()
+    `)).recordset
+    for (let token of tokens) {
+        try {
+            console.log("Refreshing tokens", token.D2_RefreshToken, {
+                client_id: process.env.BUNGIE_CLIENT_ID ?? "",
+                client_secret: process.env.BUNGIE_CLIENT_SECRET ?? ""
+            })
+            let res = await refreshAuthorization(token.D2_RefreshToken, {
+                client_id: process.env.BUNGIE_CLIENT_ID ?? "",
+                client_secret: process.env.BUNGIE_CLIENT_SECRET ?? ""
+            }, new BungieClient())
+            await SafeQuery(sql`UPDATE dbo.Users
+                                SET D2_AccessToken=${res.access_token},
+                                    D2_RefreshToken=${res.refresh_token},
+                                    D2_AccessTokenExpiry=${new Date(Date.now() + (res.expires_in * 1000))}
+                                    WHERE discord_id=${token.discord_id}
+                                    `);
+        } catch (e) {
+            console.error(`An error occured while refreshing D2 token for discord ID: ${token.discord_id}`, e)
+
+            // Disconnect the Bungie account
+            await SafeQuery(sql`UPDATE dbo.Users SET
+                     D2_AccessToken=NULL,
+                     D2_RefreshToken=NULL,
+                     D2_MembershipId=NULL,
+                     D2_AccessTokenExpiry=NULL
+                     WHERE discord_id=${token.discord_id}`);
+            (await client.users.fetch(token.discord_id)).send("We failed to refresh access to your Bungie account. To reconnect your Bungie account to Crash Bot, please run /destiny2 login.")
+        }
+    }
 }

@@ -9,7 +9,7 @@ import {
     GuildMember,
     MessageActionRowComponentBuilder
 } from "discord.js";
-import ytdl from "ytdl-core";
+import ytdl from "@distube/ytdl-core";
 import ytpl from "ytpl";
 import SafeQuery from "../SQL.js";
 import {QueueManager, ShuffleArray} from "../../misc/Common.js";
@@ -26,8 +26,9 @@ import {
     VOICE_MANAGER_MESSAGE_TYPES
 } from "./types.js";
 import * as crypto from "crypto";
+import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
 
-let worker = new Worker("./src/misc/VoiceManager/VoiceManagerWorker.js", {
+let worker = new Worker("./dist/services/VoiceManager/VoiceManagerWorker.js", {
     workerData: {
         discordClientToken: getToken()
     }
@@ -60,7 +61,7 @@ worker.on("message", (message: messageToVoiceManager<VOICE_MANAGER_MESSAGE_TYPES
             data: {}
         }
         worker.postMessage(acknowledgment)
-    } catch(e) {
+    } catch (e) {
         console.error(e)
         let acknowledgment: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES.ACKNOWLEDGEMENT> = {
             id: message.id,
@@ -150,7 +151,14 @@ export class VoiceConnectionManager extends EventEmitter {
         ])).recordset[0]?.auto_record_voice
 
         let guild_connection = this.connections.get(oldState.guild.id)
-        if (guild_connection && (newState.channel?.id !== oldState.channel?.id)) {
+        if (guild_connection && (newState.member?.id === "892535864192827392")) {
+            if (!newState.channel) {
+                void guild_connection.stop()
+                return
+            }
+            guild_connection.changeEventListeningChannel(newState.channel)
+        }
+        else if (guild_connection && (newState.channel?.id !== oldState.channel?.id)) {
             if (guild_connection.channel.id === newState.channelId) {
                 guild_connection.onMemberConnect(oldState.member, auto_record)
             }
@@ -162,29 +170,24 @@ export class VoiceConnectionManager extends EventEmitter {
         else if (auto_record && newState.channel) {
             VoiceConnectionManager.join(newState.guild, newState.channel)
         }
-        // else if (newState.member?.id === "358045259726323716" && newState.channel) {
-        //     console.log("Preparing Mariah Carey")
-        //     setTimeout(async () => {
-        //         if (!newState.channel) return
-        //         const possible_items = [
-        //             "https://www.youtube.com/watch?v=aAkMkVFwAoo", // All I want for christmas is you
-        //             "https://www.youtube.com/watch?v=pwspj0rVasE", // We Are Feliz Navidad
-        //             "https://www.youtube.com/watch?v=FIxMHCJ4I9Y", // Mr Hanky The Christmas Poo
-        //             "https://www.youtube.com/watch?v=h0dKE4eEB4o", // The Christmas Noose Song
-        //             "https://www.youtube.com/watch?v=E1P5gcEtHSA", // Santa On The Throne Again
-        //             "https://www.youtube.com/watch?v=UkLYZmng3tg", // Royalty-free Christmas Songs #1
-        //         ]
-        //         const connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
-        //         if (connection) connection.addToQueue(await connection.generateQueueItem(possible_items[Math.floor(Math.random() * possible_items.length)]))
-        //     }, 10_000)
-        // }
         else if (newState.channelId === "1173416327352963092") {
+            // if (!newState.channel) return
+            // let connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
+            // if (!connection) return
+            // let queue_item = await connection.generateQueueItem(`file://${path.resolve("./assets/mingle_song.mp3")}`)
+            // queue_item.repeat = true
+            // connection.addToQueue(queue_item)
+
             if (!newState.channel) return
             let connection = await VoiceConnectionManager.join(newState.guild, newState.channel)
             if (!connection) return
-            let queue_item = await connection.generateQueueItem("https://www.youtube.com/watch?v=yyOHQ3h_Vh0&t=18s")
-            queue_item.repeat = true
-            connection.addToQueue(queue_item)
+            await connection.generateQueueItem("https://www.youtube.com/watch?v=PjcWtfEKECE&list=PLEpjZ6a3i26cUU9ml1gCmeI8pCSBUBgVU&index=3")
+            await connection.generateQueueItem("https://www.youtube.com/watch?v=6N9SS6L0TDU")
+            await connection.generateQueueItem("https://www.youtube.com/watch?v=vu9Bl4ZMOd0&pp=ygUkYXZhdGFyIHRoZSBsYXN0IGFpcmJlbmRlciBzYW11ZWwga2lt")
+            await connection.generateQueueItem("https://www.youtube.com/watch?v=jRcJp1i4Emo")
+            await connection.generateQueueItem("https://www.youtube.com/watch?v=U_1MxeMHX9A")
+            connection.shuffle()
+
         }
     }
 
@@ -204,6 +207,21 @@ export class VoiceConnectionManager extends EventEmitter {
         // this.receiver = vc_connection.receiver.subscribe("404507305510699019", {end: {behavior: discord_voice.EndBehaviorType.AfterSilence, duration: 10000}})
         // const decoder = new opus.Decoder({ frameSize: 960, channels: 2, rate: 48000})
         // const stream = receiver.pipe(decoder).pipe(fs.createWriteStream(path.resolve("./") + "/test.pcm"))
+    }
+
+    /**
+     * Changes the channel which the manager checks for this instance. Does not actually move the bot account to that channel.
+     * @param new_channel
+     */
+    async changeEventListeningChannel(new_channel: Discord.VoiceBasedChannel) {
+        console.log("Moving channel...")
+        let old_channel = await this.channel.fetch()
+        VoiceConnectionManager.connections.delete(this.channel.id)
+        this.channel = new_channel
+        VoiceConnectionManager.connections.set(new_channel.id, this)
+
+        // Re-calculate members
+        await this.updateConnectedUsers()
     }
 
     private async updateConnectedUsers() {
@@ -269,7 +287,7 @@ export class VoiceConnectionManager extends EventEmitter {
                             embed.setImage(this.queue[this.pos].thumbnail)
                         }
                         else {
-                            embed.setFooter({text: this.queue[0].title})
+                            embed.setFooter({text: this.queue[0].title || "Unknown track"})
                         }
                     }
 
@@ -405,7 +423,7 @@ export class VoiceConnectionManager extends EventEmitter {
     async generateQueueItem(url: string) {
         // Detect whether it's YouTube or Spotify
         let queue_item: QueueItem, queue_pos = this.queue.length + 1
-        if (url.startsWith("https://m.youtube.com") || url.startsWith("https://youtube.com") || url.startsWith("https://youtu.be") || url.startsWith("https://www.youtube.com") || url.startsWith("https://www.youtu.be")) {
+        if (isYoutubeUrl(url)) {
             // YouTube
 
             // Validate the URL
@@ -464,6 +482,9 @@ export class VoiceConnectionManager extends EventEmitter {
                 throw e
             }
         }
+        else if (url.startsWith("file://")) {
+            queue_item = new LocalAudioQueueItem(url.substring(7), this)
+        }
         else {
             // Perform a regular YouTube search
             try {
@@ -508,7 +529,7 @@ export class VoiceConnectionManager extends EventEmitter {
             return
         }
 
-        let url = await this.queue[this.pos].fetchYoutubeURL()
+        let url = await this.queue[this.pos].fetchStreamURL()
         for (let item of this.queue.slice(this.pos, this.pos + 13).filter(i => i.downloaded === DownloadStage.NOT_DOWNLOADED)) {
             item.fetchInfo()
         }
@@ -522,7 +543,7 @@ export class VoiceConnectionManager extends EventEmitter {
                 type: AUDIO_MANAGER_MESSAGE_TYPES.START_STREAM,
                 data: {
                     guildId: this.channel.guildId,
-                    youtubeUrl: url
+                    streamUrl: url
                 }
             }
             await sendWorkerMessageSync(message)
@@ -614,7 +635,7 @@ interface QueueItem extends EventEmitter {
     url: string,
     readonly type: PlayerType.YOUTUBE | PlayerType.SPOTIFY,
     readonly vc_manager: VoiceConnectionManager,
-    fetchYoutubeURL: () => Promise<string> | string,
+    fetchStreamURL: () => Promise<string> | string,
     repeat: boolean,
     fetchInfo: () => void
 }
@@ -648,7 +669,7 @@ class YoutubeQueueItem extends EventEmitter implements QueueItem {
                 let data = await ytdl.getInfo("https://www.youtube.com/watch?v=" + this.id)
                 this.title = data.videoDetails.title
                 this.thumbnail = data.videoDetails.thumbnails[data.videoDetails.thumbnails.length - 1].url
-            } catch(e) {
+            } catch (e) {
                 this.title = "Failed to fetch"
             }
             this.downloaded = DownloadStage.DOWNLOADED
@@ -657,11 +678,36 @@ class YoutubeQueueItem extends EventEmitter implements QueueItem {
         }
     }
 
-    async fetchYoutubeURL() {
+    async fetchStreamURL() {
         console.log("Streaming track...")
 
         console.log("Streaming YTDL..", "https://www.youtube.com/watch?v=" + this.id)
         return "https://www.youtube.com/watch?v=" + this.id
+    }
+}
+
+class LocalAudioQueueItem extends EventEmitter implements QueueItem {
+    readonly url: string
+    title: string;
+    thumbnail = "about:blank";
+    downloaded = DownloadStage.DOWNLOADED;
+    repeat = false;
+    readonly type: PlayerType.YOUTUBE | PlayerType.SPOTIFY = PlayerType.YOUTUBE
+    readonly vc_manager: VoiceConnectionManager
+
+    constructor(url: string, vc_manager: VoiceConnectionManager) {
+        super();
+        this.url = "file://" + url
+        this.title = ""
+        this.vc_manager = vc_manager
+        this.fetchInfo.bind(this)
+    }
+
+    async fetchInfo() {
+    }
+
+    async fetchStreamURL() {
+        return this.url
     }
 }
 
@@ -701,7 +747,7 @@ class SpotifyQueueItem extends EventEmitter implements QueueItem {
         return this.track_details.cover_url
     }
 
-    fetchYoutubeURL(): Promise<string> {
+    fetchStreamURL(): Promise<string> {
         return new Promise(async (resolve, reject) => {
             yts(this.track_details.name + " " + this.track_details.artists.join(" ")).then(async search_res => {
                 resolve(search_res.videos[0].url)

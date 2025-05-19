@@ -1,12 +1,7 @@
 import RemoteStatusServer from "../../RemoteStatusServer/index.js";
+import {ConnectionHandler} from "../../RemoteStatusServer/connectionHandler.js";
 
-const Server = new RemoteStatusServer("hrX7mRR6wUchfwdnRdJ80NpD4XvVGMn0s6oCMY/nXFk=",
-    [
-        "pczWlxfMzPmuI6yjQMaQYA==",
-        // "pczWlxfMzPmuI6yjQMaQYA==2"
-    ]
-)
-
-export const Connection = Server.connections["pczWlxfMzPmuI6yjQMaQYA=="]
+const Server = new RemoteStatusServer([{clientId: "production", secret: "pczWlxfMzPmuI6yjQMaQYA=="}] as const)
+export const Connection = Server.connectionHandlers.get("production") as ConnectionHandler
 
 export default Server

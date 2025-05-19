@@ -10,8 +10,8 @@ import path from "path";
 import {VoiceConnectionManager} from "../services/VoiceManager/VoiceManager.js";
 import {PassThrough} from "stream";
 import express from "express"
-import * as fs from "fs";
-import archiver from "archiver";
+import {VoiceRecording} from "../services/VoiceManager/VoiceRecording.js";
+import {AsyncEndpoint} from "../utilities/AsyncEndpoint.js";
 
 export class VoiceControlModule extends BaseModule {
     commands = [
@@ -32,7 +32,7 @@ export class VoiceControlModule extends BaseModule {
     ]
 
     @OnClientEvent("messageCreate")
-    onMessage(msg: Message) {
+    async onMessage(msg: Message) {
         if (msg.content === "<@892535864192827392> piss off" && msg.guildId) {
             const connection = VoiceConnectionManager.connections.get(msg.guildId)
             if (connection) {
@@ -40,8 +40,32 @@ export class VoiceControlModule extends BaseModule {
             }
         }
 
-        if (msg.channel.id === "999848214691852308") {
+        if (msg.channel.id === "999848214691852308" && !msg.author.bot) {
             let url = msg.content
+            if (url === "hit up my boss music") {
+                let data = (await SafeQuery<{yt_boss_music: string | null}>(sql`SELECT yt_boss_music FROM Users WHERE discord_id = ${msg.author.id}`)).recordset[0]
+                if (!data.yt_boss_music) {
+                    void msg.reply("Oh no! You don't have boss music yet! Ask <@404507305510699019> to set one up for you!")
+                    return
+                }
+                url = `https://www.youtube.com/watch?v=${data.yt_boss_music}`
+            }
+            else if (url === "hit up my theme music") {
+                let data = (await SafeQuery<{yt_theme_song: string | null}>(sql`SELECT yt_theme_song FROM Users WHERE discord_id = ${msg.author.id}`)).recordset[0]
+                if (!data.yt_theme_song) {
+                    void msg.reply("Oh no! You don't have theme music yet! Ask <@404507305510699019> to set one up for you!")
+                    return
+                }
+                url = `https://www.youtube.com/watch?v=${data.yt_theme_song}`
+            }
+            else if (url === "hit up my heroic entrance music") {
+                let data = (await SafeQuery<{yt_heroic_entrance: string | null}>(sql`SELECT yt_heroic_entrance FROM Users WHERE discord_id = ${msg.author.id}`)).recordset[0]
+                if (!data.yt_heroic_entrance) {
+                    void msg.reply("Oh no! You don't have heroic entrance music yet! Ask <@404507305510699019> to set one up for you!")
+                    return
+                }
+                url = `https://www.youtube.com/watch?v=${data.yt_heroic_entrance}`
+            }
 
             // Check audio queue
             if (!msg.member?.voice.channel) {
@@ -56,9 +80,7 @@ export class VoiceControlModule extends BaseModule {
             }
             VoiceConnectionManager.join((msg.channel as TextChannel).guild, msg.member.voice.channel)
                 .then(manager => {
-                    if (manager) {
-                        manager.generateQueueItem(url).then(item => manager.addToQueue(item))
-                    }
+                    if (manager) manager.generateQueueItem(url).then(item => manager.addToQueue(item))
                     msg.delete()
                 })
                 .catch(e => {
@@ -102,7 +124,6 @@ export class VoiceControlModule extends BaseModule {
             let i = 0
             for (let recording of recordings.recordset) {
                 let seek = (recording.start.getTime() - first_track_start.getTime())
-                console.log(recording, seek)
                 command.input(path.join(path.resolve("./"), "voice_recordings", recording.filename))
 
 
@@ -203,7 +224,6 @@ export class VoiceControlModule extends BaseModule {
     onAudioSkipPress(interaction: ButtonInteraction) {
         interaction.reply({content: "Skipping track...", ephemeral: true})
         let connection = VoiceConnectionManager.connections.get(interaction.guildId || "no guild")
-        console.log(connection)
         connection?.skip()
     }
 
@@ -220,133 +240,15 @@ export class VoiceControlModule extends BaseModule {
 }
 
 export const VOICE_ROUTER = express.Router()
-VOICE_ROUTER.get("/record/:userId/:fromTime/:toTime/*.zip", async (req, res) => {
-    let fromTime = new Date(req.params.fromTime)
-    let toTime = new Date(req.params.toTime)
-
-    let recordings = await SafeQuery<{ filename: string, start: Date }>(sql`SELECT filename, start
-                                                           FROM dbo.VoiceRecordings
-                                                           WHERE user_id = ${req.params.userId}
-                                                             AND start >= ${fromTime}
-                                                             AND start <= ${toTime}
-                                                            ORDER BY start ASC 
-    `)
-
-    if (recordings.recordset.length === 0) {
-        res.status(404)
-        return
-    }
-    const archive = archiver('zip')
-    archive.pipe(res)
-    for (let recording of recordings.recordset) {
-        archive.append(fs.createReadStream(path.join(path.resolve("./"), "voice_recordings", recording.filename)), {
-            name: recording.filename
-        })
-    }
-    archive.finalize()
-})
-
-VOICE_ROUTER.get("/record/:userId/:fromTime/:toTime/*.mp3", async (req, res) => {
-    let fromTime = new Date(req.params.fromTime)
-    let toTime = new Date(req.params.toTime)
-
-    let recordings = await SafeQuery<{ filename: string, start: Date }>(sql`SELECT filename, start
-                                                           FROM dbo.VoiceRecordings
-                                                           WHERE user_id = ${req.params.userId}
-                                                             AND start >= ${fromTime}
-                                                             AND start <= ${toTime}
-                                                            ORDER BY start ASC 
-    `)
-
-    if (recordings.recordset.length === 0) {
-        res.status(404)
-        return
-    }
-
-    let audio_stream = (await createMergeJob(recordings.recordset, fromTime))
-    audio_stream.pipe(fs.createWriteStream(`VoiceRecording_${req.params.userId}`))
-    // audio_stream.pipe(res)
-    res.send("OK!")
-})
-
-async function createMergeJob(recordings: { filename: string, start: Date }[], start: Date) {
-    const stream = new PassThrough()
-
-    const command = ffmpeg()
-    // let filters = []
-    let lastTrackEnd = start.getTime()
-    let lastTrackStart = recordings[0].start
-    let firstTrackStart = recordings[0].start
-    let i = 0
-    command.input(path.join(path.resolve("./"), "SILENT_AUDIO.mp3"))
-    for (let recording of recordings) {
-        console.log(`Processing record ${recordings.indexOf(recording)}/${recordings.length}`)
-        let metadata = await getMetadata(path.join(path.resolve("./"), "voice_recordings", recording.filename))
-        let gap = recording.start.getTime() - lastTrackEnd
-        console.log(recording.start.getTime(), lastTrackEnd, metadata.format.duration, recording.filename)
-        console.log(`GAP: ${gap}ms`)
-        if (gap < 0) {
-            console.error(`SKIPPING ${recording.filename} - Already processed this audio. Duplicate?`)
-            continue
-        }
-        if (gap !== 0) {
-            command
-                .input("anullsrc")
-                .inputFormat("lavfi")
-                .addInputOptions([
-                    "-ac 1", // 1 audio channel
-                    // "-ar 44100", // 44100 frequency
-                    `-t ${gap/1000}` // Duration
-                ])
-
-        }
-        command.input(path.join(path.resolve("./"), "voice_recordings", recording.filename))
-
-        // if (i !== 0) {
-        //     filters.push({
-        //         filter: "adelay",
-        //         options: seek + "|" + seek,
-        //         inputs: i.toString(),
-        //         outputs: `[a${i}]`
-        //     })
-        // }
-        // else {
-        //     filters.push({
-        //         filter: "adelay",
-        //         options: "0|0",
-        //         inputs: i.toString(),
-        //         outputs: `[a${i}]`
-        //     })
-        // }
-        // i++
-        console.log(metadata)
-        lastTrackEnd = recording.start.getTime() + ((metadata.format.duration ?? 0) * 1000)
-        lastTrackStart = recording.start
-    }
-    console.log("FINISHED BUILDING FFMPEG COMMAND")
-
-    // command.format("mp3")
-    // command.complexFilter([
-    //     ...filters,
-    //     {
-    //         filter: "amix",
-    //         options: "inputs=" + filters.length,
-    //         inputs: filters.map(i => i.outputs),
-    //         outputs: "[b]"
-    //     }
-    // ])
-    // command.outputOption("-map", "[b]")
-    command.format("mp3")
-    command.on("start", (cli) => {
-        fs.writeFileSync("cli.txt", cli)
-        console.log("Wrote ffmpeg command to cli.txt")
-    })
-    command.mergeToFile(stream, path.resolve("audio_processing"))
-    // command.stream(res)
-    // command.output(write_stream, {end: true})
-    // command.run()
-    return stream
-}
+VOICE_ROUTER.get("/download/:userId/:recordingId/recording.mp3", AsyncEndpoint(async (req, res) => {
+    console.log("HERE!")
+    let recording = await VoiceRecording.fromSaved(req.params.recordingId.replaceAll("_", "-"), req.params.userId)
+    console.log(recording)
+    // res.setHeader("Content-Type", "audio/mpeg")
+    if (req.query.download) res.setHeader('Content-Disposition', 'attachment; filename="recording.mp3"');
+    await recording.export(res)
+    console.log("DONE")
+}, false))
 
 function getMetadata(path: string) {
     return new Promise<FfprobeData>((resolve, reject) => {

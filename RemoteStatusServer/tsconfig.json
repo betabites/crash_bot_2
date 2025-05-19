@@ -3,7 +3,8 @@
     "target": "es2015",
     "module": "es2022",
     "lib": ["es2021.intl", "es2015"],
-    "moduleResolution": "Node"
+    "moduleResolution": "Node",
+    "strict": true
   },
   "files": ["index.ts"]
 }

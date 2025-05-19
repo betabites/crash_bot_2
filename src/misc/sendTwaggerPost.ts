@@ -1,5 +1,5 @@
-import Discord, {EmbedBuilder, TextChannel} from "discord.js";
-import openai from "../services/ChatGPT.js";
+import {Collection, EmbedBuilder, Message, TextChannel} from "discord.js";
+import openai from "../services/ChatGPT/ChatGPT.js";
 import {client} from "../services/Discord.js";
 import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
@@ -18,8 +18,8 @@ export async function sendTwaggerPost() {
     let lookback_hours = 48
     let lookback_until = Date.now() - (lookback_hours * 60 * 60 * 1000)
 
-    let messages: Discord.Collection<string, Discord.Message<boolean>> = new Discord.Collection([])
-    let last_message: Discord.Message<boolean> | undefined
+    let messages: Collection<string, Message<boolean>> = new Collection([])
+    let last_message: Message<boolean> | undefined
     while (messages.size < 150 || (messages.last()?.createdTimestamp || 0) >= lookback_until) {
         let channel = await client.channels.fetch(TWAGGER_SOURCE_CHANNELS[Math.floor(Math.random() * TWAGGER_SOURCE_CHANNELS.length)]) as TextChannel
         if (!channel) throw new Error("Could not find channel")

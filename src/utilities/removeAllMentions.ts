@@ -1,14 +1,14 @@
-import Discord, {TextBasedChannel} from "discord.js";
+import {Guild, TextBasedChannel, TextChannel} from "discord.js";
 import {client} from "../services/Discord.js";
 
-export function removeAllMentions(str: string, channel_or_guild: Discord.Guild | TextBasedChannel): string {
-    let channel: Discord.TextBasedChannel | undefined
-    let guild: Discord.Guild | undefined
-    if (channel_or_guild instanceof Discord.TextChannel) {
+export function removeAllMentions(str: string, channel_or_guild: Guild | TextBasedChannel): string {
+    let channel: TextBasedChannel | undefined
+    let guild: Guild | undefined
+    if (channel_or_guild instanceof TextChannel) {
         channel = channel_or_guild
         guild = channel.guild
     }
-    else if (channel_or_guild instanceof Discord.Guild) {
+    else if (channel_or_guild instanceof Guild) {
         guild = channel_or_guild
     }
     else {

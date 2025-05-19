@@ -1,0 +1,48 @@
+on:
+  pull_request:
+    branches:
+      - master
+    tags:
+      - opened
+      - synchronize
+jobs:
+  build-node:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          cache: 'pnpm'
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run build
+        run: npm run build
+
+#      - name: Shutdown production
+#        run: pm2 stop all
+      - name: Update permissions
+        run: chown github-actions-runner:github-actions-admin -R * && chmod 770 * -R
+
+      - name: Deploy
+        run: rm -rf /opt/crash_bot/* && mv -f ./* /opt/crash_bot/
+
+      - name: Copy legacy assets
+        run: cp -r /opt/actions-runner/assets /opt/crash_bot/assets
+
+      - name: Update .env
+        run: echo "${{secrets.PRODUCTION_ENV}}" > /opt/crash_bot/.env
+
+#
+#      - name: Restart production
+#        run: pm2 start /opt/crash_bot/ecosystem.config.cjs
+#
+#      - name: Save PM2 state
+#        run: pm2 save
