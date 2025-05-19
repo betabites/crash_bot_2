@@ -34,6 +34,9 @@ jobs:
       - name: Deploy
         run: rm -rf /opt/crash_bot/* && mv -f ./* /opt/crash_bot/
 
+      - name: Update .env
+        run: echo "S{{secrets.PRODUCTION_ENV}}" > /opt/crash_bot/.env
+
 #
 #      - name: Restart production
 #        run: pm2 start /opt/crash_bot/ecosystem.config.cjs
