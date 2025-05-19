@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@discordjs/builders':
+        specifier: ^1.11.2
+        version: 1.11.2
       '@distube/ytdl-core':
         specifier: ^4.14.4
         version: 4.16.10
