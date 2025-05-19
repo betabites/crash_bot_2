@@ -25,11 +25,14 @@ jobs:
       - name: Run build
         run: npm run build
 
-      - name: Shutdown production
-        run: pm2 stop all
+#      - name: Shutdown production
+#        run: pm2 stop all
 
       - name: Deploy
         run: rm -rf /opt/crash_bot/* && mv -f ./* /opt/crash_bot/
-
-      - name: Restart production
-        run: pm2 start /opt/crash_bot/ecosystem.config.cjs
+#
+#      - name: Restart production
+#        run: pm2 start /opt/crash_bot/ecosystem.config.cjs
+#
+#      - name: Save PM2 state
+#        run: pm2 save
