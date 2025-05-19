@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@discordjs/builders": "^1.11.2",
+    "@discordjs/voice": "^0.18.0",
     "@distube/ytdl-core": "^4.14.4",
     "@google-cloud/bigquery": "^7.9.4",
     "@google-cloud/logging": "^11.2.0",
