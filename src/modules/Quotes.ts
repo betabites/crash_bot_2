@@ -52,13 +52,13 @@ export class QuotesModule extends BaseModule {
         }
 
         if (ai) {
-            let conversation = AIConversation.new([])
-            await conversation.saveMessage({
+            let conversation = AIConversation.new()
+            conversation.appendMessage({
                 role: "system",
                 content: "respond to this quote in a funny way. 18+ humour is ok, if appropriate:\n\n" +
                     msg.content
             })
-            let AIres = await conversation.sendToAI()
+            let AIres = await conversation.sendToAIAndWait()
             let embed = new EmbedBuilder()
             embed.setDescription(AIres.content?.toString() ?? "No response from AI.")
             void msg.reply({content: "", embeds: [embed]})
@@ -77,7 +77,7 @@ export class QuotesModule extends BaseModule {
             return false
         }
         let didRespond = await this.respondToQuote(msg)
-        if (didRespond) void interaction.reply("done")
+        if (didRespond) void interaction.reply({content: "Successfully generated a quote.", ephemeral: true})
         else void interaction.reply({
             ephemeral: true,
             content: "Failed to generate a quote. One or more of the users mentioned in this quote may have ai quote responses disabled."

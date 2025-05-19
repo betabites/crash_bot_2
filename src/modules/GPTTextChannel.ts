@@ -111,7 +111,7 @@ const BasicDiscordUserSchema = z.object({
 const RedditMemeSchema = z.object({
     subreddit: z.string().regex(/^r\/[a-zA-Z0-9-_]+$/).optional(),
     allowNSFW: z.boolean(),
-    count: z.number().min(1).max(10).optional()
+    count: z.number().min(1).max(5).optional()
 })
 const EventSchema = z.object({
     activity: z.enum(EVENT_KEYS),
@@ -332,11 +332,7 @@ export class GPTTextChannel extends AIConversation {
             results.push({title: meme.title, url: meme.url})
         }
 
-        for (let item of results) {
-            await this.channel.send({
-                files: [new AttachmentBuilder(item.url, {})]
-            })
-        }
+        await this.channel.send({files: results.map(item => new AttachmentBuilder(item.url, {}))})
         return "Fetched memes with the following names and sent them to the conversation channel; " + JSON.stringify(results.map(i => i.title))
     }
 

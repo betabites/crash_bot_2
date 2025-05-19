@@ -31,7 +31,8 @@ export const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessageTyping,
         GatewayIntentBits.GuildMessageTyping,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences,
     ], partials: [Partials.Channel]
 })
 

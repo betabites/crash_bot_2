@@ -1,0 +1,18 @@
+on:
+  pull_request:
+    branches:
+      - master
+    tags:
+      - opened
+      - synchronize
+jobs:
+  build-node:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build
+        run: npm run build

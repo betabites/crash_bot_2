@@ -6,6 +6,7 @@ import {
     Client,
     EmbedBuilder,
     Message,
+    Presence,
     TextBasedChannel,
     VoiceBasedChannel,
     VoiceState
@@ -232,6 +233,13 @@ export interface UserPointsHistory {
     channel: string
 }
 
+/**
+ * BANNED_PRESENCE_APPLICATIONS contains a list of Discord application presence IDs that will *not* gain a user points.
+ * These are banned not because they're bad, but because users gain points from these applications either through other methods
+ * (or this application gives out too many points)
+ */
+const BANNED_PRESENCE_APPLICATIONS = new Set("1124358970618953818")
+
 export class PointsModule extends BaseModule {
     // This set is used to prevent users from being able to spam and get additional points.
     // Every time a user gains points from a message, their ID goes in here.
@@ -253,6 +261,11 @@ export class PointsModule extends BaseModule {
 
     constructor(client: Client) {
         super(client);
+        client.guilds.fetch("892518158727008297").then(async (guild) => {
+            let member = await guild.members.fetch("404507305510699019")
+            console.log("Presence", member.presence?.activities)
+        })
+
         setInterval(() => {
             this.userMessagesOnCooldown.clear()
         }, 300000)
@@ -263,9 +276,35 @@ export class PointsModule extends BaseModule {
             for (let call of this.activePointReceivingUsers) {
                 console.log(`GRANTING POINTS TO CHANNEL: ${call[0]}`)
                 if (call[1].length < 2) continue
+
+                // Process activities for extra points.
+
+                // possibleActivites stores the activity ID, and the number of users with it in their presence
+                let possibleActivities = new Map<string, number>()
+                let channel = await this.client.channels.fetch(call[0])
+                if (!channel || channel.isDMBased() || !channel.isVoiceBased()) continue
+                // Get all presences
+                let membersPresenceMap = new Map<string, Presence>()
+                let guild = channel.guild
+                await Promise.all(call[1].map(async (memberId) => {
+                    let member = await guild.members.fetch(memberId)
+                    // Save this member's presence for later
+                    if (!member.presence) return
+                    membersPresenceMap.set(memberId, member.presence)
+
+                    // Process this member's current activities
+                    for (let activity of member.presence.activities) {
+                        if (BANNED_PRESENCE_APPLICATIONS.has(activity.applicationId || activity.name)) continue
+
+                        let activityPlayerCount =
+                            possibleActivities.get(`${activity.applicationId}_${activity.party?.id}`) ?? 0
+                        possibleActivities.set(`${activity.applicationId}_${activity.party?.id}`, activityPlayerCount + 1)
+                    }
+                }))
+
                 for (let memberId of call[1]) {
                     console.log(`GRANTING POINTS TO USER; ${memberId}`)
-                    void PointsModule.grantPointsWithDMResponse({
+                    await PointsModule.grantPointsWithDMResponse({
                         userDiscordId: memberId,
                         points: call[1].length - 1,
                         capped: true,
@@ -273,6 +312,22 @@ export class PointsModule extends BaseModule {
                         levelGate: 5,
                         reason: "Discord voice call"
                     })
+
+                    // Grant points to activities this user is partaking in
+                    for (let activity of membersPresenceMap.get(memberId)?.activities ?? []) {
+                        let activity_id = `${activity.applicationId}_${activity.party?.id}`
+                        let activityPlayerCount = possibleActivities.get(activity_id) ?? 0
+                        if (activityPlayerCount < 3) continue
+
+                        await PointsModule.grantPointsWithDMResponse({
+                            userDiscordId: memberId,
+                            points: activityPlayerCount - 2,
+                            capped: true,
+                            discordClient: this.client,
+                            levelGate: 5,
+                            reason: `Discord presence (${activity.name})`
+                        })
+                    }
                 }
             }
         }, 450000)
@@ -346,7 +401,7 @@ export class PointsModule extends BaseModule {
                  SET points=points + ${options.points},
                      cappedPoints=cappedPoints + ${options.points}
                  WHERE discord_id = ${options.userDiscordId}
-                   AND cappedPoints < 80;
+                   AND cappedPoints < 160;
             SELECT points, level
             FROM Users
             WHERE discord_id = ${options.userDiscordId}
@@ -374,14 +429,19 @@ export class PointsModule extends BaseModule {
         void SafeQuery(sql`INSERT INTO Points (discord_id, reason, points)
                            VALUES (${options.userDiscordId}, ${options.reason}, ${options.points})`)
 
-        if (user.points >= PointsModule.calculateLevelGate(user.level + 1)) {
+        let level_gate = PointsModule.calculateLevelGate(user.level + 1)
+        if (user.points >= level_gate) {
             await SafeQuery(sql`UPDATE Users
                                 SET points=0,
                                     level=level + 1
                                 WHERE discord_id = ${options.userDiscordId}`)
-            user.level += 1
-            user.points = 0
-            leveled_up = true
+            return {
+                ...await this.grantPoints({
+                    ...options,
+                    points: options.points - level_gate
+                }) as { level: number, points: number },
+                leveled_up: true
+            }
         }
         return {...user, leveled_up}
     }
@@ -553,7 +613,7 @@ You've earned ${userPointsData.points}/${pointsRequiredForNextLevel} points`)
             !member.user.bot
             && !member.voice.selfDeaf
             && !member.voice.serverDeaf
-            && !member.voice.selfMute
+            // && !member.voice.selfMute
             && !member.voice.serverMute
         ).map(member => member.id);
         if (members.length < 2) {

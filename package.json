@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "start-dev": "npx tsc -p . && npm run start"
+    "start-dev": "npx tsc -p . && npm run start",
+    "build": "tsc -p ."
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.14.4",
+    "@google-cloud/bigquery": "^7.9.4",
     "@google-cloud/logging": "^11.2.0",
     "@google-cloud/pubsub": "^4.9.0",
     "@google-cloud/tasks": "^5.5.2",

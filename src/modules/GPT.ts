@@ -99,16 +99,16 @@ export class GPTModule extends BaseModule {
                 .setDescription("The number of hours to look back for topics")
             ),
         new SlashCommandBuilder()
-            .setName('combine')
-            .setDescription('Combine two users into one')
-            .addUserOption(option => option
-                .setName('user1')
-                .setDescription('First user')
+            .setName('vs')
+            .setDescription('Make one character vs another. Who will win?')
+            .addStringOption(option => option
+                .setName('champion1')
+                .setDescription('Your first champion')
                 .setRequired(true)
             )
             .addUserOption(option => option
-                .setName('user2')
-                .setDescription('Second user')
+                .setName('champion2')
+                .setDescription('Your second champion')
                 .setRequired(true)
             )
     ]
@@ -603,6 +603,15 @@ Humorous/Jokes
             files: [new AttachmentBuilder(result.imageUrl).setName("image.webp")]
         })
     }
+
+    // @InteractionChatCommandResponse("vs")
+    // async onVs(interaction: ChatInputCommandInteraction) {
+    //     const user1 = interaction.options.getUser('user1', true);
+    //     const user2 = interaction.options.getUser('user2', true);
+    //
+    //     await interaction.deferReply()
+    //     let resa
+    // }
 
     @OnClientEvent("messageCreate")
     async onTest(msg: Message) {
