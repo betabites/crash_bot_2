@@ -1,4 +1,4 @@
-import {Player} from "./player.js";
+import {Player} from "./player.ts";
 import {z} from "zod";
 
 export const MinecraftPlayerData = z.object({

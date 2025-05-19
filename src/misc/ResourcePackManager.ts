@@ -1,6 +1,6 @@
-import fs from "fs";
-import path from "path";
-import SafeQuery from "../services/SQL.js";
+import fs from "node:fs";
+import path from "node:path";
+import SafeQuery from "../services/SQL.ts";
 import mssql from "mssql";
 import * as stream from "stream";
 import archiver from "archiver";
@@ -56,7 +56,7 @@ export function dirTree(filename: string, parentFolder = ""): OSFileSystemFile |
 export async function FindOwnership(path: string) {
     let req = await SafeQuery(`SELECT *
                                FROM dbo.OwnedItems
-                               WHERE path = @path`, [{name: "path", type: mssql.TYPES.VarChar(200), data: path}])
+                               WHERE path = @path`, [{name: "node:path", type: mssql.TYPES.VarChar(200), data: path}])
     if (req.recordset.length === 0) throw "No ownership recorded for this path"
     return req.recordset[0]
 }

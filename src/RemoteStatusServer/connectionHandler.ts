@@ -10,8 +10,8 @@ import {
     MinecraftPlayerData,
     OutgoingCommand,
     type OutgoingMessage
-} from "./types.js";
-import {Player} from "./player.js";
+} from "./types.ts";
+import {Player} from "./player.ts";
 import {z} from "zod";
 
 export class ConnectionHandler extends EventEmitter {

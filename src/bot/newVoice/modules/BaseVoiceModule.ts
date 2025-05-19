@@ -1,4 +1,4 @@
-import {BasePortMessenger} from "../messageHandlers/RootPortManager.js";
+import {BasePortMessenger} from "../messageHandlers/RootPortManager.ts";
 import {ClientEvents} from "discord.js";
 import {Writable} from "stream";
 

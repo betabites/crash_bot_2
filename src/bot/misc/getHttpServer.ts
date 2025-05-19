@@ -1,16 +1,18 @@
-import express from "express";
-import http from "http";
-import https from "https";
-import fs from "fs";
-import path from "path";
+import http from "node:http";
 import {Server} from "socket.io";
+import next from 'next'
+import {parse} from "node:url";
 
-export const EXPRESS_APP = express()
-export const HTTP_SERVER = http.createServer(EXPRESS_APP).listen(8051)
-export const HTTPS_SERVER = https.createServer({
-    key: fs.readFileSync(path.resolve("./") + "/assets/ssl/privkey.pem"),
-    cert: fs.readFileSync(path.resolve("./") + "/assets/ssl/fullchain.pem")
-}, EXPRESS_APP).listen(8050)
+const dev = process.env.NODE_ENV !== 'production'
+const app = next({ dev })
+const handle = app.getRequestHandler()
+
+const port = parseInt(process.env.PORT || '3000', 10)
+
+export const HTTP_SERVER = http.createServer((req, res) => {
+    const parsedUrl = parse(req.url!, true)
+    handle(req, res, parsedUrl)
+}).listen(port)
 
 export const IO = new Server(HTTP_SERVER, {
     pingInterval: 120000
@@ -19,3 +21,8 @@ export const IO = new Server(HTTP_SERVER, {
 IO.on("connection", (socket) => {
     console.log("Received a socket connection")
 })
+
+export async function configureNext() {
+    await app.prepare()
+
+}

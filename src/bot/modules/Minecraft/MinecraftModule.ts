@@ -1,4 +1,4 @@
-import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "../BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "../BaseModule.ts";
 import {
     SlashCommandBooleanOption,
     SlashCommandBuilder,
@@ -20,15 +20,15 @@ import {
     MessageActionRowComponentBuilder,
     TextChannel
 } from "discord.js";
-import {getUserData} from "../../utilities/getUserData.js";
-import SafeQuery, {sql} from "../../services/SQL.js";
-import {updateScoreboard} from "../../misc/updateScoreboard.js";
+import {getUserData} from "../../utilities/getUserData.ts";
+import SafeQuery, {sql} from "../../../services/SQL.ts";
+import {updateScoreboard} from "../../../misc/updateScoreboard.ts";
 import mssql from "mssql";
-import RemoteStatusServer, {Connection as ServerConnection} from "../../misc/RemoteStatusServer.js";
-import {sendImpersonateMessage} from "../../services/Discord.js";
-import {PointsModule} from "../Points.js";
+import RemoteStatusServer, {Connection as ServerConnection} from "../../../misc/RemoteStatusServer.ts";
+import {sendImpersonateMessage} from "../../../services/Discord.ts";
+import {PointsModule} from "../Points.ts";
 // import deathMessages from "./deathMessages.json" assert {type: "json"}
-import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.js";
+import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.ts";
 // const deathMessages: any = {}
 
 RemoteStatusServer.io.on("connection", () => {

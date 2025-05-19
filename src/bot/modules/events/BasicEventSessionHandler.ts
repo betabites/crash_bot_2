@@ -1,4 +1,4 @@
-import {GameSessionModule} from "../GameSessionModule.js";
+import {GameSessionModule} from "../GameSessionModule.ts";
 import {
     ActionRowBuilder,
     BaseGuildTextChannel,
@@ -8,7 +8,7 @@ import {
     Client,
     PermissionsBitField
 } from "discord.js";
-import {EVENT_IDS} from "../GameAchievements.js";
+import {EVENT_IDS} from "../GameAchievements.ts";
 
 export class BasicEventSessionHandler extends GameSessionModule {
     onUserJoinsSession = async (session_id: string, user_id: string) => {

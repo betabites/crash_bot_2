@@ -1,4 +1,4 @@
-import {TurnBasedEffect} from "./abstracts/TurnBasedEffect.js";
+import {TurnBasedEffect} from "./abstracts/TurnBasedEffect.ts";
 
 export class PetrifyEffect extends TurnBasedEffect {
 }

@@ -1,12 +1,16 @@
-import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.ts";
 import {SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {ChatInputCommandInteraction, ClientEvents, Message, TextChannel} from "discord.js";
-import SafeQuery from "../services/SQL.js";
+import SafeQuery from "../../services/SQL.ts";
 import mssql from "mssql";
-import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
-import openai from "../services/ChatGPT/ChatGPT.js";
-import {deleteAllWebhooksForUser, JimpProfilePictureModification, sendImpersonateMessage} from "../services/Discord.js";
-import {PointsModule} from "./Points.js";
+import {getUserData, SPEECH_MODES} from "../utilities/getUserData.ts";
+import openai from "../../services/ChatGPT/ChatGPT.ts";
+import {
+    deleteAllWebhooksForUser,
+    JimpProfilePictureModification,
+    sendImpersonateMessage
+} from "../../services/Discord.ts";
+import {PointsModule} from "./Points.ts";
 import Jimp from "jimp";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"

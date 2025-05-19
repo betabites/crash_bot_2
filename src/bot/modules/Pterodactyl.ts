@@ -1,4 +1,4 @@
-import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.ts";
 import {ChannelType, ChatInputCommandInteraction, Client, GuildTextBasedChannel} from "discord.js";
 import {
     clearShutdownTasks,
@@ -7,10 +7,10 @@ import {
     scheduleShutdown,
     startPterodactylInstance,
     stopPterodactylInstance
-} from "../services/GCP.js";
+} from "../../services/GCP.ts";
 import {SlashCommandBuilder} from "@discordjs/builders";
-import crypto from "crypto";
-import {wait} from "../misc/Common.js";
+import crypto from "node:crypto";
+import {wait} from "../../misc/Common.ts";
 
 const PTERODACTYL_SERVER_ADDRESS = process.env.PTERODACTYL_SERVER_ADDRESS || "";
 const PTERODACTYL_API_KEY = process.env.PTERODACTYL_API_KEY || "";

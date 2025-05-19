@@ -12,10 +12,10 @@ import {
 import * as Discord from "discord.js";
 import {EmbedBuilder, GuildMember} from "discord.js";
 import ytdl from "@distube/ytdl-core";
-import SafeQuery from "../SQL.js";
-import {makeid, QueueManager} from "../../misc/Common.js";
+import SafeQuery from "../SQL.ts";
+import {makeid, QueueManager} from "../../misc/Common.ts";
 import mssql from "mssql"
-import {client} from "../Discord.js";
+import {client} from "../Discord.ts";
 import * as stream from "stream";
 import {parentPort, workerData} from "worker_threads"
 import {
@@ -26,12 +26,12 @@ import {
     messageToVoiceManager,
     StreamStartMessage,
     VOICE_MANAGER_MESSAGE_TYPES
-} from "./types.js";
+} from "./types.ts";
 import crypto from "crypto";
-import {ActiveVoiceRecording} from "./VoiceRecording.js";
+import {ActiveVoiceRecording} from "./VoiceRecording.ts";
 import dotenv from "dotenv";
-import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
-import {createReadStream} from "fs"
+import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.ts";
+import {createReadStream} from "node:fs"
 
 client.login(workerData.discordClientToken)
 dotenv.config()

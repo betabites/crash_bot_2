@@ -1,4 +1,4 @@
-import {BaseModule} from "./BaseModule.js";
+import {BaseModule} from "./BaseModule.ts";
 import {Client} from "discord.js";
 
 export class QuotesGame extends BaseModule {

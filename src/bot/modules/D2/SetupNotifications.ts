@@ -7,12 +7,12 @@ import {
     TextBasedChannel,
     User
 } from "discord.js";
-import SafeQuery, {sql} from "../../services/SQL.js";
+import SafeQuery, {sql} from "../../../services/SQL.ts";
 import mssql from "mssql";
-import {buildItemEmbed, buildVendorEmbed} from "./Bungie.NET.js";
-import {client} from "../../services/Discord.js";
-import {MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
-import {DestinyVendorDefinition} from "bungie-net-core/models";
+import {buildItemEmbed, buildVendorEmbed} from "./Bungie.NET.ts";
+import {client} from "../../../services/Discord.ts";
+import {MANIFEST_SEARCH} from "./DestinyManifestDatabase.ts";
+import type {DestinyVendorDefinition} from "bungie-net-core/models";
 
 export enum NotificationTypes {
     ITEM_FOR_SALE,

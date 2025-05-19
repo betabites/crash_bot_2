@@ -1,4 +1,4 @@
-import SafeQuery, {sql} from "../../services/SQL.js";
+import SafeQuery, {sql} from "../../../services/SQL.ts";
 
 export async function getD2AccessToken(discordId: string) {
     let destinyOAuthDetails =

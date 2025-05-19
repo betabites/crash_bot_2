@@ -1,4 +1,4 @@
-import {Effect} from "./abstracts/effect.js";
+import {Effect} from "./abstracts/effect.ts";
 
 export class ArmourEffect extends Effect {
     constructor(public stackSize: number) {

@@ -1,14 +1,14 @@
-import {BaseModule, InteractionAutocompleteResponse, InteractionChatCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionAutocompleteResponse, InteractionChatCommandResponse} from "./BaseModule.ts";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {AutocompleteInteraction, ChatInputCommandInteraction, Client, TextChannel} from "discord.js";
-import * as path from "path";
+import * as path from "node:path";
 import Jimp from "jimp";
-import crypto from "crypto";
-import SafeQuery from "../services/SQL.js";
+import crypto from "node:crypto";
+import SafeQuery from "../../services/SQL.ts";
 import mssql from "mssql";
-import {AICharacterData, CharacterData} from "../utilities/roleplay/CharacterData.js";
-import {Conversation} from "../utilities/roleplay/conversation.js";
-import {AIConversation} from "../services/ChatGPT/ChatGPT.js";
+import {AICharacterData, CharacterData} from "../utilities/roleplay/CharacterData.ts";
+import {Conversation} from "../utilities/roleplay/conversation.ts";
+import {AIConversation} from "../../services/ChatGPT/ChatGPT.ts";
 
 const SUPPORTED_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png"]
 

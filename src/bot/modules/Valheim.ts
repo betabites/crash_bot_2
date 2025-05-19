@@ -1,15 +1,15 @@
-import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse} from "./BaseModule.ts";
 import {SlashCommandBuilder} from "@discordjs/builders";
 import {ChatInputCommandInteraction, Client, EmbedBuilder} from "discord.js";
 import {Logging} from '@google-cloud/logging';
-import {GetEntriesRequest} from "@google-cloud/logging/build/src/log.js";
-import SafeQuery, {SafeTransaction, sql} from "../services/SQL.js";
+import type {GetEntriesRequest} from "@google-cloud/logging/build/src/log.ts";
+import SafeQuery, {SafeTransaction, sql} from "../../services/SQL.ts";
 import protos from "google-proto-files"
 import {PubSub} from '@google-cloud/pubsub';
-import {readFile} from "fs/promises"
+import {readFile} from "node:fs/promises"
 import {BigQuery, BigQueryDate} from '@google-cloud/bigquery';
-import console from "console";
-import {PointsModule} from "./Points.js";
+import console from "node:console";
+import {PointsModule} from "./Points.ts";
 
 // Create a PubSub client
 const pubsub = new PubSub();

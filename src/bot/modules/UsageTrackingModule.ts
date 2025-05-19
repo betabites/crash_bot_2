@@ -1,7 +1,7 @@
-import {BaseModule} from "./BaseModule.js";
+import {BaseModule} from "./BaseModule.ts";
 import {Client, Interaction} from "discord.js";
-import SafeQuery, {sql} from "../services/SQL.js";
-import crypto from "crypto";
+import SafeQuery, {sql} from "../../services/SQL.ts";
+import crypto from "node:crypto";
 
 export class UsageTrackingModule extends BaseModule {
     constructor(client: Client) {

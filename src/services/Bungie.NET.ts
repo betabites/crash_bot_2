@@ -1,4 +1,4 @@
-import {UserMembershipData} from "bungie-net-core/models"
+import type {UserMembershipData} from "bungie-net-core/models"
 
 export type UserAuth = {token: string}
 export type BungieAPIResponse<T> = {

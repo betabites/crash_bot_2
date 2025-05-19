@@ -1,10 +1,10 @@
-import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.ts";
 import {SlashCommandBuilder, SlashCommandRoleOption, SlashCommandStringOption} from "@discordjs/builders";
 import {AttachmentBuilder, ChatInputCommandInteraction, CommandInteraction, GuildMember, Message} from "discord.js";
-import {sendTwaggerPost} from "../misc/sendTwaggerPost.js";
-import fs from "fs";
-import path from "path";
-import {INSULTS} from "./Insults.js";
+import {sendTwaggerPost} from "../../misc/sendTwaggerPost.ts";
+import fs from "node:fs";
+import path from "node:path";
+import {INSULTS} from "./Insults.ts";
 
 export class MiscModule extends BaseModule {
     insultsPool = JSON.parse(JSON.stringify(INSULTS))

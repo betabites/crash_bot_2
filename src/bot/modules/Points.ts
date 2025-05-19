@@ -1,4 +1,4 @@
-import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.ts";
 import {
     AttachmentBuilder,
     BaseGuildTextChannel,
@@ -11,10 +11,10 @@ import {
     VoiceBasedChannel,
     VoiceState
 } from "discord.js";
-import SafeQuery, {sql} from "../services/SQL.js";
+import SafeQuery, {sql} from "../../services/SQL.ts";
 import {SlashCommandBuilder} from "@discordjs/builders";
 import Jimp from "jimp";
-import {AIConversation, generateAIThumbnail} from "../services/ChatGPT/ChatGPT.js";
+import {AIConversation, generateAIThumbnail} from "../../services/ChatGPT/ChatGPT.ts";
 import {IResult} from "mssql";
 import schedule from "node-schedule";
 

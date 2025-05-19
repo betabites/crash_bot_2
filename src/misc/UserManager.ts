@@ -1,6 +1,6 @@
 import {GuildMember} from "discord.js";
-import {makeid} from "./Common.js";
-import SafeQuery from "../services/SQL.js";
+import {makeid} from "./Common.ts";
+import SafeQuery from "../services/SQL.ts";
 import mssql from "mssql";
 
 export class CrashBotUser {
@@ -81,6 +81,6 @@ export class CrashBotUser {
             name: "ownerid",
             type: mssql.TYPES.Int(),
             data: this.id || "invalid player ID"
-        }, {name: "path", type: mssql.TYPES.VarChar(200), data: path}])
+        }, {name: "node:path", type: mssql.TYPES.VarChar(200), data: path}])
     }
 }

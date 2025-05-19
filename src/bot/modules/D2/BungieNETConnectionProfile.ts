@@ -1,4 +1,4 @@
-import {BungieClientProtocol, BungieFetchConfig} from 'bungie-net-core';
+import type {BungieClientProtocol, BungieFetchConfig} from 'bungie-net-core';
 import {config} from "dotenv";
 
 config();

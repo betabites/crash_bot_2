@@ -1,6 +1,6 @@
-import {Bot, DamageTypes, ItemAction, ItemAttackAction, roll} from "../abstracts/bot.js";
-import {PoisonEffect} from "../../effects/PoisonEffect.js";
-import {ArmourEffect} from "../../effects/ArmourEffect.js";
+import {Bot, DamageTypes, ItemAction, ItemAttackAction, roll} from "../abstracts/bot.ts";
+import {PoisonEffect} from "../../effects/PoisonEffect.ts";
+import {ArmourEffect} from "../../effects/ArmourEffect.ts";
 
 export class Niraspid extends Bot {
     display = {

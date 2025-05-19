@@ -10,14 +10,14 @@ import {
     WebhookClient,
     WebhookMessageCreateOptions
 } from "discord.js";
-import SafeQuery, {sql} from "./SQL.js";
+import SafeQuery, {sql} from "./SQL.ts";
 import mssql from "mssql";
 import Jimp from "jimp";
-import {makeid} from "../misc/Common.js";
-import fs from "fs";
-import https from "https";
-import * as path from "path";
-import {Writable} from "stream"
+import {makeid} from "../misc/Common.ts";
+import fs from "node:fs";
+import https from "node:https";
+import * as path from "node:path";
+import {Writable} from "node:stream"
 
 export const client = new Client({
     intents: [

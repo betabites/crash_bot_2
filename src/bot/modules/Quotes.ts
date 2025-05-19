@@ -1,4 +1,4 @@
-import {BaseModule, ContextMenuCommandInteractionResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, ContextMenuCommandInteractionResponse, OnClientEvent} from "./BaseModule.ts";
 import {
     ApplicationCommandType,
     Client,
@@ -7,10 +7,10 @@ import {
     EmbedBuilder,
     Message
 } from "discord.js";
-import SafeQuery, {sql} from "../services/SQL.js";
+import SafeQuery, {sql} from "../../services/SQL.ts";
 import mssql from "mssql";
-import {getUserData} from "../utilities/getUserData.js";
-import {AIConversation} from "../services/ChatGPT/ChatGPT.js";
+import {getUserData} from "../utilities/getUserData.ts";
+import {AIConversation} from "../../services/ChatGPT/ChatGPT.ts";
 
 const QUOTE_CHANNELS = ["910649212264386583", "892518396166569994"]
 

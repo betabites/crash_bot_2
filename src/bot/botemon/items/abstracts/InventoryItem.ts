@@ -1,4 +1,4 @@
-import {Item} from "./Item.js";
+import {Item} from "./Item.ts";
 
 export abstract class InventoryItem<ATTRIBUTE_DATA extends Record<string, any>> extends Item<ATTRIBUTE_DATA> {
     abstract readonly display: {

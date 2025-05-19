@@ -1,15 +1,15 @@
 import sqlite3 from "sqlite3";
-import {
-    type DestinyActivityDefinition,
-    type DestinyDestinationDefinition,
-    type DestinyInventoryItemDefinition,
-    type DestinyMilestoneDefinition,
-    type DestinySocketTypeDefinition,
-    type DestinyStatDefinition,
-    type DestinyVendorDefinition
+import type {
+    DestinyActivityDefinition,
+    DestinyDestinationDefinition,
+    DestinyInventoryItemDefinition,
+    DestinyMilestoneDefinition,
+    DestinySocketTypeDefinition,
+    DestinyStatDefinition,
+    DestinyVendorDefinition
 } from "bungie-net-core/models";
-import {groupItemsWithMatchingNames} from "../../utilities/groupItemsWithMatchingNames.js";
-import {surfaceFlatten} from "../../utilities/surfaceFlatten.js";
+import {groupItemsWithMatchingNames} from "../../utilities/groupItemsWithMatchingNames.ts";
+import {surfaceFlatten} from "../../utilities/surfaceFlatten.ts";
 
 
 export function levenshteinDistance(s1: string, s2: string): number {

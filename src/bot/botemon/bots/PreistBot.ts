@@ -1,5 +1,5 @@
-import {Bot, DamageTypes, ItemAttackAction} from "./abstracts/bot.js";
-import {ProneEffect} from "../effects/ProneEffect.js";
+import {Bot, DamageTypes, ItemAttackAction} from "./abstracts/bot.ts";
+import {ProneEffect} from "../effects/ProneEffect.ts";
 
 export class PreistBot extends Bot {
     display = {

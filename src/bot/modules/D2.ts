@@ -4,7 +4,7 @@ import {
     InteractionChatCommandResponse,
     InteractionSelectMenuResponse,
     OnClientEvent
-} from "./BaseModule.js";
+} from "./BaseModule.ts";
 import {
     ActionRowBuilder,
     AutocompleteInteraction,
@@ -32,33 +32,33 @@ import {
     getNextWeekday,
     getWeeklyMilestonesMessage,
     onlyVendorsThatSellStuff
-} from "./D2/Bungie.NET.js";
-import {surfaceFlatten} from "../utilities/surfaceFlatten.js";
-import {groupItemsWithMatchingNames} from "../utilities/groupItemsWithMatchingNames.js";
-import {
-    type BungieMembershipType,
-    type DestinyActivityDefinition,
-    type DestinyInventoryItemDefinition,
-    type DestinyRecordComponent,
-    type DestinyVendorDefinition,
+} from "./D2/Bungie.NET.ts";
+import {surfaceFlatten} from "../utilities/surfaceFlatten.ts";
+import {groupItemsWithMatchingNames} from "../utilities/groupItemsWithMatchingNames.ts";
+import type {
+    BungieMembershipType,
+    DestinyActivityDefinition,
+    DestinyInventoryItemDefinition,
+    DestinyRecordComponent,
+    DestinyVendorDefinition,
 } from "bungie-net-core/models";
-import {atSpecificTime, itemAvailableAtVendor} from "./D2/SetupNotifications.js";
+import {atSpecificTime, itemAvailableAtVendor} from "./D2/SetupNotifications.ts";
 import express from "express";
-import * as console from "console";
-import SafeQuery, {PutOperation, sql} from "../services/SQL.js";
+import * as console from "node:console";
+import SafeQuery, {PutOperation, sql} from "../../services/SQL.ts";
 import cookieParser from "cookie-parser"
 import {getMembershipDataForCurrentUser} from "bungie-net-core/endpoints/User";
 import fetch from "node-fetch";
-import {AchievementProgress, EVENT_IDS} from "./GameAchievements.js";
-import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
-import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.js";
-import {WeekdayNames, Weekdays} from "./D2/Weekdays.js";
-import {GameSessionData} from "./GameSessionModule.js";
-import {BungieClient} from "./D2/BungieNETConnectionProfile.js";
+import {AchievementProgress, EVENT_IDS} from "./GameAchievements.ts";
+import {destinyManifestDatabase, MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.ts";
+import {DESTINY_BUILD_SCHEMA, mobaltyicsToDIMLoadout} from "./D2/mobaltyicsToDIMLoadout.ts";
+import {WeekdayNames, Weekdays} from "./D2/Weekdays.ts";
+import {GameSessionData} from "./GameSessionModule.ts";
+import {BungieClient} from "./D2/BungieNETConnectionProfile.ts";
 import {getProfile} from "bungie-net-core/endpoints/Destiny2";
-import {BasicEventSessionHandler} from "./events/BasicEventSessionHandler.js";
+import {BasicEventSessionHandler} from "./events/BasicEventSessionHandler.ts";
 import {refreshAuthorization} from "bungie-net-core/auth";
-import {client} from "../services/Discord.js";
+import {client} from "../../services/Discord.ts";
 
 const AUTO_RESPOND_CHANNELS = [
     "892518396166569994", // #bot-testing

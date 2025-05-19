@@ -1,5 +1,5 @@
 import {z} from "zod";
-import {MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
+import {MANIFEST_SEARCH} from "./DestinyManifestDatabase.ts";
 import {type Loadout as DIMLoadout} from "@destinyitemmanager/dim-api-types"
 import {v4 as uuidv4} from "uuid"
 

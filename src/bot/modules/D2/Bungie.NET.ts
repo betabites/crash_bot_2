@@ -6,23 +6,22 @@ import {
     MessageActionRowComponentBuilder,
     SelectMenuBuilder
 } from "discord.js";
-import SafeQuery, {SafeTransaction, sql} from "../../services/SQL.js";
+import SafeQuery, {SafeTransaction, sql} from "../../../services/SQL.ts";
 import mssql from "mssql";
 import fetch from "node-fetch"
-import {
-    type DestinyActivityDefinition,
-    type DestinyComponentType,
-    type DestinyDestinationDefinition,
-    type DestinyInventoryItemDefinition,
-    type DestinyVendorDefinition,
+import type {
+    DestinyActivityDefinition,
+    DestinyComponentType,
+    DestinyInventoryItemDefinition,
+    DestinyVendorDefinition,
 } from "bungie-net-core/models";
-import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
-import {API_KEY, BungieAPIResponse} from "../../services/Bungie.NET.js";
-import {Weekdays} from "./Weekdays.js";
+import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.ts";
+import {API_KEY, BungieAPIResponse} from "../../../services/Bungie.NET.ts";
+import {Weekdays} from "./Weekdays.ts";
 import {getPublicMilestones} from "bungie-net-core/endpoints/Destiny2";
-import {BungieNETConnectionProfile} from "./BungieNETConnectionProfile.js";
+import {BungieNETConnectionProfile} from "./BungieNETConnectionProfile.ts";
 // @ts-expect-error
-import {DestinyVendorResponse} from "bungie-net-core/models/Destiny/Responses/DestinyVendorResponse.js";
+// import {DestinyVendorResponse} from "bungie-net-core/models/Destiny/Responses/DestinyVendorResponse.ts";
 
 enum DestinyItemType {
     None = 0,

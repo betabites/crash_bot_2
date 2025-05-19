@@ -1,6 +1,6 @@
-import {InventoryItem} from "../../items/abstracts/InventoryItem.js";
-import {Item} from "../../items/abstracts/Item.js";
-import {Effect} from "../../effects/abstracts/effect.js";
+import {InventoryItem} from "../../items/abstracts/InventoryItem.ts";
+import {Item} from "../../items/abstracts/Item.ts";
+import {Effect} from "../../effects/abstracts/effect.ts";
 
 type BasicBotAttributes = {
     health: number;

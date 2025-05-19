@@ -1,4 +1,4 @@
-import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "./BaseModule.js";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse} from "./BaseModule.ts";
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandUserOption} from "@discordjs/builders";
 import {
     ActionRowBuilder,
@@ -13,12 +13,12 @@ import {
     Message,
     MessageActionRowComponentBuilder
 } from "discord.js";
-import SafeQuery from "../services/SQL.js";
-import {client} from "../services/Discord.js";
-import {fetchThrowTemplates, generateThrow} from "../misc/ThrowMaker.js";
-import * as fs from "fs";
-import path from "path";
-import {quoteReply} from "../utilities/quoteReply.js";
+import SafeQuery from "../../services/SQL.ts";
+import {client} from "../../services/Discord.ts";
+import {fetchThrowTemplates, generateThrow} from "../../misc/ThrowMaker.ts";
+import * as fs from "node:fs";
+import path from "node:path";
+import {quoteReply} from "../utilities/quoteReply.ts";
 
 export class ImagesModule extends BaseModule {
     commands = [

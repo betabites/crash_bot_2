@@ -1,7 +1,7 @@
 import {IncomingMessage, Server, ServerResponse} from "http";
 import {Server as WSServer} from "ws";
 import {EventEmitter} from "node:events";
-// import {CrashBotUser} from "./UserManager.js";
+// import {CrashBotUser} from "./UserManager.ts";
 
 let ws_server: WSServer, wss_server: WSServer
 

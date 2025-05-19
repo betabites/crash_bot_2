@@ -3,8 +3,8 @@
  */
 
 import {parentPort, workerData} from "worker_threads";
-import {RootPortManager} from "../messageHandlers/RootPortManager.js";
-import {client} from "../../services/Discord.js";
+import {RootPortManager} from "../messageHandlers/RootPortManager.ts";
+import {client} from "../../services/Discord.ts";
 import {
     createAudioPlayer,
     createAudioResource,
@@ -13,7 +13,7 @@ import {
     type VoiceConnection
 } from "@discordjs/voice";
 import {PassThrough, Readable} from "stream";
-import {type BaseVoiceModule} from "../modules/BaseVoiceModule.js";
+import {type BaseVoiceModule} from "../modules/BaseVoiceModule.ts";
 
 if (!parentPort) throw new Error("No parent port");
 

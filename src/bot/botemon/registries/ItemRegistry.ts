@@ -1,4 +1,4 @@
-import {Item} from "../items/abstracts/Item.js";
+import {Item} from "../items/abstracts/Item.ts";
 
 type RegistryItem<DATA extends Record<string, any>> = typeof Item<DATA>
 
