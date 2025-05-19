@@ -34,6 +34,9 @@ jobs:
       - name: Deploy
         run: rm -rf /opt/crash_bot/* && mv -f ./* /opt/crash_bot/
 
+      - name: Copy legacy assets
+        run: cp -r /opt/actions-runner/assets /opt/crash_bot/assets
+
       - name: Update .env
         run: echo "${{secrets.PRODUCTION_ENV}}" > /opt/crash_bot/.env
 
