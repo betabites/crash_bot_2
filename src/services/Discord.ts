@@ -207,7 +207,7 @@ export function downloadDiscordAttachment(url: string, fileextension: string, st
 }
 
 export function getToken() {
-    return fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString()
+    return process.env["DISCORD_SECRET"] || fs.readFileSync(path.join(path.resolve("./"), "botToken")).toString()
 }
 
 export async function deleteAllWebhooksForUser(userId: string) {
