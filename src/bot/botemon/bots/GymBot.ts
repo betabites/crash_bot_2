@@ -1,6 +1,6 @@
-import {Bot, DamageTypes, ItemAttackAction} from "./abstracts/bot.ts";
-import {BenchPressedEffect} from "../effects/BenchPressedEffect.ts";
-import {SpinEffect} from "../effects/SpinEffect.ts";
+import {Bot, DamageTypes, ItemAttackAction} from "./abstracts/bot.js";
+import {BenchPressedEffect} from "../effects/BenchPressedEffect.js";
+import {SpinEffect} from "../effects/SpinEffect.js";
 
 export class GymBot extends Bot {
     display = {

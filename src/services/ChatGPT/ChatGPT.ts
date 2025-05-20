@@ -2,8 +2,8 @@ import {ChatGPTAPI} from "chatgpt";
 import {ChatCompletionMessageParam} from "openai/resources/index";
 import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 import crypto from "node:crypto";
-import SafeQuery, {sql} from "../SQL.ts";
-import {BasicAIConversation, openai} from "./BasicAIConversation.ts";
+import SafeQuery, {sql} from "../SQL.js";
+import {BasicAIConversation, openai} from "./BasicAIConversation.js";
 
 const ChatGPT = new ChatGPTAPI({
     apiKey: process.env["OPENAI_API_KEY"] ?? '',

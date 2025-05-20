@@ -1,6 +1,6 @@
 import {Readable, type StreamOptions, Writable} from "stream";
 import {type MessagePort} from "worker_threads"
-import {RootPortManager} from "./RootPortManager.ts";
+import {RootPortManager} from "./RootPortManager.js";
 
 export class MessagePortWritable extends Writable {
     pendingChunks: {

@@ -1,7 +1,7 @@
 import {GuildMember} from "discord.js";
-import SafeQuery from "../../services/SQL.ts";
+import SafeQuery from "../../services/SQL.js";
 import mssql from "mssql";
-import {CrashBotUser} from "../../misc/UserManager.ts";
+import {CrashBotUser} from "../../misc/UserManager.js";
 
 export enum SPEECH_MODES {
     NORMAL,

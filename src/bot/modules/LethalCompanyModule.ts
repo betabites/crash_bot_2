@@ -1,4 +1,4 @@
-import {BaseModule, OnClientEvent} from "./BaseModule.ts";
+import {BaseModule, OnClientEvent} from "./BaseModule.js";
 import {Message} from "discord.js";
 
 export class LethalCompanyModule extends BaseModule {

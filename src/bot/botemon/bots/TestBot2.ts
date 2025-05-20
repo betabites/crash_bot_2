@@ -1,4 +1,4 @@
-import {Bot} from "./abstracts/bot.ts";
+import {Bot} from "./abstracts/bot.js";
 
 export class TestBot2 extends Bot {
     display = {

@@ -1,4 +1,4 @@
-import {EncodingOptions} from "../../bot/models/types.ts";
+import {EncodingOptions} from "../../bot/models/types.js";
 import {EndBehaviorType, VoiceConnection} from "@discordjs/voice";
 import DiscordOpus from "@discordjs/opus"
 import {VoiceBasedChannel} from "discord.js";
@@ -6,7 +6,7 @@ import {createReadStream, createWriteStream, existsSync, mkdir, rm} from "node:f
 import path from "node:path"
 import {PassThrough, Readable, Transform, type TransformCallback, Writable} from "node:stream";
 import {v4 as uuidv4} from "uuid"
-import SafeQuery, {SafeTransaction, SafeTransactionQueryFunc, sql} from "../SQL.ts";
+import SafeQuery, {SafeTransaction, SafeTransactionQueryFunc, sql} from "../SQL.js";
 import ffmpeg from "fluent-ffmpeg";
 
 function secondsToBuffer(seconds: number, options: EncodingOptions): Buffer[] {

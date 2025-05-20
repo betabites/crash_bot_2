@@ -1,8 +1,8 @@
-import {BaseModule} from "./BaseModule.ts";
-import SafeQuery, {override, SafeTransaction, sql} from "../../services/SQL.ts";
+import {BaseModule} from "./BaseModule.js";
+import SafeQuery, {override, SafeTransaction, sql} from "../../services/SQL.js";
 import mssql from "mssql";
 import {ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder} from "discord.js";
-import {EVENT_IDS} from "./GameAchievements.ts";
+import {EVENT_IDS} from "./GameAchievements.js";
 import schedule from "node-schedule";
 
 export type GameSessionData = {

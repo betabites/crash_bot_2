@@ -1,4 +1,4 @@
-import {Effect} from "./abstracts/effect.ts";
+import {Effect} from "./abstracts/effect.js";
 
 export class SpinEffect extends Effect {
     count = 1

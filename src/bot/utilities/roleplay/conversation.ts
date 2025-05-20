@@ -1,9 +1,9 @@
-import {AICharacterData, CharacterData} from "./CharacterData.ts";
+import {AICharacterData, CharacterData} from "./CharacterData.js";
 import {EmbedBuilder, TextChannel, Webhook, WebhookClient} from "discord.js";
-import SafeQuery from "../../../services/SQL.ts";
+import SafeQuery from "../../../services/SQL.js";
 import mssql from "mssql";
 import path from "node:path";
-import {AIConversation} from "../../../services/ChatGPT/ChatGPT.ts";
+import {AIConversation} from "../../../services/ChatGPT/ChatGPT.js";
 import {RunnableToolFunction} from "openai/lib/RunnableFunction";
 
 interface AINarration {

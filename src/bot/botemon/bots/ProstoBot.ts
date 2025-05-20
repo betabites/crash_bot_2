@@ -1,7 +1,7 @@
-import {Bot, DamageTypes, ItemAttackAction} from "./abstracts/bot.ts";
-import {STIEffect} from "../effects/STIEffect.ts";
-import {ProneEffect} from "../effects/ProneEffect.ts";
-import {PetrifyEffect} from "../effects/PetrfyEffect.ts";
+import {Bot, DamageTypes, ItemAttackAction} from "./abstracts/bot.js";
+import {STIEffect} from "../effects/STIEffect.js";
+import {ProneEffect} from "../effects/ProneEffect.js";
+import {PetrifyEffect} from "../effects/PetrfyEffect.js";
 
 export class ProstoBot extends Bot {
     display = {

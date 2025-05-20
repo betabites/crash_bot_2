@@ -1,4 +1,4 @@
-import {Effect} from "./effect.ts";
+import {Effect} from "./effect.js";
 
 /**
  * A turn-based effect is an effect that is based around the turns in a battle. As soon as the battle is over,

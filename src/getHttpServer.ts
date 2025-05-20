@@ -2,11 +2,13 @@ import http from "node:http";
 import {Server} from "socket.io";
 import next from 'next'
 import {parse} from "node:url";
+import dotenv from "dotenv";
 
 const dev = process.env.NODE_ENV !== 'production'
 const app = next({ dev })
 const handle = app.getRequestHandler()
 
+dotenv.config()
 const port = parseInt(process.env.PORT || '3000', 10)
 
 export const HTTP_SERVER = http.createServer((req, res) => {
@@ -23,6 +25,7 @@ IO.on("connection", (socket) => {
 })
 
 export async function configureNext() {
+    console.log("App prepared")
     await app.prepare()
 
 }

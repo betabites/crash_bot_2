@@ -3,7 +3,7 @@ import {
     InteractionAutocompleteResponse,
     InteractionButtonResponse,
     InteractionChatCommandResponse
-} from "./BaseModule.ts";
+} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {
     ActionRowBuilder,
@@ -15,8 +15,8 @@ import {
     TextInputBuilder,
     TextInputStyle
 } from "discord.js";
-import {EVENT_IDS} from "./GameAchievements.ts";
-import {GameSessionData, GameSessionModule} from "./GameSessionModule.ts";
+import {EVENT_IDS} from "./GameAchievements.js";
+import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
 import moment from "moment-timezone";
 
 export class EventsModule extends BaseModule {

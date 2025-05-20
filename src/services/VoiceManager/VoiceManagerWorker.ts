@@ -12,10 +12,10 @@ import {
 import * as Discord from "discord.js";
 import {EmbedBuilder, GuildMember} from "discord.js";
 import ytdl from "@distube/ytdl-core";
-import SafeQuery from "../SQL.ts";
-import {makeid, QueueManager} from "../../misc/Common.ts";
+import SafeQuery from "../SQL.js";
+import {makeid, QueueManager} from "../../misc/Common.js";
 import mssql from "mssql"
-import {client} from "../Discord.ts";
+import {client} from "../Discord.js";
 import * as stream from "stream";
 import {parentPort, workerData} from "worker_threads"
 import {
@@ -26,15 +26,13 @@ import {
     messageToVoiceManager,
     StreamStartMessage,
     VOICE_MANAGER_MESSAGE_TYPES
-} from "./types.ts";
+} from "./types.js";
 import crypto from "crypto";
-import {ActiveVoiceRecording} from "./VoiceRecording.ts";
-import dotenv from "dotenv";
-import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.ts";
+import {ActiveVoiceRecording} from "./VoiceRecording.js";
+import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
 import {createReadStream} from "node:fs"
 
 client.login(workerData.discordClientToken)
-dotenv.config()
 
 const awaitingWorkerMessages = new Map<string, [NodeJS.Timer, (value: unknown) => void, (error?: unknown) => void]>()
 parentPort?.on("message", async (message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES>) => {

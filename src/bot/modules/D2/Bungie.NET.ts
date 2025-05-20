@@ -6,7 +6,7 @@ import {
     MessageActionRowComponentBuilder,
     SelectMenuBuilder
 } from "discord.js";
-import SafeQuery, {SafeTransaction, sql} from "../../../services/SQL.ts";
+import SafeQuery, {SafeTransaction, sql} from "../../../services/SQL.js";
 import mssql from "mssql";
 import fetch from "node-fetch"
 import type {
@@ -15,13 +15,13 @@ import type {
     DestinyInventoryItemDefinition,
     DestinyVendorDefinition,
 } from "bungie-net-core/models";
-import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.ts";
-import {API_KEY, BungieAPIResponse} from "../../../services/Bungie.NET.ts";
-import {Weekdays} from "./Weekdays.ts";
+import {destinyManifestDatabase, MANIFEST_SEARCH} from "./DestinyManifestDatabase.js";
+import {API_KEY, BungieAPIResponse} from "../../../services/Bungie.NET.js";
+import {Weekdays} from "./Weekdays.js";
 import {getPublicMilestones} from "bungie-net-core/endpoints/Destiny2";
-import {BungieNETConnectionProfile} from "./BungieNETConnectionProfile.ts";
+import {BungieNETConnectionProfile} from "./BungieNETConnectionProfile.js";
 // @ts-expect-error
-// import {DestinyVendorResponse} from "bungie-net-core/models/Destiny/Responses/DestinyVendorResponse.ts";
+// import {DestinyVendorResponse} from "bungie-net-core/models/Destiny/Responses/DestinyVendorResponse.js";
 
 enum DestinyItemType {
     None = 0,

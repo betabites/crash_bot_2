@@ -1,5 +1,5 @@
-import {AIConversation, generateAIImage} from "../../services/ChatGPT/ChatGPT.ts";
-import SafeQuery, {sql} from "../../services/SQL.ts";
+import {AIConversation, generateAIImage} from "../../services/ChatGPT/ChatGPT.js";
+import SafeQuery, {sql} from "../../services/SQL.js";
 import {ChatCompletionMessageParam} from "openai/resources/index";
 import {
     ActionRowBuilder,
@@ -14,13 +14,13 @@ import {
     TextBasedChannel,
     TextChannel
 } from "discord.js";
-import {Character} from "./Speech.ts";
-import {PointsModule} from "./Points.ts";
+import {Character} from "./Speech.js";
+import {PointsModule} from "./Points.js";
 import moment from "moment-timezone"
-import {GameSessionData, GameSessionModule} from "./GameSessionModule.ts";
-import {EVENT_IDS} from "./GameAchievements.ts";
+import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
+import {EVENT_IDS} from "./GameAchievements.js";
 import {getCharacter, getProfile} from "bungie-net-core/endpoints/Destiny2";
-import {getClient} from "./D2.ts";
+import {getClient} from "./D2.js";
 import {DestinyClass, DestinyComponentType, DestinyItemSubType, DestinyItemType} from "bungie-net-core/enums";
 import type {
     DestinyCharacterComponent,
@@ -29,8 +29,8 @@ import type {
     DestinyItemSocketState
 } from "bungie-net-core/models";
 import {DestinyRace} from "bungie.net";
-import {MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.ts";
-import {getD2AccessToken} from "./D2/getD2AccessToken.ts";
+import {MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
+import {getD2AccessToken} from "./D2/getD2AccessToken.js";
 import {z} from "zod";
 
 export const EVENT_KEYS = [

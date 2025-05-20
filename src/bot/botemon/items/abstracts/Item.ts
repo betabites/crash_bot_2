@@ -1,4 +1,4 @@
-import SafeQuery, {sql} from "../../../../services/SQL.ts";
+import SafeQuery, {sql} from "../../../../services/SQL.js";
 
 type ActionMetadata<SELF extends Item<any>> = {
     name: string,

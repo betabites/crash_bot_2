@@ -1,8 +1,8 @@
-import {BaseModule, OnClientEvent} from "./BaseModule.ts";
+import {BaseModule, OnClientEvent} from "./BaseModule.js";
 import express from "express";
-import SafeQuery, {sql} from "../services/SQL.ts";
-import {makeid, QueueManager} from "@/misc/Common.ts";
-import {downloadDiscordAttachment, downloadDiscordAttachmentWithInfo} from "../services/Discord.ts";
+import SafeQuery, {sql} from "../services/SQL.js";
+import {makeid, QueueManager} from "@/misc/Common.js";
+import {downloadDiscordAttachment, downloadDiscordAttachmentWithInfo} from "../services/Discord.js";
 import fs from "node:fs";
 import path from "node:path";
 import ytdl from "@distube/ytdl-core";

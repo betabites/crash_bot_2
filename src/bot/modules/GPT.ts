@@ -1,4 +1,4 @@
-import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.ts";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {
     AttachmentBuilder,
     ChannelType,
@@ -19,15 +19,15 @@ import {
     SlashCommandStringOption,
     SlashCommandUserOption
 } from "@discordjs/builders";
-import openai, {AIConversation, generateAIImage, UnsavedAIConversation} from "../../services/ChatGPT/ChatGPT.ts";
-import SafeQuery, {sql, UNSAFE_SQL_PARAM} from "../../services/SQL.ts";
+import openai, {AIConversation, generateAIImage, UnsavedAIConversation} from "../../services/ChatGPT/ChatGPT.js";
+import SafeQuery, {sql, UNSAFE_SQL_PARAM} from "../../services/SQL.js";
 import mssql from "mssql";
-import {ShuffleArray} from "../../misc/Common.ts";
-import {getUserData} from "../utilities/getUserData.ts";
-import {toTitleCase} from "../utilities/toTitleCase.ts";
-import {PointsModule} from "./Points.ts";
-import {Character, OnSpeechModeAdjustmentComplete} from "./Speech.ts";
-import {GPTTextChannel} from "./GPTTextChannel.ts";
+import {ShuffleArray} from "../../misc/Common.js";
+import {getUserData} from "../utilities/getUserData.js";
+import {toTitleCase} from "../utilities/toTitleCase.js";
+import {PointsModule} from "./Points.js";
+import {Character, OnSpeechModeAdjustmentComplete} from "./Speech.js";
+import {GPTTextChannel} from "./GPTTextChannel.js";
 
 export class GPTModule extends BaseModule {
     commands = [

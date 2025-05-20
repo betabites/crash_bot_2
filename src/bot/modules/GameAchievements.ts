@@ -1,5 +1,5 @@
-import {BaseModule} from "./BaseModule.ts";
-import SafeQuery, {sql} from "../../services/SQL.ts";
+import {BaseModule} from "./BaseModule.js";
+import SafeQuery, {sql} from "../../services/SQL.js";
 import express from "express";
 import {z} from "zod";
 

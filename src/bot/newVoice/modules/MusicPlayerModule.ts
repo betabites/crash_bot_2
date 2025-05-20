@@ -1,6 +1,6 @@
-import {BaseModule, OnClientEvent} from "../../modules/BaseModule.ts";
+import {BaseModule, OnClientEvent} from "../../modules/BaseModule.js";
 import {Message, VoiceBasedChannel} from "discord.js";
-import {connectVoice, TestVoiceModule} from "../VoiceConnectionManager.ts";
+import {connectVoice, TestVoiceModule} from "../VoiceConnectionManager.js";
 
 export class MusicPlayerVoiceModule extends BaseModule {
     @OnClientEvent("messageCreate")

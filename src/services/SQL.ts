@@ -1,7 +1,7 @@
 import pkg from 'mssql';
 import mssql, {config, ISqlType} from 'mssql';
 import {deepStrictEqual} from "node:assert"
-import {surfaceFlatten} from "../bot/utilities/surfaceFlatten.ts";
+import {surfaceFlatten} from "../bot/utilities/surfaceFlatten.js";
 import dotenv from "dotenv";
 
 const {connect} = pkg;

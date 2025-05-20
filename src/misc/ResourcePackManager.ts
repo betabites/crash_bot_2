@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import SafeQuery from "../services/SQL.ts";
+import SafeQuery from "../services/SQL.js";
 import mssql from "mssql";
 import * as stream from "stream";
 import archiver from "archiver";

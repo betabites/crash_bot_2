@@ -1,6 +1,6 @@
-import {BasicEventSessionHandler} from "./BasicEventSessionHandler.ts";
+import {BasicEventSessionHandler} from "./BasicEventSessionHandler.js";
 import {Client} from "discord.js";
-import {EVENT_IDS} from "../GameAchievements.ts";
+import {EVENT_IDS} from "../GameAchievements.js";
 
 export class OtherEventSessionHandler extends BasicEventSessionHandler {
     constructor(client: Client) {

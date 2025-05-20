@@ -1,4 +1,4 @@
-import {Bot, Enum} from "./abstracts/bot.ts";
+import {Bot, Enum} from "./abstracts/bot.js";
 
 export class TestBot extends Bot {
     resistantTo: Enum<{ readonly ELECTRIC: "electric"; readonly POISON: "poison"; readonly PSYCHIC: "psychic"; readonly FIRE: "fire"; readonly WATER: "water"; readonly EARTH: "earth"; readonly ICE: "ice"; readonly AIR: "air"; readonly HOLY: "holy"; readonly NECROTIC: "necrotic"; readonly ARCANE: "arcane"; readonly COSMIC: "cosmic"; readonly CHAOS: "chaos"; readonly VOID: "void"; readonly BASS: "bass"; readonly RANGED: "ranged"; readonly MELEE: "melee"; }>[];

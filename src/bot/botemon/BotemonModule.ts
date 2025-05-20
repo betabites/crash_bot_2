@@ -1,13 +1,13 @@
-import {BaseModule, InteractionAutocompleteResponse, InteractionChatCommandResponse} from "../modules/BaseModule.ts";
-import {ItemRegistry} from "./registries/ItemRegistry.ts";
+import {BaseModule, InteractionAutocompleteResponse, InteractionChatCommandResponse} from "../modules/BaseModule.js";
+import {ItemRegistry} from "./registries/ItemRegistry.js";
 import {SlashCommandBuilder, SlashCommandStringOption} from "@discordjs/builders";
 import {AutocompleteInteraction, ChatInputCommandInteraction} from "discord.js";
-import {TestBot} from "./bots/TestBot.ts";
-import SafeQuery, {sql} from "../../services/SQL.ts";
-import {InventoryItem} from "./items/abstracts/InventoryItem.ts";
-import {Niraspid} from "./bots/hayden/Niraspid.ts";
-import {PreistBot} from "./bots/PreistBot.ts";
-import {ProstoBot} from "./bots/ProstoBot.ts";
+import {TestBot} from "./bots/TestBot.js";
+import SafeQuery, {sql} from "../../services/SQL.js";
+import {InventoryItem} from "./items/abstracts/InventoryItem.js";
+import {Niraspid} from "./bots/hayden/Niraspid.js";
+import {PreistBot} from "./bots/PreistBot.js";
+import {ProstoBot} from "./bots/ProstoBot.js";
 
 type REGISTRY_KEYS<REGISTRY> = REGISTRY extends ItemRegistry<infer T> ? keyof T : never
 

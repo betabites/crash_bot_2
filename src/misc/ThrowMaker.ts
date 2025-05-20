@@ -1,7 +1,7 @@
 import Jimp from "jimp";
 import fs from "node:fs";
 import {GuildMember} from "discord.js";
-import {ShuffleArray} from "./Common.ts";
+import {ShuffleArray} from "./Common.js";
 import * as path from "node:path";
 
 interface ThrowTemplate {

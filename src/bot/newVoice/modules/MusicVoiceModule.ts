@@ -1,9 +1,9 @@
-import {BaseVoiceModule, MainThread, WorkerThread,} from "./BaseVoiceModule.ts";
+import {BaseVoiceModule, MainThread, WorkerThread,} from "./BaseVoiceModule.js";
 import console from "console";
 import ytdl from "@distube/ytdl-core";
 
 export default class MusicVoiceModule extends BaseVoiceModule {
-    uniqueName = "./src/newVoice/modules/MusicVoiceModule.ts";
+    uniqueName = "./src/newVoice/modules/MusicVoiceModule.js";
 
     @MainThread()
     async onReady() {

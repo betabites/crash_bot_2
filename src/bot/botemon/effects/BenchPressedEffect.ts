@@ -1,4 +1,4 @@
-import {Effect} from "./abstracts/effect.ts";
+import {Effect} from "./abstracts/effect.js";
 
 /**
  * An effect used specifically by ProstoBot

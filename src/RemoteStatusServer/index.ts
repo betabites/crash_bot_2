@@ -1,9 +1,9 @@
 import {Namespace, Server} from "socket.io";
 import {EventEmitter} from 'node:events';
 import {z} from "zod";
-import {IO} from "../bot/misc/getHttpServer.ts";
-import {ConnectionHandler} from "./connectionHandler.ts";
-// import {ConnectionHandler} from "./connectionHandler.ts";
+import {IO} from "../getHttpServer.js";
+import {ConnectionHandler} from "./connectionHandler.js";
+// import {ConnectionHandler} from "./connectionHandler.js";
 
 type ServerKey<CLIENT_ID extends string, SECRET extends string> = { clientId: CLIENT_ID, secret: SECRET }
 

@@ -11,12 +11,12 @@ import {
 } from "discord.js";
 import ytdl from "@distube/ytdl-core";
 import ytpl from "ytpl";
-import SafeQuery from "../SQL.ts";
-import {QueueManager, ShuffleArray} from "../../misc/Common.ts";
+import SafeQuery from "../SQL.js";
+import {QueueManager, ShuffleArray} from "../../misc/Common.js";
 import mssql from "mssql"
 import yts from "yt-search";
-import {client, getToken} from "../Discord.ts";
-import Spotify from "../Spotify.ts";
+import {client, getToken} from "../Discord.js";
+import Spotify from "../Spotify.js";
 import {Worker} from "node:worker_threads"
 import {
     AcknowledgementMessage,
@@ -24,11 +24,11 @@ import {
     messageToAudioManager,
     messageToVoiceManager,
     VOICE_MANAGER_MESSAGE_TYPES
-} from "./types.ts";
+} from "./types.js";
 import * as crypto from "node:crypto";
-import {isYoutubeUrl} from "../../bot/utilities/isYoutubeUrl.ts";
+import {isYoutubeUrl} from "../../bot/utilities/isYoutubeUrl.js";
 
-let worker = new Worker("./dist/services/VoiceManager/VoiceManagerWorker.ts", {
+let worker = new Worker("./dist/services/VoiceManager/VoiceManagerWorker.js", {
     workerData: {
         discordClientToken: getToken()
     }

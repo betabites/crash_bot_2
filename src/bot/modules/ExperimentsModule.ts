@@ -1,4 +1,4 @@
-import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.ts";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBooleanOption, SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {
     ChannelType,
@@ -9,13 +9,13 @@ import {
     Message,
     TextBasedChannel
 } from "discord.js";
-import {getUserData} from "../utilities/getUserData.ts";
-import SafeQuery, {sql} from "../../services/SQL.ts";
+import {getUserData} from "../utilities/getUserData.js";
+import SafeQuery, {sql} from "../../services/SQL.js";
 import mssql from "mssql";
-import {toTitleCase} from "../utilities/toTitleCase.ts";
-import {ShuffleArray} from "../../misc/Common.ts";
-import openai from "../../services/ChatGPT/ChatGPT.ts";
-import {client} from "../../services/Discord.ts";
+import {toTitleCase} from "../utilities/toTitleCase.js";
+import {ShuffleArray} from "../../misc/Common.js";
+import openai from "../../services/ChatGPT/ChatGPT.js";
+import {client} from "../../services/Discord.js";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 

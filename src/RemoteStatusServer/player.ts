@@ -1,5 +1,5 @@
-import {ConnectionHandler} from "./connectionHandler.ts";
-import {MinecraftPlayerData} from "./types.ts";
+import {ConnectionHandler} from "./connectionHandler.js";
+import {MinecraftPlayerData} from "./types.js";
 import {z} from "zod";
 
 export class Player {

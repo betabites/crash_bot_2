@@ -10,7 +10,7 @@ import {
     SelectMenuInteraction,
     TextInputStyle
 } from "discord.js";
-import {client} from "../../services/Discord.ts";
+import {client} from "../../services/Discord.js";
 
 /**
  * BaseModule is an abstract class representing a base module for creating Discord bot modules.

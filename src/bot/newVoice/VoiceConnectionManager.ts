@@ -1,11 +1,11 @@
 // This class serves the purpose of managing interactions between the main thread and the voice worker
 import {VoiceBasedChannel} from "discord.js";
 import {MessageChannel, Worker} from "worker_threads";
-import {RootPortManager} from "./messageHandlers/RootPortManager.ts";
-import {MessagePortWritable} from "./messageHandlers/MessageChannelStreams.ts";
+import {RootPortManager} from "./messageHandlers/RootPortManager.js";
+import {MessagePortWritable} from "./messageHandlers/MessageChannelStreams.js";
 import {Writable} from "stream";
 import ytdl from "@distube/ytdl-core";
-import {getToken} from "../services/Discord.ts";
+import {getToken} from "../services/Discord.js";
 
 const connections = new Map<string, VoiceConnectionManager>()
 
@@ -32,7 +32,7 @@ export class VoiceConnectionManager {
     ) {
         return new Promise<VoiceConnectionManager>((resolve, reject) => {
             // Start up a dispatcher
-            let dispatcher = new Worker("./src/newVoice/workers/Dispatcher.ts", {
+            let dispatcher = new Worker("./src/newVoice/workers/Dispatcher.js", {
                 workerData: {
                     discordClientToken: getToken(),
                     channelId: channel.id,

@@ -5,7 +5,7 @@
     "typescript": "^5.0.4"
   },
   "type": "module",
-  "main": "index.ts",
+  "main": "index.js",
   "module": "es2022",
   "name": "@betabites/statusreportermodserver",
   "description": "In development....",

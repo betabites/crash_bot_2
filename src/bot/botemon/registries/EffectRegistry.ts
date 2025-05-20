@@ -1,4 +1,4 @@
-import {Effect} from "../effects/abstracts/effect.ts";
+import {Effect} from "../effects/abstracts/effect.js";
 
 export class EffectRegistry<REGISTRY extends Record<string, typeof Effect>> {
     #registry = new Map<keyof REGISTRY, REGISTRY[string]>()

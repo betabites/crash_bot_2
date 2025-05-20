@@ -1,4 +1,4 @@
-import RemoteStatusServer from "./index.ts";
+import RemoteStatusServer from "./index.js";
 
 let test = new RemoteStatusServer("hrX7mRR6wUchfwdnRdJ80NpD4XvVGMn0s6oCMY/nXFk=", ["pczWlxfMzPmuI6yjQMaQYA=="])
 

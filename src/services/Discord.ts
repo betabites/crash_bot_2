@@ -10,10 +10,10 @@ import {
     WebhookClient,
     WebhookMessageCreateOptions
 } from "discord.js";
-import SafeQuery, {sql} from "./SQL.ts";
+import SafeQuery, {sql} from "./SQL.js";
 import mssql from "mssql";
 import Jimp from "jimp";
-import {makeid} from "../misc/Common.ts";
+import {makeid} from "../misc/Common.js";
 import fs from "node:fs";
 import https from "node:https";
 import * as path from "node:path";

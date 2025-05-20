@@ -8,8 +8,8 @@ import type {
     DestinyStatDefinition,
     DestinyVendorDefinition
 } from "bungie-net-core/models";
-import {groupItemsWithMatchingNames} from "../../utilities/groupItemsWithMatchingNames.ts";
-import {surfaceFlatten} from "../../utilities/surfaceFlatten.ts";
+import {groupItemsWithMatchingNames} from "../../utilities/groupItemsWithMatchingNames.js";
+import {surfaceFlatten} from "../../utilities/surfaceFlatten.js";
 
 
 export function levenshteinDistance(s1: string, s2: string): number {

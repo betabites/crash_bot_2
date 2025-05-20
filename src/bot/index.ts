@@ -1,26 +1,26 @@
 // Copyright 2022 - Jack Hawinkels - All Rights Reserved
 // import {EndBehaviorType} from "@discordjs/voice";
 
-import {client, getToken,} from "../services/Discord.ts";
-import SafeQuery from "../services/SQL.ts";
+import {client, getToken,} from "../services/Discord.js";
+import SafeQuery from "../services/SQL.js";
 import {ButtonStyle, ChannelType, Guild, WebhookClient} from "discord.js";
 import mssql from "mssql";
-import {BaseModule} from "./modules/BaseModule.ts";
-import {D2Module} from "./modules/D2.ts";
-import {RoleplayModule} from "./modules/RoleplayModule.ts";
-import {GPTModule} from "./modules/GPT.ts";
-import {ResourcePackManagerModule} from "./modules/ResourcePackManagerModule.ts";
-import {ImagesModule} from "./modules/ImagesModule.ts";
-import {ExperimentsModule} from "./modules/ExperimentsModule.ts";
-import {MinecraftModule} from "./modules/Minecraft/MinecraftModule.ts";
-import {MiscModule} from "./modules/MiscModule.ts";
-// import {VoiceControlModule} from "./modules/VoiceControlModule.ts";
-import {sendNotifications} from "./modules/D2/SetupNotifications.ts";
+import {BaseModule} from "./modules/BaseModule.js";
+import {D2Module} from "./modules/D2.js";
+import {RoleplayModule} from "./modules/RoleplayModule.js";
+import {GPTModule} from "./modules/GPT.js";
+import {ResourcePackManagerModule} from "./modules/ResourcePackManagerModule.js";
+import {ImagesModule} from "./modules/ImagesModule.js";
+import {ExperimentsModule} from "./modules/ExperimentsModule.js";
+import {MinecraftModule} from "./modules/Minecraft/MinecraftModule.js";
+import {MiscModule} from "./modules/MiscModule.js";
+// import {VoiceControlModule} from "./modules/VoiceControlModule.js";
+import {sendNotifications} from "./modules/D2/SetupNotifications.js";
 import dotenv from "dotenv"
-import {SpeechModule} from "./modules/Speech.ts";
-import {PointsModule} from "./modules/Points.ts";
-import {InteractionTracker} from "./modules/UsageTrackingModule.ts";
-import {EventsModule} from "./modules/events.ts";
+import {SpeechModule} from "./modules/Speech.js";
+import {PointsModule} from "./modules/Points.js";
+import {InteractionTracker} from "./modules/UsageTrackingModule.js";
+import {EventsModule} from "./modules/events.js";
 import {
     AmongUsEventSessionHandler,
     BoplBattleCompanyEventSessionHandler,
@@ -40,13 +40,13 @@ import {
     TerrariaEventSessionHandler,
     WarframeEventSessionHandler,
     WhosYourDaddyEventSessionHandler
-} from "./modules/events/eventSessionHandlers.ts";
-import {QuotesModule} from "./modules/Quotes.ts";
-import {Pterodactyl} from "./modules/Pterodactyl.ts";
-import {LethalCompanyModule} from "./modules/LethalCompanyModule.ts";
-import {BotemonModule} from "./botemon/BotemonModule.ts";
-import {Valheim} from "./modules/Valheim.ts";
-// import {MusicPlayerModule} from "./newVoice/modules/MusicPlayerModule.ts";
+} from "./modules/events/eventSessionHandlers.js";
+import {QuotesModule} from "./modules/Quotes.js";
+import {Pterodactyl} from "./modules/Pterodactyl.js";
+import {LethalCompanyModule} from "./modules/LethalCompanyModule.js";
+import {BotemonModule} from "./botemon/BotemonModule.js";
+import {Valheim} from "./modules/Valheim.js";
+// import {MusicPlayerModule} from "./newVoice/modules/MusicPlayerModule.js";
 
 console.log(`Node.js version: ${process.version}`);
 

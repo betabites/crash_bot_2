@@ -1,17 +1,17 @@
-import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.ts";
+import {BaseModule, InteractionButtonResponse, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandNumberOption, SlashCommandSubcommandBuilder} from "@discordjs/builders";
 import {ButtonInteraction, ChatInputCommandInteraction, GuildMember, Message, TextChannel} from "discord.js";
-import {getUserData} from "../utilities/getUserData.ts";
-import {CrashBotUser} from "../../misc/UserManager.ts";
-import SafeQuery, {sql} from "../../services/SQL.ts";
+import {getUserData} from "../utilities/getUserData.js";
+import {CrashBotUser} from "../../misc/UserManager.js";
+import SafeQuery, {sql} from "../../services/SQL.js";
 import mssql from "mssql";
 import ffmpeg, {FfprobeData} from "fluent-ffmpeg";
 import path from "node:path";
-import {VoiceConnectionManager} from "../../services/VoiceManager/VoiceManager.ts";
+import {VoiceConnectionManager} from "../../services/VoiceManager/VoiceManager.js";
 import {PassThrough} from "node:stream";
 import express from "express"
-import {VoiceRecording} from "../../services/VoiceManager/VoiceRecording.ts";
-import {AsyncEndpoint} from "../utilities/AsyncEndpoint.ts";
+import {VoiceRecording} from "../../services/VoiceManager/VoiceRecording.js";
+import {AsyncEndpoint} from "../utilities/AsyncEndpoint.js";
 
 export class VoiceControlModule extends BaseModule {
     commands = [
