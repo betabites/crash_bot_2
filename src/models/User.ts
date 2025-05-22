@@ -79,7 +79,7 @@ export class User {
     }
 
 
-    async grantPoints(addPoints: number, reason, capped = false) {
+    async grantPoints(addPoints: number, reason: string, capped = false) {
         let userData = await this.get()
         let {level, points} = User.calculatePointGrant(addPoints, userData, capped)
         let leveled_up = level !== userData.level
@@ -94,6 +94,6 @@ export class User {
     }
 
     setLevel(level: number, points: number = 0) {
-        return contextSQL`UPDATE dbo.Users SET level = ${level}, points = ${points} WHERE discord_id = ${this.#recordData.discord_id}`
+        return contextSQL`UPDATE dbo.Users SET level = ${level}, points = ${points} WHERE discord_id = ${this.discord_id}`
     }
 }

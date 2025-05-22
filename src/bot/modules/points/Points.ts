@@ -5,6 +5,7 @@ import {
     Client,
     EmbedBuilder,
     Message,
+    OmitPartialGroupDMChannel,
     Presence,
     VoiceBasedChannel,
     VoiceState
@@ -13,10 +14,12 @@ import SafeQuery, {sql} from "../../../services/SQL.js";
 import {SlashCommandBuilder} from "@discordjs/builders";
 import Jimp from "jimp";
 import {AIConversation, generateAIThumbnail} from "../../../services/ChatGPT/ChatGPT.js";
-import {IResult} from "mssql";
 import schedule from "node-schedule";
+import {grantPointsWithDMResponse} from "./grantPointsWithDMResponse.js";
+import {User} from "../../../models/User.js";
+import {grantPointsWithInChannelResponse} from "./grantPointsWithInChannelResponse.js";
 
-const levelUpgradeMessages = [
+export const levelUpgradeMessages = [
     null,
     null, // lv1
     null, // lv2
@@ -318,7 +321,7 @@ export class PointsModule extends BaseModule {
                         if (activityPlayerCount < 3) continue
 
                         await grantPointsWithDMResponse({
-                            userDiscordId: new User(memberId),
+                            user: new User(memberId),
                             points: activityPlayerCount - 2,
                             capped: true,
                             discordClient: this.client,
@@ -337,88 +340,6 @@ export class PointsModule extends BaseModule {
                           SET cappedPoints=0
                           WHERE 1 = 1`)
         })
-    }
-
-
-    static async grantPointsWithDMResponse(options: GrantPointsOptions & { discordClient: Client }) {
-        if (options.points == 0) return
-
-        let user = await PointsModule.grantPoints(options)
-        if (!user) return
-        if (user.leveled_up) {
-            let discordUser = await options.discordClient.users.fetch(options.userDiscordId)
-
-            let upgradeMsg = levelUpgradeMessages[user.level + 1]
-            let embed = new EmbedBuilder()
-            embed.setTitle(`🥳 Level up!`)
-            embed.setDescription(`<@${options.userDiscordId}> just leveled up to level ${user.level}!${
-                upgradeMsg ? "\n\n" + upgradeMsg : ""
-            }`)
-            embed.setThumbnail(discordUser.displayAvatarURL())
-            discordUser.send({embeds: [embed]})
-        }
-    }
-
-    static async grantPoints(options: GrantPointsOptions): Promise<{
-        level: number,
-        points: number,
-        leveled_up: boolean
-    } | null> {
-        if (options.points <= 0) throw new Error("Cannot grant zero or negative points")
-
-        let res: IResult<{ points: number, level: number }>
-        if (options.capped) {
-            res = await SafeQuery<{
-                points: number,
-                level: number
-            }>
-            (sql`UPDATE Users
-                 SET points=points + ${options.points},
-                     cappedPoints=cappedPoints + ${options.points}
-                 WHERE discord_id = ${options.userDiscordId}
-                   AND cappedPoints < 160;
-            SELECT points, level
-            FROM Users
-            WHERE discord_id = ${options.userDiscordId}
-              AND level >= ${options.levelGate || 0}`)
-        }
-        else {
-            res = await SafeQuery<{
-                points: number,
-                level: number
-            }>
-            (sql`UPDATE Users
-                 SET points=points + ${options.points}
-                 WHERE discord_id = ${options.userDiscordId};
-            SELECT points, level
-            FROM Users
-            WHERE discord_id = ${options.userDiscordId}
-              AND level >= ${options.levelGate || 0}`)
-        }
-        console.log(res)
-
-        let user = res.recordset[0]
-        let leveled_up = false
-        if (!user) return null
-        // Runs the history recording here, in case the user's points cap was reached and no points were actually awarded.
-        void SafeQuery(sql`INSERT INTO Points (discord_id, reason, points)
-                           VALUES (${options.userDiscordId}, ${options.reason}, ${options.points})`)
-
-        let level_gate = PointsModule.calculateLevelGate(user.level + 1)
-        if (user.points >= level_gate) {
-            await SafeQuery(sql`UPDATE Users
-                                SET points=0,
-                                    level=level + 1
-                                WHERE discord_id = ${options.userDiscordId}`)
-            return {
-                ...await this.grantPoints({
-                    ...options,
-                    points: options.points - level_gate
-                }) as { level: number, points: number },
-                leveled_up: true
-            }
-        }
-        return {...user, leveled_up}
     }
 
     static async getPoints(userDiscordId: string) {
@@ -442,7 +363,7 @@ export class PointsModule extends BaseModule {
     }
 
     @OnClientEvent("messageCreate", this)
-    async onMessageCreate(msg: Message) {
+    async onMessageCreate(msg: OmitPartialGroupDMChannel<Message>) {
         if (msg.channelId === "892518396166569994" && msg.content === "new_weapon") {
             const level = await PointsModule.getPoints(msg.author.id)
             const max_points = 10 + (level.level * 5)

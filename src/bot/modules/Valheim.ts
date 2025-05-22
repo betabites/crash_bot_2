@@ -9,6 +9,8 @@ import {PubSub} from '@google-cloud/pubsub';
 import {readFile} from "node:fs/promises"
 import {BigQuery, BigQueryDate} from '@google-cloud/bigquery';
 import console from "node:console";
+import {grantPointsWithDMResponse} from "./points/grantPointsWithDMResponse.js";
+import {User} from "src/models/User.js";
 
 // Create a PubSub client
 const pubsub = new PubSub();

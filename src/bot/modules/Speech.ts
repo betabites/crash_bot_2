@@ -1,6 +1,6 @@
 import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
 import {SlashCommandBuilder, SlashCommandSubcommandBuilder} from "@discordjs/builders";
-import {ChatInputCommandInteraction, ClientEvents, Message, TextChannel} from "discord.js";
+import {ChatInputCommandInteraction, ClientEvents, Message, OmitPartialGroupDMChannel, TextChannel} from "discord.js";
 import SafeQuery from "../../services/SQL.js";
 import mssql from "mssql";
 import {getUserData, SPEECH_MODES} from "../utilities/getUserData.js";
@@ -13,6 +13,7 @@ import {
 import {PointsModule} from "./points/Points.js";
 import Jimp from "jimp";
 import {grantPointsWithInChannelResponse} from "./points/grantPointsWithInChannelResponse.js";
+import {User} from "../../models/User.js";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 const SPEECH_ALT_CHARACTERS = {}
@@ -147,7 +148,7 @@ export class SpeechModule extends BaseModule {
     ]
 
     @OnClientEvent("messageCreate")
-    private async onMessage(msg: Message) {
+    private async onMessage(msg: OmitPartialGroupDMChannel<Message>) {
         if (msg.author.bot) return
         if (!msg.member) {
             this.emitAlteredMessageEvent(msg, msg.content, null)
@@ -489,7 +490,7 @@ export class SpeechModule extends BaseModule {
         return [alteredMessage, character]
     }
 
-    private emitAlteredMessageEvent(msg: Message, newMsg: string, character: Character | null) {
+    private emitAlteredMessageEvent(msg: OmitPartialGroupDMChannel<Message>, newMsg: string, character: Character | null) {
         for (let item of SpeechListeners) {
             for (let listener of item[1]) {
                 try {

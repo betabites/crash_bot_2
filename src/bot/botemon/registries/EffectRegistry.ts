@@ -19,6 +19,7 @@ export class EffectRegistry<REGISTRY extends Record<string, typeof Effect>> {
 
     createItem<KEY extends keyof REGISTRY>(key: KEY) {
         let constructor = this.getConstructor(key)
+        // @ts-ignore
         return new constructor(key as string)
     }
 }

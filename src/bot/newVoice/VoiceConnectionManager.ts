@@ -5,7 +5,7 @@ import {RootPortManager} from "./messageHandlers/RootPortManager.js";
 import {MessagePortWritable} from "./messageHandlers/MessageChannelStreams.js";
 import {Writable} from "stream";
 import ytdl from "@distube/ytdl-core";
-import {getToken} from "../services/Discord.js";
+import {getToken} from "../../services/Discord.js";
 
 const connections = new Map<string, VoiceConnectionManager>()
 

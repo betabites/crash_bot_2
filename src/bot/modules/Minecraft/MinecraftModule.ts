@@ -26,9 +26,10 @@ import {updateScoreboard} from "../../../misc/updateScoreboard.js";
 import mssql from "mssql";
 import RemoteStatusServer, {Connection as ServerConnection} from "../../../misc/RemoteStatusServer.js";
 import {sendImpersonateMessage} from "../../../services/Discord.js";
-import {PointsModule} from "../points/Points.js";
 // import deathMessages from "./deathMessages.json" assert {type: "json"}
 import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.js";
+import {grantPointsWithDMResponse} from "../points/grantPointsWithDMResponse.js";
+import {User} from "../../../models/User.js";
 // const deathMessages: any = {}
 
 RemoteStatusServer.io.on("connection", () => {
@@ -38,6 +39,7 @@ RemoteStatusServer.io.on("connection", () => {
 const MC_CHAT_CHANNEL = "968298113427206195"
 // const MC_CHAT_CHANNEL = "892518396166569994"
 const COORDINATES_SHARE_REGEX = /\[name:(?<name>".*"), x:(?<x>[-0-9]*), y:(?<y>[-0-9]*), z:(?<z>[-0-9]*), dim:(?<dim>.*)]/g
+const deathMessages = ["dead"]
 
 export class MinecraftModule extends BaseModule {
     commands = [
@@ -422,8 +424,8 @@ export class MinecraftModule extends BaseModule {
                             name: `${player.username} just earned [${advancement.display.title}]`,
                             iconURL: member.avatarURL({size: 32}) || member.user.avatarURL({size: 32}) || ""
                         })
-                        PointsModule.grantPoints({
-                            userDiscordId: member.id,
+                        grantPointsWithDMResponse({
+                            user: new User(member.id),
                             points: 1,
                             reason: "Minecraft advancement"
                         })

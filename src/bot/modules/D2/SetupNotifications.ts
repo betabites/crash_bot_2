@@ -87,7 +87,7 @@ export async function sendNotifications() {
     }>(sql`SELECT * FROM CrashBot.dbo.D2_Notifications WHERE not_before <= GETDATE();`);
     for (const notification of notifications.recordset) {
         const channel = await client.channels.fetch(notification.msg_channel) as TextBasedChannel;
-        if (!channel) continue
+        if (!channel || !channel.isSendable()) continue
 
         const embeds = [new EmbedBuilder()]
         switch (notification.type) {

@@ -216,7 +216,7 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
                 Accept: 'Application/vnd.pterodactyl.v1+json',
             }
         })
-        const res = await req.json()
+        const res = await req.json() as {data: any}
         console.log(res.data)
         return res.data.find((item: any) => item.attributes.username === username) as UserObject | undefined
     }

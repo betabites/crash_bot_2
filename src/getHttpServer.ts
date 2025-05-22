@@ -8,6 +8,7 @@ import path from "node:path"
 import fs from "node:fs"
 
 const dev = process.env.NODE_ENV !== 'production'
+// @ts-ignore
 const app = next({ dev })
 const handle = app.getRequestHandler()
 

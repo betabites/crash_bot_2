@@ -73,7 +73,7 @@ export abstract class GameSessionModule extends BaseModule {
 
         schedule.scheduleJob("0 0 0 * * *", () => {
             void this.cleanUpSessions()
-            void this.updateSessions()
+            // void this.updateSessions()
         })
     }
 

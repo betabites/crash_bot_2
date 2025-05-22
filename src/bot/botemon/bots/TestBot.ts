@@ -1,8 +1,8 @@
-import {Bot, Enum} from "./abstracts/bot.js";
+import {BasicBotAttributes, Bot, Enum} from "./abstracts/bot.js";
 
 export class TestBot extends Bot {
-    resistantTo: Enum<{ readonly ELECTRIC: "electric"; readonly POISON: "poison"; readonly PSYCHIC: "psychic"; readonly FIRE: "fire"; readonly WATER: "water"; readonly EARTH: "earth"; readonly ICE: "ice"; readonly AIR: "air"; readonly HOLY: "holy"; readonly NECROTIC: "necrotic"; readonly ARCANE: "arcane"; readonly COSMIC: "cosmic"; readonly CHAOS: "chaos"; readonly VOID: "void"; readonly BASS: "bass"; readonly RANGED: "ranged"; readonly MELEE: "melee"; }>[];
-    vulnerableTo: Enum<{ readonly ELECTRIC: "electric"; readonly POISON: "poison"; readonly PSYCHIC: "psychic"; readonly FIRE: "fire"; readonly WATER: "water"; readonly EARTH: "earth"; readonly ICE: "ice"; readonly AIR: "air"; readonly HOLY: "holy"; readonly NECROTIC: "necrotic"; readonly ARCANE: "arcane"; readonly COSMIC: "cosmic"; readonly CHAOS: "chaos"; readonly VOID: "void"; readonly BASS: "bass"; readonly RANGED: "ranged"; readonly MELEE: "melee"; }>[];
+    resistantTo: Enum<{ readonly ELECTRIC: "electric"; readonly POISON: "poison"; readonly PSYCHIC: "psychic"; readonly FIRE: "fire"; readonly WATER: "water"; readonly EARTH: "earth"; readonly ICE: "ice"; readonly AIR: "air"; readonly HOLY: "holy"; readonly NECROTIC: "necrotic"; readonly ARCANE: "arcane"; readonly COSMIC: "cosmic"; readonly CHAOS: "chaos"; readonly VOID: "void"; readonly BASS: "bass"; readonly RANGED: "ranged"; readonly MELEE: "melee"; }>[] = [];
+    vulnerableTo: Enum<{ readonly ELECTRIC: "electric"; readonly POISON: "poison"; readonly PSYCHIC: "psychic"; readonly FIRE: "fire"; readonly WATER: "water"; readonly EARTH: "earth"; readonly ICE: "ice"; readonly AIR: "air"; readonly HOLY: "holy"; readonly NECROTIC: "necrotic"; readonly ARCANE: "arcane"; readonly COSMIC: "cosmic"; readonly CHAOS: "chaos"; readonly VOID: "void"; readonly BASS: "bass"; readonly RANGED: "ranged"; readonly MELEE: "melee"; }>[] = [];
     onTurnStart(): void {
         throw new Error("Method not implemented.");
     }
@@ -12,7 +12,13 @@ export class TestBot extends Bot {
     }
 
     static override async new(itemType: string, ownerId: string | null) {
-        let attributes = {}
+        let attributes: BasicBotAttributes = {
+            health: 0,
+            maxHealth: 0,
+            mana: 0,
+            maxMana: 0,
+            level: 0
+        }
         let newId = await this._newInternal(itemType, ownerId, attributes)
         return new TestBot(newId, itemType, attributes)
     }

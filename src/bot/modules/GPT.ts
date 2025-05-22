@@ -8,9 +8,8 @@ import {
     Colors,
     EmbedBuilder,
     GuildMember,
-    GuildTextBasedChannel,
     Message,
-    TextBasedChannel,
+    SendableChannels,
     User
 } from "discord.js";
 import {
@@ -120,6 +119,7 @@ export class GPTModule extends BaseModule {
 
     @OnSpeechModeAdjustmentComplete()
     async onMessage([msg]: [Message], messageContent: string, character: Character | null) {
+        if (!msg.channel.isSendable()) return
         if ((msg.author.bot && !msg.webhookId) || !this.client.user) return
         else if (msg.mentions.users.has(this.client.user.id) || this.activeConversations.has(msg.channelId) || msg.channel.type === ChannelType.DM) {
             console.log("HERE!")
@@ -145,7 +145,7 @@ export class GPTModule extends BaseModule {
         }
     }
 
-    async #getConversationForChannel(channel: TextBasedChannel | GuildTextBasedChannel) {
+    async #getConversationForChannel(channel: SendableChannels) {
         let conversation = this.activeConversations.get(channel.id)
         if (conversation) return conversation
         if (channel.isDMBased()) {

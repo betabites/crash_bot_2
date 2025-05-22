@@ -7,7 +7,6 @@ import {ButtonStyle, ChannelType, Guild, WebhookClient} from "discord.js";
 import mssql from "mssql";
 import {BaseModule} from "./modules/BaseModule.js";
 import {D2Module} from "./modules/D2.js";
-import {RoleplayModule} from "./modules/RoleplayModule.js";
 import {GPTModule} from "./modules/GPT.js";
 import {ResourcePackManagerModule} from "./modules/ResourcePackManagerModule.js";
 import {ImagesModule} from "./modules/ImagesModule.js";
@@ -76,7 +75,6 @@ const moduleClasses = [
     ExperimentsModule,
     GPTModule,
     ImagesModule,
-    RoleplayModule,
     MinecraftModule,
     MiscModule,
     ResourcePackManagerModule,

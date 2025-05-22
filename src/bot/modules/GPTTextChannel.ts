@@ -9,9 +9,9 @@ import {
     ChannelType,
     Client,
     EmbedBuilder,
+    GuildTextBasedChannel,
     Message,
     Role,
-    TextBasedChannel,
     TextChannel
 } from "discord.js";
 import {Character} from "./Speech.js";
@@ -32,6 +32,7 @@ import {DestinyRace} from "bungie.net";
 import {MANIFEST_SEARCH} from "./D2/DestinyManifestDatabase.js";
 import {getD2AccessToken} from "./D2/getD2AccessToken.js";
 import {z} from "zod";
+import {SendableTextChannel} from "../../utilities/types.js";
 
 export const EVENT_KEYS = [
     "chill",
@@ -145,7 +146,7 @@ const DIMLoadoutSchema = z.object({
 })
 
 export class GPTTextChannel extends AIConversation {
-    channel: TextBasedChannel;
+    channel: SendableTextChannel;
     #lastMessage: Message | undefined;
     #knownUserMappings = new Map<string, string>() // Maps usernames to discord user IDs. Contains the IDs of users in the conversation.
     #isTypingInterval: null | {interval: NodeJS.Timeout, timeout: NodeJS.Timeout} = null;
@@ -153,7 +154,7 @@ export class GPTTextChannel extends AIConversation {
     _actionRowQueue: ActionRowBuilder<ButtonBuilder>[] = [];
     private client: Client;
 
-    static async load(channel: TextBasedChannel, client: Client, system_message?: string) {
+    static async load(channel: SendableTextChannel, client: Client, system_message?: string) {
         let messages = await SafeQuery<{ content: string }>(sql`SELECT content
                                                                 FROM AiConversationHistory
                                                                 WHERE conversation_id = ${"channel_" + channel.id}`);
@@ -187,7 +188,7 @@ export class GPTTextChannel extends AIConversation {
 
     constructor(
         messages: ChatCompletionMessageParam[],
-        channel: TextBasedChannel,
+        channel: SendableTextChannel,
         client: Client
     ) {
         super(messages, "channel_" + channel.id);
@@ -421,7 +422,8 @@ export class GPTTextChannel extends AIConversation {
         if (this.channel.type === ChannelType.DM) {
             return "This function is not available for Discord DM-based communications";
         }
-        let roles = await this.channel.guild.roles.fetch();
+        let channel = this.channel as GuildTextBasedChannel
+        let roles = await channel.guild.roles.fetch();
         let statusMessage = await this.channel.send({
             embeds: [new EmbedBuilder().setColor("Blue").setDescription(`Crash Bot fetched all Discord roles in this server`)],
         })
@@ -612,8 +614,10 @@ ALWAYS SEND THE RESULT AS A DIM BUILD UNLESS SPECIFICALLY REQUESTED!
 
     async sendToAI() {
         if (!this.#isTypingInterval) {
+            // @ts-ignore
             void this.channel.sendTyping()
             let interval = setInterval(() => {
+                // @ts-ignore
                 void this.channel.sendTyping()
             }, 3000)
             // In case for any odd reason an error occurs, the following timeout ensures that the bot doesn't remain in an 'is typing' state forever.

@@ -6,8 +6,9 @@ import {
     Colors,
     EmbedBuilder,
     GuildMember,
+    GuildTextBasedChannel,
     Message,
-    TextBasedChannel
+    OmitPartialGroupDMChannel
 } from "discord.js";
 import {getUserData} from "../utilities/getUserData.js";
 import SafeQuery, {sql} from "../../services/SQL.js";
@@ -53,8 +54,8 @@ export class ExperimentsModule extends BaseModule {
     ]
 
     @OnClientEvent("messageCreate")
-    async onMessage(msg: Message) {
-        if (msg.author.bot) return
+    async onMessage(msg: OmitPartialGroupDMChannel<Message>) {
+        if (msg.author.bot || msg.channel.isDMBased() || !msg.channel.isSendable()) return
         if (msg.content.toLowerCase().includes("how many times have i said ")) {
             getUserData(msg.member as GuildMember)
                 .then(async res => {
@@ -129,10 +130,6 @@ export class ExperimentsModule extends BaseModule {
                 })
         }
         else if (msg.content.toLowerCase().includes("what are some barely spoken words")) {
-            if (msg.channel.type === ChannelType.DM) {
-                msg.reply("Oops. You can't use this phrase in this channel")
-                return
-            }
             let results = await SafeQuery("SELECT TOP 10 word, SUM(count + pseudo_addition) as 'count', discord_id FROM CrashBot.dbo.WordsExperiment WHERE guild_id=@guildid AND \"count\" = 1 GROUP BY word, discord_id ORDER BY \"count\", NEWID()", [
                 {name: "guildid", type: mssql.TYPES.VarChar(), data: msg.channel.guild.id}
             ])
@@ -302,7 +299,7 @@ export class ExperimentsModule extends BaseModule {
                                             let title: string = `<@${msg.author.username}> just said ${word} for the ${res.recordset[0].sum}th time!`
                                             let message = `Of all users with this experiment enabled, <@${msg.author.id}> just said \`${word}\`for the ${res.recordset[0].sum}th time!`;
 
-                                            (channel as TextBasedChannel).send({
+                                            (channel as GuildTextBasedChannel).send({
                                                 content: ' ', embeds: [
                                                     new EmbedBuilder()
                                                         .setTitle(title)

@@ -105,12 +105,10 @@ export abstract class BasicAIConversation extends EventEmitter {
     }
 
     on<EVENT extends keyof AIConversationEvents>(eventName: EVENT, func: (...args: AIConversationEvents[EVENT]) => void) {
-        // @ts-expect-error
         return super.on(eventName, func)
     }
 
     once<EVENT extends keyof AIConversationEvents>(eventName: EVENT, func: (...args: AIConversationEvents[EVENT]) => void) {
-        // @ts-expect-error
         return super.once(eventName, func)
     }
 
@@ -165,6 +163,7 @@ export abstract class BasicAIConversation extends EventEmitter {
             let choice = result.choices[0]
             console.log("CHOICE", choice)
             this.appendMessage(choice.message)
+            // @ts-ignore
             this.emit(`message_${choice.finish_reason}`, choice.message)
         } catch (e) {
             this.emit("error", e)

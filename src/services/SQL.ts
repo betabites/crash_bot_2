@@ -4,6 +4,7 @@ import {deepStrictEqual} from "node:assert"
 import {surfaceFlatten} from "../bot/utilities/surfaceFlatten.js";
 import dotenv from "dotenv";
 import {AsyncLocalStorage} from 'node:async_hooks';
+import {ChannelType} from "discord.js";
 
 const {connect} = pkg;
 dotenv.config()
@@ -324,8 +325,8 @@ function makeUnique<T = any>(array: T[]) {
 //
 
 export async function useSQLContext<T>(func: () => T ): Promise<Awaited<T>> {
-    return SafeTransaction(async (queryFunc) => {
-        return sqlContext.run({queryFunc}, func)
+    return await SafeTransaction(async (queryFunc) => {
+        return sqlContext.run({sql: queryFunc}, func)
     })
 }
 
@@ -334,3 +335,5 @@ export function contextSQL<T>(...params: Parameters<typeof sql>) {
     let handler = sqlContext.getStore()?.sql ?? SafeQuery
     return handler(query) as Promise<pkg.IResult<T>>
 }
+
+

@@ -48,6 +48,7 @@ export class BotemonModule extends BaseModule {
         console.log(res.recordset)
         return res.recordset.map(record => {
             let attributes = JSON.parse(record.attributes)
+            // @ts-ignore
             let constructor = this.registry.getConstructor(record.itemType)
             return new constructor(record.id, record.itemType, attributes)
         })
@@ -63,6 +64,7 @@ export class BotemonModule extends BaseModule {
         }>(sql`SELECT * FROM InventoryItems WHERE owner = ${discordId} AND id = ${instanceId}`)
         return res.recordset.map(record => {
             let attributes = JSON.parse(record.attributes)
+            // @ts-expect-error
             let constructor = this.registry.getConstructor(record.itemType)
             return new constructor(record.id, record.itemType, attributes)
         })[0]

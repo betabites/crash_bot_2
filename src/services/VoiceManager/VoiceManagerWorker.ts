@@ -29,8 +29,8 @@ import {
 } from "./types.js";
 import crypto from "crypto";
 import {ActiveVoiceRecording} from "./VoiceRecording.js";
-import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
 import {createReadStream} from "node:fs"
+import {isYoutubeUrl} from "../../bot/utilities/isYoutubeUrl.js";
 
 client.login(workerData.discordClientToken)
 

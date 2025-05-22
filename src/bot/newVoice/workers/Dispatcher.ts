@@ -4,7 +4,6 @@
 
 import {parentPort, workerData} from "worker_threads";
 import {RootPortManager} from "../messageHandlers/RootPortManager.js";
-import {client} from "../../services/Discord.js";
 import {
     createAudioPlayer,
     createAudioResource,
@@ -14,6 +13,7 @@ import {
 } from "@discordjs/voice";
 import {PassThrough, Readable} from "stream";
 import {type BaseVoiceModule} from "../modules/BaseVoiceModule.js";
+import {client} from "../../../services/Discord.js";
 
 if (!parentPort) throw new Error("No parent port");
 

@@ -150,7 +150,7 @@ export class VoiceRecording {
                 ])
                 .on("start", (line) => console.log(line))
                 .on("error", (err) => reject(err))
-                .on("close", () => resolve())
+                .on("end", () => resolve())
                 .on("progress", (progress) => {
                     console.log(`${progress.percent}% done - Output: ${progress.targetSize}`)
                 })

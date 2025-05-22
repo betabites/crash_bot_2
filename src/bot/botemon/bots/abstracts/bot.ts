@@ -2,7 +2,7 @@ import {InventoryItem} from "../../items/abstracts/InventoryItem.js";
 import {Item} from "../../items/abstracts/Item.js";
 import {Effect} from "../../effects/abstracts/effect.js";
 
-type BasicBotAttributes = {
+export type BasicBotAttributes = {
     health: number;
     maxHealth: number;
     mana: number;
