@@ -15,7 +15,7 @@ import {
     TextChannel
 } from "discord.js";
 import {Character} from "./Speech.js";
-import {PointsModule} from "./Points.js";
+import {PointsModule} from "./points/Points.js";
 import moment from "moment-timezone"
 import {GameSessionData, GameSessionModule} from "./GameSessionModule.js";
 import {EVENT_IDS} from "./GameAchievements.js";

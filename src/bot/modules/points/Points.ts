@@ -1,20 +1,18 @@
-import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "./BaseModule.js";
+import {BaseModule, InteractionChatCommandResponse, OnClientEvent} from "../BaseModule.js";
 import {
     AttachmentBuilder,
-    BaseGuildTextChannel,
     ChatInputCommandInteraction,
     Client,
     EmbedBuilder,
     Message,
     Presence,
-    TextBasedChannel,
     VoiceBasedChannel,
     VoiceState
 } from "discord.js";
-import SafeQuery, {sql} from "../../services/SQL.js";
+import SafeQuery, {sql} from "../../../services/SQL.js";
 import {SlashCommandBuilder} from "@discordjs/builders";
 import Jimp from "jimp";
-import {AIConversation, generateAIThumbnail} from "../../services/ChatGPT/ChatGPT.js";
+import {AIConversation, generateAIThumbnail} from "../../../services/ChatGPT/ChatGPT.js";
 import {IResult} from "mssql";
 import schedule from "node-schedule";
 
@@ -211,8 +209,8 @@ function randomStatRoll(minRoll: number, maxRoll: number) {
     return Math.ceil(minRoll) + Math.floor(Math.random() * actualMax) + 1
 }
 
-interface GrantPointsOptions {
-    userDiscordId: string,
+export interface GrantPointsOptions {
+    user: User,
     points: number,
     capped?: boolean,
     reason: string,
@@ -304,8 +302,8 @@ export class PointsModule extends BaseModule {
 
                 for (let memberId of call[1]) {
                     console.log(`GRANTING POINTS TO USER; ${memberId}`)
-                    await PointsModule.grantPointsWithDMResponse({
-                        userDiscordId: memberId,
+                    await grantPointsWithDMResponse({
+                        user: new User(memberId),
                         points: call[1].length - 1,
                         capped: true,
                         discordClient: this.client,
@@ -319,8 +317,8 @@ export class PointsModule extends BaseModule {
                         let activityPlayerCount = possibleActivities.get(activity_id) ?? 0
                         if (activityPlayerCount < 3) continue
 
-                        await PointsModule.grantPointsWithDMResponse({
-                            userDiscordId: memberId,
+                        await grantPointsWithDMResponse({
+                            userDiscordId: new User(memberId),
                             points: activityPlayerCount - 2,
                             capped: true,
                             discordClient: this.client,
@@ -341,31 +339,6 @@ export class PointsModule extends BaseModule {
         })
     }
 
-
-    static async grantPointsWithInChannelResponse(options: GrantPointsOptions & {
-        responseChannel: TextBasedChannel,
-        discordClient: Client
-    }) {
-        if (options.points == 0) return
-
-        let user = await PointsModule.grantPoints(options)
-        if (!user) return
-        if (user.points == 0) {
-            let discord_user =
-                options.responseChannel instanceof BaseGuildTextChannel ?
-                    await options.responseChannel.guild.members.fetch(options.userDiscordId) :
-                    await options.discordClient.users.fetch(options.userDiscordId)
-
-            let upgradeMsg = levelUpgradeMessages[user.level + 1]
-            let embed = new EmbedBuilder()
-            embed.setTitle(`🥳 Level up!`)
-            embed.setDescription(`<@${options.userDiscordId}> just leveled up to level ${user.level}!${
-                upgradeMsg ? "\n\n" + upgradeMsg : ""
-            }`)
-            embed.setThumbnail(discord_user.displayAvatarURL())
-            options.responseChannel.send({embeds: [embed]})
-        }
-    }
 
     static async grantPointsWithDMResponse(options: GrantPointsOptions & { discordClient: Client }) {
         if (options.points == 0) return
@@ -391,6 +364,8 @@ export class PointsModule extends BaseModule {
         points: number,
         leveled_up: boolean
     } | null> {
+        if (options.points <= 0) throw new Error("Cannot grant zero or negative points")
+
         let res: IResult<{ points: number, level: number }>
         if (options.capped) {
             res = await SafeQuery<{
@@ -545,8 +520,8 @@ export class PointsModule extends BaseModule {
         if (msg.author.bot) return
         else if (this.userMessagesOnCooldown.has(msg.author.id)) return
         this.userMessagesOnCooldown.add(msg.author.id)
-        await PointsModule.grantPointsWithInChannelResponse({
-            userDiscordId: msg.author.id,
+        await grantPointsWithInChannelResponse({
+            user: new User(msg.author.id),
             points: 3,
             responseChannel: msg.channel,
             discordClient: this.client,

@@ -3,6 +3,7 @@ import mssql, {config, ISqlType} from 'mssql';
 import {deepStrictEqual} from "node:assert"
 import {surfaceFlatten} from "../bot/utilities/surfaceFlatten.js";
 import dotenv from "dotenv";
+import {AsyncLocalStorage} from 'node:async_hooks';
 
 const {connect} = pkg;
 dotenv.config()
@@ -55,6 +56,11 @@ export function UNSAFE_SQL_PARAM<T extends { toString(): string }>(parameter: T)
     }
 }
 
+/**
+ * @deprecated All new code should use the contextual SQL API
+ * @param query
+ * @constructor
+ */
 export default async function SafeQuery<T = any>(query: SQLQueryObject): Promise<pkg.IResult<T>>
 export default async function SafeQuery<T = any>(query: string, params: PreparedArgument[]): Promise<pkg.IResult<T>>
 export default async function SafeQuery<T = any>(query: SQLQueryObject | string, params?: PreparedArgument[]): Promise<pkg.IResult<T>> {
@@ -78,7 +84,9 @@ export default async function SafeQuery<T = any>(query: SQLQueryObject | string,
 export type SafeTransactionQueryFunc<T = unknown> = (sql: SQLQueryObject) => Promise<pkg.IResult<T>>
 type MaybePromise<T> = Promise<T> | T
 
-export async function SafeTransaction(handler: (queryFunc: SafeTransactionQueryFunc) => MaybePromise<false | void>) {
+const sqlContext = new AsyncLocalStorage<{sql: SafeTransactionQueryFunc}>();
+
+export async function SafeTransaction<T extends unknown>(handler: (queryFunc: SafeTransactionQueryFunc) => MaybePromise<T>) {
     let pool = await connect(sql_config)
     let transaction = pool.transaction()
     await transaction.begin()
@@ -92,18 +100,15 @@ export async function SafeTransaction(handler: (queryFunc: SafeTransactionQueryF
     try {
         let res = await handler(queryFunc);
         if (res === false) {
-            // Transaction cancelled
-            await transaction.rollback()
-            return
+            throw new Error("Transaction cancelled")
         }
+        return res
     } catch (e) {
         console.error("A database transaction step failed")
         console.error(e)
         await transaction.rollback()
-        return
+        throw e
     }
-
-    return await transaction.commit()
 }
 
 function determineSqlType(item: SQLParameterWithUnsafe): PreparedArgumentUnsafe["type"] {
@@ -128,6 +133,11 @@ export function override(type: ISqlType, data: any) {
     return new SQLParameterOverride(type, data)
 }
 
+/**
+ * @deprecated All new code should use the contextual SQL API
+ * @param strings
+ * @param args
+ */
 export function sql(strings: TemplateStringsArray, ...args: (SQLParameterWithUnsafe | SQLParameterOverride | (SQLParameter | SQLParameterOverride)[])[]): SQLQueryObject {
     let params: (PreparedArgumentUnsafe | PreparedArgument[])[] = []
     args.forEach((arg, index) => {
@@ -304,4 +314,23 @@ function generateInsertStatement(items: Record<string, string>[]) {
 
 function makeUnique<T = any>(array: T[]) {
     return Array.from(new Set(array))
+}
+
+//
+//
+//      CONTEXTUAL SQL API
+//      All new code should use the
+//
+//
+
+export async function useSQLContext<T>(func: () => T ): Promise<Awaited<T>> {
+    return SafeTransaction(async (queryFunc) => {
+        return sqlContext.run({queryFunc}, func)
+    })
+}
+
+export function contextSQL<T>(...params: Parameters<typeof sql>) {
+    const query = sql(...params)
+    let handler = sqlContext.getStore()?.sql ?? SafeQuery
+    return handler(query) as Promise<pkg.IResult<T>>
 }

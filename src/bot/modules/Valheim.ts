@@ -9,7 +9,6 @@ import {PubSub} from '@google-cloud/pubsub';
 import {readFile} from "node:fs/promises"
 import {BigQuery, BigQueryDate} from '@google-cloud/bigquery';
 import console from "node:console";
-import {PointsModule} from "./Points.js";
 
 // Create a PubSub client
 const pubsub = new PubSub();
@@ -45,9 +44,9 @@ export class Valheim extends BaseModule {
                 WHERE history.sessionEnd IS NULL
             `)
             for (let user of discord_ids.recordset) {
-                await PointsModule.grantPointsWithDMResponse({
+                await grantPointsWithDMResponse({
                     discordClient: client,
-                    userDiscordId: user.discord_id,
+                    user: new User(user.discord_id),
                     reason: "Valheim",
                     points: 1,
                     capped: true,
@@ -65,9 +64,9 @@ export class Valheim extends BaseModule {
             if (discord_ids.recordset.length < 3) return
 
             for (let user of discord_ids.recordset) {
-                await PointsModule.grantPointsWithDMResponse({
+                await grantPointsWithDMResponse({
                     discordClient: client,
-                    userDiscordId: user.discord_id,
+                    user: new User(user.discord_id),
                     reason: "Valheim (group)",
                     points: discord_ids.recordset.length - 2,
                     capped: true,

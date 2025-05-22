@@ -25,7 +25,7 @@ import mssql from "mssql";
 import {ShuffleArray} from "../../misc/Common.js";
 import {getUserData} from "../utilities/getUserData.js";
 import {toTitleCase} from "../utilities/toTitleCase.js";
-import {PointsModule} from "./Points.js";
+import {PointsModule} from "./points/Points.js";
 import {Character, OnSpeechModeAdjustmentComplete} from "./Speech.js";
 import {GPTTextChannel} from "./GPTTextChannel.js";
 

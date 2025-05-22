@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsc -p . --noCheck && node ./dist/src/server.js",
+    "dev": "tsx watch --exclude ./src/app/**/* ./src/server.ts",
     "build": "next build",
     "start": "NODE_ENV=production node src/server.ts"
   },
@@ -52,7 +52,6 @@
     "spotifydl-core": "^0.2.0",
     "sqlite3": "^5.1.7",
     "steamapi": "^3.1.1",
-    "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "uuid": "^9.0.1",
     "ws": "^8.18.2",
@@ -86,7 +85,8 @@
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@types/uuid": "^9.0.8",
-    "@types/yt-search": "^2.10.3"
+    "@types/yt-search": "^2.10.3",
+    "tsx": "^4.19.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -10,8 +10,9 @@ import {
     JimpProfilePictureModification,
     sendImpersonateMessage
 } from "../../services/Discord.js";
-import {PointsModule} from "./Points.js";
+import {PointsModule} from "./points/Points.js";
 import Jimp from "jimp";
+import {grantPointsWithInChannelResponse} from "./points/grantPointsWithInChannelResponse.js";
 
 const baby_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0987654321)(*&^%$#@!?<>"
 const SPEECH_ALT_CHARACTERS = {}
@@ -202,8 +203,8 @@ export class SpeechModule extends BaseModule {
                 })
             }
             void msg.delete()
-            void PointsModule.grantPointsWithInChannelResponse({
-                userDiscordId: msg.member.id,
+            void grantPointsWithInChannelResponse({
+                user: new User(msg.member.id),
                 points: 1,
                 responseChannel: msg.channel,
                 discordClient: this.client,

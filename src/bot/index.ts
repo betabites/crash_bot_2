@@ -18,7 +18,7 @@ import {MiscModule} from "./modules/MiscModule.js";
 import {sendNotifications} from "./modules/D2/SetupNotifications.js";
 import dotenv from "dotenv"
 import {SpeechModule} from "./modules/Speech.js";
-import {PointsModule} from "./modules/Points.js";
+import {PointsModule} from "./modules/points/Points.js";
 import {InteractionTracker} from "./modules/UsageTrackingModule.js";
 import {EventsModule} from "./modules/events.js";
 import {

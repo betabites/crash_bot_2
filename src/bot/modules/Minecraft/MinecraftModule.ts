@@ -26,7 +26,7 @@ import {updateScoreboard} from "../../../misc/updateScoreboard.js";
 import mssql from "mssql";
 import RemoteStatusServer, {Connection as ServerConnection} from "../../../misc/RemoteStatusServer.js";
 import {sendImpersonateMessage} from "../../../services/Discord.js";
-import {PointsModule} from "../Points.js";
+import {PointsModule} from "../points/Points.js";
 // import deathMessages from "./deathMessages.json" assert {type: "json"}
 import {Character, OnSpeechModeAdjustmentComplete} from "../Speech.js";
 // const deathMessages: any = {}
@@ -488,9 +488,9 @@ export class MinecraftModule extends BaseModule {
                                                   HAVING COUNT(*) >= 0)
             `)
             for (let player of allPlayersInACall.recordset) {
-                PointsModule.grantPointsWithDMResponse({
+                grantPointsWithDMResponse({
                     discordClient: this.client,
-                    userDiscordId: player.discord_id,
+                    user: new User(player.discord_id),
                     points: 1,
                     reason: "Minecraft voice chat"
                 })
