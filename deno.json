@@ -1,0 +1,14 @@
+{
+  "unstable": ["unsafe-proto"],
+  "permissions": {
+    "net": true,
+    "read": true,
+    "write": true,
+    "env": true,
+    "run": true
+  },
+  "imports": {
+    "@/": "./src/"
+  }
+
+}

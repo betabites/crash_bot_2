@@ -81,6 +81,6 @@ export class CrashBotUser {
             name: "ownerid",
             type: mssql.TYPES.Int(),
             data: this.id || "invalid player ID"
-        }, {name: "path", type: mssql.TYPES.VarChar(200), data: path}])
+        }, {name: "node:path", type: mssql.TYPES.VarChar(200), data: path}])
     }
 }

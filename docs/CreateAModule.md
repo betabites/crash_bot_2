@@ -26,7 +26,7 @@ To create a new module, follow these steps:
 2. Create a new file in the `src/modules`. The file should be named `[MyModuleName].ts`
 3. Copy the following template into your file. Make sure to replace 'MyModule' with your chosen module name,
    ```typescript
-   import {BaseModule} from "BaseModule.js" // The Base
+   import {BaseModule} from "BaseModule.ts" // The Base
    import {type Client} from "discord.js";
    
    class MyModule extends BaseModule {
@@ -41,7 +41,7 @@ To create a new module, follow these steps:
    changes to the index.ts file;
    ```typescript
    // ...
-   import {MyModuleName} from "./src/modules/MyModuleName.js"
+   import {MyModuleName} from "./src/modules/MyModuleName.ts"
    
    const moduleClasses = [
         // ...
@@ -56,7 +56,7 @@ Crash Bot modules use the `@OnClientEvent` decorator to assign module methods to
 For example;
 
 ```typescript
-import {BaseModule, OnClientEvent} from "BaseModule.js" // The Base
+import {BaseModule, OnClientEvent} from "BaseModule.ts" // The Base
 import {type Client, type Message} from "discord.js";
 
 class MyModule extends BaseModule {
@@ -75,7 +75,7 @@ Crash Bot modules require that you write your slash commands in a particular way
 Each command needs to be defined with a SlashCommandBuilder object in the `commands` property of your module.
 
 ```typescript
-import {BaseModule, OnClientEvent} from "BaseModule.js" // The Base
+import {BaseModule, OnClientEvent} from "BaseModule.ts" // The Base
 import {type Client, type Interaction, type Message} from "discord.js";
 import {SlashCommandBuilder} from "@discordjs/builders";
 import {InteractionChatCommandResponse} from "./BaseModule";

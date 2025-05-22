@@ -1,10 +1,10 @@
-import {EncodingOptions} from "../../models/types.js";
+import {EncodingOptions} from "../../bot/models/types.js";
 import {EndBehaviorType, VoiceConnection} from "@discordjs/voice";
 import DiscordOpus from "@discordjs/opus"
 import {VoiceBasedChannel} from "discord.js";
-import {createReadStream, createWriteStream, existsSync, mkdir, rm} from "fs"
-import path from "path"
-import {PassThrough, Readable, Transform, type TransformCallback, Writable} from "stream";
+import {createReadStream, createWriteStream, existsSync, mkdir, rm} from "node:fs"
+import path from "node:path"
+import {PassThrough, Readable, Transform, type TransformCallback, Writable} from "node:stream";
 import {v4 as uuidv4} from "uuid"
 import SafeQuery, {SafeTransaction, SafeTransactionQueryFunc, sql} from "../SQL.js";
 import ffmpeg from "fluent-ffmpeg";
@@ -150,7 +150,7 @@ export class VoiceRecording {
                 ])
                 .on("start", (line) => console.log(line))
                 .on("error", (err) => reject(err))
-                .on("close", () => resolve())
+                .on("end", () => resolve())
                 .on("progress", (progress) => {
                     console.log(`${progress.percent}% done - Output: ${progress.targetSize}`)
                 })

@@ -1,4 +1,4 @@
-import {EventEmitter} from "events";
+import {EventEmitter} from "node:events";
 import {PlayerSubscription} from "@discordjs/voice";
 import * as Discord from "discord.js";
 import {
@@ -17,7 +17,7 @@ import mssql from "mssql"
 import yts from "yt-search";
 import {client, getToken} from "../Discord.js";
 import Spotify from "../Spotify.js";
-import {Worker} from "worker_threads"
+import {Worker} from "node:worker_threads"
 import {
     AcknowledgementMessage,
     AUDIO_MANAGER_MESSAGE_TYPES,
@@ -25,8 +25,8 @@ import {
     messageToVoiceManager,
     VOICE_MANAGER_MESSAGE_TYPES
 } from "./types.js";
-import * as crypto from "crypto";
-import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
+import * as crypto from "node:crypto";
+import {isYoutubeUrl} from "../../bot/utilities/isYoutubeUrl.js";
 
 let worker = new Worker("./dist/services/VoiceManager/VoiceManagerWorker.js", {
     workerData: {

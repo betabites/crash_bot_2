@@ -29,12 +29,10 @@ import {
 } from "./types.js";
 import crypto from "crypto";
 import {ActiveVoiceRecording} from "./VoiceRecording.js";
-import dotenv from "dotenv";
-import {isYoutubeUrl} from "../../utilities/isYoutubeUrl.js";
-import {createReadStream} from "fs"
+import {createReadStream} from "node:fs"
+import {isYoutubeUrl} from "../../bot/utilities/isYoutubeUrl.js";
 
 client.login(workerData.discordClientToken)
-dotenv.config()
 
 const awaitingWorkerMessages = new Map<string, [NodeJS.Timer, (value: unknown) => void, (error?: unknown) => void]>()
 parentPort?.on("message", async (message: messageToAudioManager<AUDIO_MANAGER_MESSAGE_TYPES>) => {

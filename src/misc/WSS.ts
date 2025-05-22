@@ -1,9 +1,9 @@
 import {IncomingMessage, Server, ServerResponse} from "http";
-import {Server as WSServer} from "ws";
+import {WebSocketServer} from "ws";
 import {EventEmitter} from "node:events";
 // import {CrashBotUser} from "./UserManager.js";
 
-let ws_server: WSServer, wss_server: WSServer
+let ws_server: WebSocketServer, wss_server: WebSocketServer
 
 export default class WSS extends EventEmitter{
     constructor(
@@ -11,8 +11,8 @@ export default class WSS extends EventEmitter{
         https_server: Server<typeof IncomingMessage, typeof ServerResponse>
     ) {
         super()
-        ws_server = new WSServer({server: http_server})
-        wss_server = new WSServer({server: https_server})
+        ws_server = new WebSocketServer({server: http_server})
+        wss_server = new WebSocketServer({server: https_server})
 
         ws_server.on("connection", ws => this.emit("connection", ws))
         wss_server.on("connection", ws => this.emit("connection", ws))
