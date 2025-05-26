@@ -1,7 +1,26 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "module": "ES2022",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "isolatedModules": true
   },
-  "extends": "../tsconfig.json"
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../next-env.d.ts",
+    "../.next/types/**/*.ts"
+  ]
 }
