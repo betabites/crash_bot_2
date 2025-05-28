@@ -43,7 +43,7 @@ jobs:
         run: cp -r /opt/actions-runner/assets /opt/crash_bot/assets
 
       - name: Update permissions
-        run: chown github-actions-runner:github-actions-admin -R * && chmod 770 * -R
+        run: chown github-actions-runner:github-actions-admin -R /opt/crash_bot && chmod 770 /opt/crash_bot -R
 
       - name: Update .env
         run: echo "${{secrets.PRODUCTION_ENV}}" > /opt/crash_bot/.env

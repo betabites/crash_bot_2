@@ -36,7 +36,6 @@ IO.on("connection", (socket) => {
 })
 
 export async function configureNext() {
-    console.log("App prepared")
     await app.prepare()
-
+    console.log("App prepared")
 }
