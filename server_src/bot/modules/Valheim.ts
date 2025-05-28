@@ -155,7 +155,7 @@ export class Valheim extends BaseModule {
     }
 
     async #importOldSessionData() {
-        let entries = JSON.parse(await readFile("/home/ubscontrol/resource_pack_creator/dist/modules/ValheimLogs.json", "utf-8"))
+        let entries = JSON.parse(await readFile("/opt/crash_bot/src/modules/ValheimLogs.json", "utf-8"))
 
         let protobuf = await protos.load(protos.getProtoPath("cloud/audit/audit_log.proto"))
         const auditLog = protobuf.lookupType("google.cloud.audit.AuditLog")
@@ -338,10 +338,10 @@ export class Valheim extends BaseModule {
                 }
                 let showShares = false
                 if (interaction.options.getBoolean("show_shares", false) !== null) {
-                    if (!["393955339550064641", "404507305510699019"].includes(interaction.user.id)) {
-                        interaction.editReply({content: "You aren't authorised to view the shared activity of other players"})
-                        return
-                    }
+                    // if (!["393955339550064641", "404507305510699019"].includes(interaction.user.id)) {
+                    //     interaction.editReply({content: "You aren't authorised to view the shared activity of other players"})
+                    //     return
+                    // }
                     showShares = true
                 }
 
