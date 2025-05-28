@@ -11,7 +11,6 @@ import {GPTModule} from "./modules/GPT.js";
 import {ResourcePackManagerModule} from "./modules/ResourcePackManagerModule.js";
 import {ImagesModule} from "./modules/ImagesModule.js";
 import {ExperimentsModule} from "./modules/ExperimentsModule.js";
-import {MinecraftModule} from "./modules/Minecraft/MinecraftModule.js";
 import {MiscModule} from "./modules/MiscModule.js";
 // import {VoiceControlModule} from "./modules/VoiceControlModule.js";
 import {sendNotifications} from "./modules/D2/SetupNotifications.js";
@@ -75,7 +74,7 @@ const moduleClasses = [
     ExperimentsModule,
     GPTModule,
     ImagesModule,
-    MinecraftModule,
+    // MinecraftModule,
     MiscModule,
     ResourcePackManagerModule,
     // VoiceControlModule,
