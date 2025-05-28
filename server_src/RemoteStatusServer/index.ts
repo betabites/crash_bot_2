@@ -1,7 +1,6 @@
 import {Namespace, Server} from "socket.io";
 import {EventEmitter} from 'node:events';
 import {z} from "zod";
-import {IO} from "../getHttpServer.js";
 import {ConnectionHandler} from "./connectionHandler.js";
 // import {ConnectionHandler} from "./connectionHandler.js";
 
@@ -18,19 +17,21 @@ const AuthenticationObject = z.object({
 })
 
 export default class RemoteStatusServer<CLIENT_ID extends string, KEYS extends ServerKey<CLIENT_ID, string>[]> extends EventEmitter {
-    readonly io: Namespace | Server
+    io: Namespace | Server | null = null
     #keys: KEYS
     connectionHandlers = new Map<CLIENT_ID, ConnectionHandler>()
 
     constructor(keys: KEYS) {
         super()
 
-        this.io = IO.of('/remote-status-server/v2')
         this.#keys = keys
         for (let key of keys) {
             this.connectionHandlers.set(key.clientId, new ConnectionHandler())
         }
+    }
 
+    bindIO(io: Namespace | Server) {
+        this.io = io
         this.io.on("connection", client => {
             try {
                 // Attempt to authenticate the client
@@ -60,7 +61,7 @@ export default class RemoteStatusServer<CLIENT_ID extends string, KEYS extends S
             silent
         }
 
-        this.io.emit("sendCommand", object)
+        this.io?.emit("sendCommand", object)
     }
 }
 
