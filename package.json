@@ -4,9 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --exclude ./src/app/**/* ./src/server.ts",
-    "build": "npm run build-web && npm run build-server",
-    "build-web": "next build",
-    "build-server": "esbuild",
+    "build": "next build",
     "start": "NODE_ENV=production node src/server.ts"
   },
   "dependencies": {
