@@ -37,20 +37,20 @@ jobs:
         run: chown github-actions-runner:github-actions-admin -R * && chmod 770 * -R
 
       - name: Deploy
-        run: rm -rf /opt/crash_bot && mv -f ./ /opt/crash_bot
+        run: rm -rf /opt/crash_bot/runtime && mv -f ./ /opt/crash_bot/runtime
 
       - name: Copy legacy assets
-        run: cp -r /opt/actions-runner/assets /opt/crash_bot/assets
+        run: cp -r /opt/actions-runner/assets /opt/crash_bot/runtime/assets
 
       - name: Update permissions
-        run: chown github-actions-runner:github-actions-admin -R /opt/crash_bot && chmod 770 /opt/crash_bot -R
+        run: chown github-actions-runner:github-actions-admin -R /opt/crash_bot/runtime && chmod 770 /opt/crash_bot/runtime -R
 
       - name: Update .env
-        run: echo "${{secrets.PRODUCTION_ENV}}" > /opt/crash_bot/.env
+        run: echo "${{secrets.PRODUCTION_ENV}}" > /opt/crash_bot/runtime/.env
 
 #
 #      - name: Restart production
-#        run: pm2 start /opt/crash_bot/ecosystem.config.cjs
+#        run: pm2 start /opt/crash_bot/runtime/ecosystem.config.cjs
 #
 #      - name: Save PM2 state
 #        run: pm2 save
