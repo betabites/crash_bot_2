@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Update .env
+        run: echo "${{secrets.PRODUCTION_ENV}}" > ./.env
+
       - name: Run build
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
