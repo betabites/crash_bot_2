@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --exclude ./src/app/**/* ./src/server.ts",
+    "dev": "tsx watch --exclude ./src/app/**/* ./server_src/server.ts",
     "build": "next build",
-    "start": "NODE_ENV=production node src/server.ts"
+    "start": "NODE_ENV=production tsx ./server_src/server.ts"
   },
   "dependencies": {
     "@discord/embedded-app-sdk": "^2.0.0",
@@ -59,7 +59,8 @@
     "yt-search": "^2.13.1",
     "ytpl": "^2.3.0",
     "zod": "^3.24.4",
-    "zod-to-json-schema": "^3.24.5"
+    "zod-to-json-schema": "^3.24.5",
+    "tsx": "^4.19.4"
   },
   "nodemonConfig": {
     "ignore": [
@@ -87,8 +88,7 @@
     "@types/uuid": "^9.0.8",
     "@types/ws": "^8.18.1",
     "@types/yt-search": "^2.10.3",
-    "esbuild": "^0.25.5",
-    "tsx": "^4.19.4"
+    "esbuild": "^0.25.5"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
