@@ -37,7 +37,7 @@ jobs:
         run: chown github-actions-runner:github-actions-admin -R * && chmod 770 * -R
 
       - name: Deploy
-        run: rm -rf /opt/crash_bot/* && mv -f ./* /opt/crash_bot/
+        run: rm -rf /opt/crash_bot && mv -f ./ /opt/crash_bot
 
       - name: Copy legacy assets
         run: cp -r /opt/actions-runner/assets /opt/crash_bot/assets
