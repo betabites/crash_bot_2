@@ -26,7 +26,7 @@ jobs:
       - name: Run build
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
-        run: npm run build
+        run: pnpm build
 
 #      - name: Shutdown production
 #        run: pm2 stop all

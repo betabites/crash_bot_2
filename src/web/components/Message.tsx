@@ -28,7 +28,7 @@ export const TextMessage = (props: {
 
     useEffect(() => {
         let utterance = new SpeechSynthesisUtterance(props.message);
-        console.log("Speaking with voice:", props.voice)
+        // console.log("Speaking with voice:", props.voice)
         // utterance.voice = props.voice;
 
         let startTimeout = setTimeout(() => {

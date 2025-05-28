@@ -1,5 +1,5 @@
 "use client"
-import {createContext, useEffect, useState} from "react";
+import {createContext, ReactNode, useEffect, useState} from "react";
 
 const AudioContext = createContext(null);
 

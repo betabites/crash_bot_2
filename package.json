@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --exclude ./src/app/**/* ./src/server.ts",
-    "build": "next build",
+    "build": "npm run build-web && npm run build-server",
+    "build-web": "next build",
+    "build-server": "esbuild",
     "start": "NODE_ENV=production node src/server.ts"
   },
   "dependencies": {
@@ -87,11 +89,13 @@
     "@types/uuid": "^9.0.8",
     "@types/ws": "^8.18.1",
     "@types/yt-search": "^2.10.3",
+    "esbuild": "^0.25.5",
     "tsx": "^4.19.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "@discordjs/opus",
+      "esbuild",
       "protobufjs",
       "sharp",
       "sqlite3",
