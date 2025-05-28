@@ -478,7 +478,7 @@ Your current average (median) is \`${toTimeDifferenceString(sessionPlaytimeAvera
 
         // First, check to see if a connection is already active
         let res = await SafeQuery(
-            sql`UPDATE dbo.ValheimConnectionHistory SET sessionStart = ${timestamp} AND username = ${username} WHERE ZDO_ID = ${zdoId} AND sessionStart IS NULL`
+            sql`UPDATE dbo.ValheimConnectionHistory SET sessionStart = ${timestamp}, username = ${username} WHERE ZDO_ID = ${zdoId} AND sessionStart IS NULL`
         )
         if (!!res.rowsAffected[0]) return
 
