@@ -1,7 +1,0 @@
-declare module "fs"
-declare module "events"
-declare module "path"
-declare module "url"
-declare module "node-fetch"
-declare module "btoa"
-declare module "buffer"
