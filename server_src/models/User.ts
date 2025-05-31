@@ -85,7 +85,6 @@ export class User {
         let leveled_up = level !== userData.level
         await this.setLevel(level, points)
 
-        console.log(level, points, leveled_up, this.discord_id)
         if (points !== 0) {
             await contextSQL`INSERT INTO Points (discord_id, reason, points)
                            VALUES (${this.discord_id}, ${reason}, ${points})`
