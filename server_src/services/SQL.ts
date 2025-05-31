@@ -91,19 +91,25 @@ const sqlContext = new AsyncLocalStorage<{sql: SafeTransactionQueryFunc}>();
 export async function SafeTransaction<T extends unknown>(handler: (queryFunc: SafeTransactionQueryFunc) => MaybePromise<T>) {
     let pool = await connect(sql_config)
     let transaction = pool.transaction()
+    let promises: Promise<unknown>[] = []
     await transaction.begin()
 
     const queryFunc: SafeTransactionQueryFunc = <T = unknown>(query: SQLQueryObject): Promise<pkg.IResult<T>> => {
         let request = pool.request()
         for (let param of query.params) request.input(param.name, param.type, param.data)
-        return request.query(query.query)
+        let promise = request.query(query.query)
+        promises.push(promise)
+        return promise
     }
 
     try {
         let res = await handler(queryFunc);
+        // Ensure all outstanding promises are settled first
+        await Promise.allSettled(promises)
         if (res === false) {
             throw new Error("Transaction cancelled")
         }
+        await transaction.commit()
         return res
     } catch (e) {
         console.error("A database transaction step failed")
@@ -336,6 +342,16 @@ export function contextSQL<T>(...params: Parameters<typeof sql>) {
     console.log(sqlContext.getStore())
     let handler = sqlContext.getStore()?.sql ?? SafeQuery
     return handler(query) as Promise<pkg.IResult<T>>
+}
+
+export function SQLContextWrapper<ARGS extends any[], T>(originalMethod: (...args: ARGS) => T, context: ClassMethodDecoratorContext<any>) {
+    function replacementMethod(this: any, ...args: ARGS) {
+        // console.log(thisArg)
+        let self = this
+        return useSQLContext(() => originalMethod.call(this, ...args))
+    }
+
+    return replacementMethod
 }
 
 
