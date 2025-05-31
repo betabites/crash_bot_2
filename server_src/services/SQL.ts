@@ -69,13 +69,13 @@ export default async function SafeQuery<T = any>(query: SQLQueryObject | string,
     let pool = await connect(sql_config)
 
     let request = pool.request()
+
     for (let param of (typeof query === "string" ? params as PreparedArgument[] : query.params)) request.input(param.name, param.type, param.data)
     let res
     try {
         res = await request.query(typeof query === "string" ? query : query.query)
     } catch (e) {
         console.error("SQL ERROR")
-        console.log(query)
         console.error(e)
         throw e
     }
@@ -90,19 +90,25 @@ const sqlContext = new AsyncLocalStorage<{sql: SafeTransactionQueryFunc}>();
 export async function SafeTransaction<T extends unknown>(handler: (queryFunc: SafeTransactionQueryFunc) => MaybePromise<T>) {
     let pool = await connect(sql_config)
     let transaction = pool.transaction()
+    let promises: Promise<unknown>[] = []
     await transaction.begin()
 
     const queryFunc: SafeTransactionQueryFunc = <T = unknown>(query: SQLQueryObject): Promise<pkg.IResult<T>> => {
         let request = pool.request()
         for (let param of query.params) request.input(param.name, param.type, param.data)
-        return request.query(query.query)
+        let promise = request.query(query.query)
+        promises.push(promise)
+        return promise
     }
 
     try {
         let res = await handler(queryFunc);
+        // Ensure all outstanding promises are settled first
+        await Promise.allSettled(promises)
         if (res === false) {
             throw new Error("Transaction cancelled")
         }
+        await transaction.commit()
         return res
     } catch (e) {
         console.error("A database transaction step failed")
@@ -332,8 +338,19 @@ export async function useSQLContext<T>(func: () => T ): Promise<Awaited<T>> {
 
 export function contextSQL<T>(...params: Parameters<typeof sql>) {
     const query = sql(...params)
+    console.log(sqlContext.getStore())
     let handler = sqlContext.getStore()?.sql ?? SafeQuery
     return handler(query) as Promise<pkg.IResult<T>>
+}
+
+export function SQLContextWrapper<ARGS extends any[], T>(originalMethod: (...args: ARGS) => T, context: ClassMethodDecoratorContext<any>) {
+    function replacementMethod(this: any, ...args: ARGS) {
+        // console.log(thisArg)
+        let self = this
+        return useSQLContext(() => originalMethod.call(this, ...args))
+    }
+
+    return replacementMethod
 }
 
 

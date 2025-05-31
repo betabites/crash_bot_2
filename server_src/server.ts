@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config()
 
-Promise.allSettled([
+Promise.all([
     configureNext(),
     setup()
 ])

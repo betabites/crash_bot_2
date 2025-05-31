@@ -1,6 +1,6 @@
 import {BaseModule} from "./BaseModule.js";
 import {Client, Interaction} from "discord.js";
-import SafeQuery, {sql} from "../../services/SQL.js";
+import SafeQuery, {contextSQL, sql, SQLContextWrapper} from "../../services/SQL.js";
 import crypto from "node:crypto";
 
 export class UsageTrackingModule extends BaseModule {
@@ -35,17 +35,16 @@ export class InteractionTracker {
     Pass in a new function that will handle this interaction. The function
     will be executed immediately. Any errors/results returned will be logged.
      */
+    @SQLContextWrapper
     async newHandler(funcName: string, func: () => any) {
         let errored = false
         let result: string | null = null
         let handlerId = crypto.randomUUID()
         console.log(handlerId, this.id, funcName)
 
-        SafeQuery(
-            sql`
+        contextSQL`
 INSERT INTO InteractionHandler (id, interactionId, funcName, result)
 VALUES (${handlerId}, ${this.id}, ${funcName}, 'in progress')`
-        )
 
         try {
             result = await func() ?? "no result returned (undefined)"
@@ -55,9 +54,7 @@ VALUES (${handlerId}, ${this.id}, ${funcName}, 'in progress')`
             console.error(e)
         }
 
-        SafeQuery(
-            sql`UPDATE InteractionHandler SET result=${result}, errored=${errored ? 1 : 0} WHERE id = ${handlerId}`
-        )
+        contextSQL`UPDATE InteractionHandler SET result=${result}, errored=${errored ? 1 : 0} WHERE id = ${handlerId}`
 
     }
 }

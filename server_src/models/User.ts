@@ -83,7 +83,7 @@ export class User {
         let userData = await this.get()
         let {level, points} = User.calculatePointGrant(addPoints, userData, capped)
         let leveled_up = level !== userData.level
-        await this.setLevel(level)
+        await this.setLevel(level, points)
 
         if (points !== 0) {
             await contextSQL`INSERT INTO Points (discord_id, reason, points)
