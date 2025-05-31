@@ -63,7 +63,7 @@ export class User {
             level++
         }
 
-        return {level, points: addPoints}
+        return {level, points}
     }
 
     static calculateLevelGate(targetLevel: number) {
