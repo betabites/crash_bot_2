@@ -332,6 +332,7 @@ export async function useSQLContext<T>(func: () => T ): Promise<Awaited<T>> {
 
 export function contextSQL<T>(...params: Parameters<typeof sql>) {
     const query = sql(...params)
+    console.log(sqlContext.getStore())
     let handler = sqlContext.getStore()?.sql ?? SafeQuery
     return handler(query) as Promise<pkg.IResult<T>>
 }
