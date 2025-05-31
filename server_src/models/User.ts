@@ -83,7 +83,7 @@ export class User {
         let userData = await this.get()
         let {level, points} = User.calculatePointGrant(addPoints, userData, capped)
         let leveled_up = level !== userData.level
-        await this.setLevel(level)
+        await this.setLevel(level, points)
 
         console.log(level, points, leveled_up, this.discord_id)
         if (points !== 0) {
