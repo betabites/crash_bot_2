@@ -69,13 +69,14 @@ export default async function SafeQuery<T = any>(query: SQLQueryObject | string,
     let pool = await connect(sql_config)
 
     let request = pool.request()
+    console.log(query)
+
     for (let param of (typeof query === "string" ? params as PreparedArgument[] : query.params)) request.input(param.name, param.type, param.data)
     let res
     try {
         res = await request.query(typeof query === "string" ? query : query.query)
     } catch (e) {
         console.error("SQL ERROR")
-        console.log(query)
         console.error(e)
         throw e
     }
