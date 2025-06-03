@@ -47,7 +47,7 @@ export class User {
             addPoints = MAX_CAPPED_POINTS - recordData.cappedPoints
         }
 
-        if (addPoints === 0) {
+        if (addPoints <= 0) {
             // Do nothing
             return {level: recordData.level, points: recordData.points}
         }
@@ -88,9 +88,14 @@ export class User {
         if (points !== 0) {
             await contextSQL`INSERT INTO Points (discord_id, reason, points)
                            VALUES (${this.discord_id}, ${reason}, ${points})`
+            if (capped) await this.incrementCappedPointUsage(addPoints)
         }
 
         return {level, points, leveled_up}
+    }
+
+    incrementCappedPointUsage(capped_points: number) {
+        return contextSQL`UPDATE dbo.Users SET capped_points = capped_points + ${capped_points} WHERE discord_id = ${this.discord_id}`
     }
 
     setLevel(level: number, points: number = 0) {
