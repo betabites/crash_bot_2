@@ -28,6 +28,7 @@ export class Valheim extends BaseModule {
                 .setDescription("View the server's activity for the last 30 days")
                 .addStringOption(s => s.setName("username").setDescription("The username of the player to view").setRequired(false))
                 .addBooleanOption(s => s.setName("show_shares").setDescription("Shows how the user's stats compare against others").setRequired(false))
+                .addBooleanOption(s => s.setName("last_month").setDescription("Show details for last month instead").setRequired(false))
             )
             .setDefaultMemberPermissions(null)
     ]
@@ -347,6 +348,10 @@ export class Valheim extends BaseModule {
 
                 let beginningOfMonth = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), 1))
                 let beginningOfNextMonth = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() + 1, 1))
+                if (!!interaction.options.getBoolean("last_month", false)) {
+                    beginningOfMonth = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() - 1, 1))
+                    beginningOfNextMonth = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), 1))
+                }
                 let currentMonthHistory = await SafeQuery<{ sessionStart: Date, sessionEnd: Date, username: string }>(
                     sql`SELECT sessionEnd,
                                username,
