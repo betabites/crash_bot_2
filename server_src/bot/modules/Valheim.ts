@@ -78,7 +78,7 @@ export class Valheim extends BaseModule {
         }, 300000)
 
 
-        // this.#importOldSessionData()
+        this.#importOldSessionData()
     }
 
     #currentSynchronousTask: Promise<void> | null = null
