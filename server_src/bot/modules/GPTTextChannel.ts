@@ -147,6 +147,7 @@ const DIMLoadoutSchema = z.object({
 
 const TenorSearchSchema = z.object({
     query: z.string(),
+    limit: z.number().min(1).max(20).optional(),
 })
 
 const TenorMediaFormat = z.object({
@@ -598,7 +599,7 @@ ALWAYS SEND THE RESULT AS A DIM BUILD UNLESS SPECIFICALLY REQUESTED!
         return "Created DIM loadout and sent it to the user"
     }
 
-    @AIToolCallWithStatus("get_tenor", "Search tenor for gifs. To send a tenor gif, include the URL in your response.", TenorSearchSchema, {})
+    @AIToolCallWithStatus("get_tenor", "Search tenor for gifs. To send a tenor gif, include the URL in your response. Gifs work best one at a time, and when sent as a single un-decorated URL.", TenorSearchSchema, {})
     async getTenorGifs(data: z.infer<typeof TenorSearchSchema>): Promise<string> {
         const params = new URLSearchParams({
             key: process.env.TENOR_API_KEY ?? "",
