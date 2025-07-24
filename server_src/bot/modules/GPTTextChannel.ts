@@ -599,12 +599,12 @@ ALWAYS SEND THE RESULT AS A DIM BUILD UNLESS SPECIFICALLY REQUESTED!
         return "Created DIM loadout and sent it to the user"
     }
 
-    @AIToolCallWithStatus("get_tenor", "Search tenor for gifs. To send a tenor gif, include the URL in your response. Gifs work best one at a time, and when sent as a single un-decorated URL.", TenorSearchSchema, {})
+    @AIToolCallWithStatus("get_tenor", "Search tenor for gifs. To send a tenor gif, include the URL in your response. Gifs work best one at a time, as a URL with NO EXTRA TEXT OR DECORATION (including markdown).", TenorSearchSchema, {})
     async getTenorGifs(data: z.infer<typeof TenorSearchSchema>): Promise<string> {
         const params = new URLSearchParams({
             key: process.env.TENOR_API_KEY ?? "",
             client_key: "Discord Bot",
-            limit: "8",
+            limit: (data.limit ?? 1).toString(),
             media_filter: "gif,tenorgif",
             q: data.query
         })
