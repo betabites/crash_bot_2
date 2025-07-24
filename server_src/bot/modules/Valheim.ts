@@ -3,7 +3,7 @@ import {SlashCommandBuilder} from "@discordjs/builders";
 import {ChatInputCommandInteraction, Client, EmbedBuilder} from "discord.js";
 import {Logging} from '@google-cloud/logging';
 import type {GetEntriesRequest} from "@google-cloud/logging/build/src/log.js";
-import SafeQuery, {SafeTransaction, sql} from "../../services/SQL.js";
+import SafeQuery, {contextSQL, SafeTransaction, sql} from "../../services/SQL.js";
 import protos from "google-proto-files"
 import {PubSub} from '@google-cloud/pubsub';
 import {readFile} from "node:fs/promises"
@@ -486,6 +486,8 @@ Your current average (median) is \`${toTimeDifferenceString(sessionPlaytimeAvera
             sql`UPDATE dbo.ValheimConnectionHistory SET sessionStart = ${timestamp}, username = ${username} WHERE ZDO_ID = ${zdoId} AND sessionStart IS NULL`
         )
         if (!!res.rowsAffected[0]) return
+        res = await contextSQL`SELECT * FROM dbo.ValheimConnectionHistory WHERE ZDO_ID = ${zdoId} AND sessionStart IS NOT NULL AND sessionEnd IS NULL`
+        if (!!res.recordset[0]) return
 
         await SafeQuery(sql`INSERT INTO dbo.ValheimConnectionHistory (id, ZDO_ID, sessionStart, username)
                             VALUES (NEWID(), ${zdoId}, ${timestamp}, ${username})`)
