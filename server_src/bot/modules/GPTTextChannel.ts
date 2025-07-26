@@ -145,6 +145,29 @@ const DIMLoadoutSchema = z.object({
     unequipped: z.array(DIMLoadoutItemSchema)
 })
 
+const TenorSearchSchema = z.object({
+    query: z.string(),
+    limit: z.number().min(1).max(20).optional(),
+})
+
+const TenorMediaFormat = z.object({
+    url: z.string(),
+    duration: z.number(),
+    preview: z.string(),
+    dims: z.array(z.number()),
+    size: z.number(),
+})
+
+const TenorItem = z.object({
+    id: z.string(),
+    title: z.string(),
+    media: TenorMediaFormat,
+    created: z.number(),
+    content_description: z.string(),
+    itemurl: z.string(),
+    url: z.string()
+})
+
 export class GPTTextChannel extends AIConversation {
     channel: SendableTextChannel;
     #lastMessage: Message | undefined;
@@ -262,7 +285,7 @@ export class GPTTextChannel extends AIConversation {
             quality: props.quality,
             size: props.size
         })
-        if (!image.data[0].url) throw new Error("No image returned by the API")
+        if (!image.data?.[0].url) throw new Error("No image returned by the API")
         await this.channel.send({
             files: [new AttachmentBuilder(image.data[0].url, {
                 name: "image.webp"
@@ -574,6 +597,29 @@ ALWAYS SEND THE RESULT AS A DIM BUILD UNLESS SPECIFICALLY REQUESTED!
     async createDIMLoadout(data: z.infer<typeof DIMLoadoutSchema>): Promise<string> {
         this.channel.send(`https://app.destinyitemmanager.com/loadouts?loadout=${encodeURIComponent(JSON.stringify(data))}`)
         return "Created DIM loadout and sent it to the user"
+    }
+
+    @AIToolCallWithStatus("get_tenor", "Search tenor for gifs. To send a tenor gif, include the URL in your response. Gifs work best one at a time, as a URL with NO EXTRA TEXT OR DECORATION (including markdown). ALWAYS CALL THIS TOOL BEFORE SENDING GIFS.", TenorSearchSchema, {})
+    async getTenorGifs(data: z.infer<typeof TenorSearchSchema>): Promise<string> {
+        const params = new URLSearchParams({
+            key: process.env.TENOR_API_KEY ?? "",
+            client_key: "Discord Bot",
+            limit: (data.limit ?? 1).toString(),
+            media_filter: "gif,tenorgif",
+            q: data.query
+        })
+        const req = await fetch(`https://tenor.googleapis.com/v2/search?${params.toString()}`, {})
+        if (!req.ok) throw new Error(`Failed to fetch from Tenor API: ${req.statusText}`)
+        const res = await req.json() as {
+            results: {
+                id: string,
+                title: string,
+                url: string,
+                tags: string[]
+            }[]
+        }
+        if (!res.results) throw new Error("No results returned from Tenor API")
+        return JSON.stringify(res.results.map(r => r.url))
     }
 
     unload() {
