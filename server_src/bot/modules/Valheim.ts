@@ -478,37 +478,38 @@ Your current average (median) is \`${toTimeDifferenceString(sessionPlaytimeAvera
     }
 
     // Runs when a new connection is made to the server
+    static async getUserFromValheimName(valheim_name: string): Promise<User | null> {
+        const user_search = await contextSQL<{discord_id: string}>`SELECT id FROM Users WHERE valheim_name=${valheim_name}`
+        const user = user_search.recordset[0]
+        return user ? new User(user.discord_id) : null
+    }
     async #submitNewConnection(timestamp: Date, zdoId: string, username: string) {
         // console.log("STARTING SESSION", zdoId, " ", timestamp, "")
+        // Get the user
+        const user = await Valheim.getUserFromValheimName(username)
 
         // First, check to see if a connection is already active
-        let res = await SafeQuery(
-            sql`UPDATE dbo.ValheimConnectionHistory SET sessionStart = ${timestamp}, username = ${username} WHERE ZDO_ID = ${zdoId} AND sessionStart IS NULL`
-        )
+        let res = await contextSQL`UPDATE dbo.ValheimConnectionHistory SET sessionStart = ${timestamp}, user_id = ${user?.discord_id ?? null} WHERE ZDO_ID = ${zdoId} AND sessionStart IS NULL`
         if (!!res.rowsAffected[0]) return
         res = await contextSQL`SELECT * FROM dbo.ValheimConnectionHistory WHERE ZDO_ID = ${zdoId} AND sessionStart IS NOT NULL AND sessionEnd IS NULL`
         if (!!res.recordset[0]) return
 
-        await SafeQuery(sql`INSERT INTO dbo.ValheimConnectionHistory (id, ZDO_ID, sessionStart, username)
-                            VALUES (NEWID(), ${zdoId}, ${timestamp}, ${username})`)
+        await contextSQL`INSERT INTO dbo.ValheimConnectionHistory (id, ZDO_ID, sessionStart, user_id)
+                            VALUES (NEWID(), ${zdoId}, ${timestamp}, ${user.discord_id})`
     }
 
     async #submitNewDisconnection(timestamp: Date, zdoId: string) {
         // First, check to see if a connection is already active
         // console.log("ENDING SESSION", zdoId, " ", timestamp, "")
-        let res = await SafeQuery(
-            sql`SELECT sessionEnd, id FROM dbo.ValheimConnectionHistory WHERE ZDO_ID = ${zdoId}`
-        )
+        let res = await contextSQL<{ sessionEnd: Date, id: string }>`SELECT sessionEnd, id FROM dbo.ValheimConnectionHistory WHERE ZDO_ID = ${zdoId}`
         if (!res.recordset[0]) {
-            await SafeQuery(sql`INSERT INTO dbo.ValheimConnectionHistory (id, ZDO_ID, sessionEnd)
-                                VALUES (NEWID(), ${zdoId}, ${timestamp})`)
+            await contextSQL`INSERT INTO dbo.ValheimConnectionHistory (id, ZDO_ID, sessionEnd)
+                                VALUES (NEWID(), ${zdoId}, ${timestamp})`
             return
         }
 
         let currentSession = res.recordset.find(x => x.sessionEnd === null)
-        if (currentSession) await SafeQuery(
-            sql`UPDATE dbo.ValheimConnectionHistory SET sessionEnd = ${timestamp} WHERE id = ${currentSession.id}`
-        )
+        if (currentSession) await contextSQL`UPDATE dbo.ValheimConnectionHistory SET sessionEnd = ${timestamp} WHERE id = ${currentSession.id}`
     }
 
     async #closeAllOpenConnections(timestamp: Date) {
