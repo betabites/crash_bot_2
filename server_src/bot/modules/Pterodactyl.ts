@@ -219,7 +219,7 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
             const bigquery = new BigQuery();
             const [rows] = await bigquery.query(`SELECT DATE(usage_end_time, "UTC") as usage_date,
                                                         SUM(cost)                   as cost
-                                                 FROM \` re-flesh.usage_costs.gcp_billing_export_v1_0176BB_97AC5E_923E49\`
+                                                 FROM \`re-flesh.usage_costs.gcp_billing_export_v1_0176BB_97AC5E_923E49\`
                                                  GROUP BY DATE (usage_end_time, "UTC")`);
 
             // Get session data
