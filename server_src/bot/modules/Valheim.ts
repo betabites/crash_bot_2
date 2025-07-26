@@ -19,20 +19,6 @@ const topicName = 'pterodactyl-connection-history-measure '
 const subscriptionName = 'crashbot-connection-history-subscription'
 
 export class Valheim extends BaseModule {
-    commands = [
-        new SlashCommandBuilder()
-            .setName("valheim")
-            .setDescription("View Valheim server information")
-            .addSubcommand(subcommand => subcommand
-                .setName("activity")
-                .setDescription("View the server's activity for the last 30 days")
-                .addStringOption(s => s.setName("username").setDescription("The username of the player to view").setRequired(false))
-                .addBooleanOption(s => s.setName("show_shares").setDescription("Shows how the user's stats compare against others").setRequired(false))
-                .addBooleanOption(s => s.setName("last_month").setDescription("Show details for last month instead").setRequired(false))
-            )
-            .setDefaultMemberPermissions(null)
-    ]
-
     constructor(client: Client) {
         super(client);
         this.#configurePubSubListener()
