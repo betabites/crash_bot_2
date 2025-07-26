@@ -18,21 +18,7 @@ const pubsub = new PubSub();
 const topicName = 'pterodactyl-connection-history-measure '
 const subscriptionName = 'crashbot-connection-history-subscription'
 
-export class Valheim extends BaseModule {
-    commands = [
-        new SlashCommandBuilder()
-            .setName("valheim")
-            .setDescription("View Valheim server information")
-            .addSubcommand(subcommand => subcommand
-                .setName("activity")
-                .setDescription("View the server's activity for the last 30 days")
-                .addStringOption(s => s.setName("username").setDescription("The username of the player to view").setRequired(false))
-                .addBooleanOption(s => s.setName("show_shares").setDescription("Shows how the user's stats compare against others").setRequired(false))
-                .addBooleanOption(s => s.setName("last_month").setDescription("Show details for last month instead").setRequired(false))
-            )
-            .setDefaultMemberPermissions(null)
-    ]
-
+export class Minecraft extends BaseModule {
     constructor(client: Client) {
         super(client);
         this.#configurePubSubListener()
@@ -40,15 +26,16 @@ export class Valheim extends BaseModule {
 
         setInterval(async () => {
             // Award 1 point to all connected users every 20 minutes
-            let discord_ids = await contextSQL<{ user_id: string }>`
-                SELECT user_id
+            let discord_ids = await SafeQuery<{ discord_id: string }>(sql`
+                SELECT users.discord_id AS 'discord_id'
                 FROM dbo.ValheimConnectionHistory history
+                JOIN dbo.Users users ON history.username = users.valheim_name
                 WHERE history.sessionEnd IS NULL
-            `
+            `)
             for (let user of discord_ids.recordset) {
                 await grantPointsWithDMResponse({
                     discordClient: client,
-                    user: new User(user.user_id),
+                    user: new User(user.discord_id),
                     reason: "Valheim",
                     points: 1,
                     capped: true,
@@ -57,17 +44,18 @@ export class Valheim extends BaseModule {
         }, 1.2e+6)
         setInterval(async () => {
             // Award points every 5 minutes if 3+ players are connected
-            let discord_ids = await contextSQL<{ user_id: string }>`
-                SELECT user_id
+            let discord_ids = await SafeQuery<{ discord_id: string }>(sql`
+                SELECT users.discord_id AS 'discord_id'
                 FROM dbo.ValheimConnectionHistory history
+                JOIN dbo.Users users ON history.username = users.valheim_name
                 WHERE history.sessionEnd IS NULL
-            `
+            `)
             if (discord_ids.recordset.length < 3) return
 
             for (let user of discord_ids.recordset) {
                 await grantPointsWithDMResponse({
                     discordClient: client,
-                    user: new User(user.user_id),
+                    user: new User(user.discord_id),
                     reason: "Valheim (group)",
                     points: discord_ids.recordset.length - 2,
                     capped: true,
@@ -238,6 +226,75 @@ export class Valheim extends BaseModule {
         console.log("SESSION RESULTS", sessions.filter(s => s.start.getDate() === 17))
     }
 
+    async calculateHistoricalPoints() {
+        let usersSearch = await SafeQuery<{
+            discord_id: string,
+            valheim_name: string
+        }>(sql`SELECT discord_id, valheim_name
+               FROM dbo.Users`)
+        let users = new Map<string, { discord_id: string, points: number }>()
+        for (let user of usersSearch.recordset) {
+            if (!user.valheim_name) continue
+            users.set(user.valheim_name, {discord_id: user.discord_id, points: 0 })
+        }
+
+        let history = await SafeQuery<{ username: string, sessionStart?: Date, sessionEnd?: Date }>(
+            sql`SELECT username, sessionStart, sessionEnd
+                FROM dbo.ValheimConnectionHistory
+                ORDER BY sessionStart`
+        )
+        let switches: { username: string, isEnd: boolean, date: Date }[] = []
+        // Calculate switches
+        for (let item of history.recordset) {
+            if (!item.sessionStart || !item.sessionEnd) continue
+            switches.push({
+                username: item.username,
+                isEnd: false,
+                date: item.sessionStart
+            })
+            switches.push({
+                username: item.username,
+                isEnd: true,
+                date: item.sessionEnd
+            })
+        }
+        // Sort switches
+        switches = switches.sort((a, b) => a.date.getTime() - b.date.getTime())
+
+        // Calculate points
+        let lastDate = switches[0].date
+        let activeUsers = new Set<string>()
+        for (let switchItem of switches) {
+            // Award points to active users
+            if (activeUsers.size >= 3) {
+                for (let activeUser of activeUsers) {
+                    let user = users.get(activeUser)
+                    if (!user) continue
+                    console.log("MULTIPLYING", activeUsers.size - 2)
+                    let multiplier = activeUsers.size >= 3 ? (activeUsers.size - 2) : .25
+                    user.points += Math.floor(Math.floor((switchItem.date.getTime() - lastDate.getTime()) / 300000) * multiplier)
+                    users.set(activeUser, user)
+                }
+            }
+            if (switchItem.isEnd) activeUsers.delete(switchItem.username)
+            else activeUsers.add(switchItem.username)
+
+            lastDate = switchItem.date
+        }
+
+        // grant points
+        // await Promise.allSettled([...users].map(async ([username, user]) => {
+        //     if (!user.points || user.points <= 0) return
+        //     await PointsModule.grantPointsWithDMResponse({
+        //         discordClient: this.client,
+        //         points: user.points,
+        //         reason: "Valheim (retroactive)",
+        //         userDiscordId: user.discord_id,
+        //     })
+        // }))
+        console.log("USERS", JSON.stringify([...users]))
+    }
+
     // Runs when a new connection is made to the server
     static async getUserFromValheimName(valheim_name: string): Promise<User | null> {
         const user_search = await contextSQL<{discord_id: string}>`SELECT id FROM Users WHERE valheim_name=${valheim_name}`
@@ -256,7 +313,7 @@ export class Valheim extends BaseModule {
         if (!!res.recordset[0]) return
 
         await contextSQL`INSERT INTO dbo.ValheimConnectionHistory (id, ZDO_ID, sessionStart, user_id)
-                            VALUES (NEWID(), ${zdoId}, ${timestamp}, ${user?.discord_id ?? null})`
+                            VALUES (NEWID(), ${zdoId}, ${timestamp}, ${user.discord_id})`
     }
 
     async #submitNewDisconnection(timestamp: Date, zdoId: string) {
@@ -300,62 +357,4 @@ async function* getEntries(query?: Omit<GetEntriesRequest, "pageSize" | "pageTok
         if (!response.nextPageToken) break;
         baseQuery.pageToken = response.nextPageToken;
     }
-}
-
-function renderTimePart(num: number) {
-    return num >= 10 ? num.toString() : "0" + num.toString()
-}
-
-function toTimeDifferenceString(milliseconds: number) {
-    let hours = 0
-    let minutes = 0
-    let seconds = 0
-    while (milliseconds >= 3600000) {
-        hours += 1;
-        milliseconds -= 3600000
-    }
-    while (milliseconds >= 60000) {
-        minutes += 1;
-        milliseconds -= 60000
-    }
-    while (milliseconds >= 1000) {
-        seconds += 1;
-        milliseconds -= 1000
-    }
-    return `${renderTimePart(hours)}:${renderTimePart(minutes)}:${renderTimePart(seconds)}`
-}
-
-function sessionsToDurationMap(sessions: {sessionStart: Date, sessionEnd: Date, username: string}[], ignoreBefore: Date) {
-    let usernameMap = new Map<string, Map<string, number>>()
-    for (let session of sessions) {
-        let dateToDuration = usernameMap.get(session.username) ?? new Map<string, number>()
-
-        if (session.sessionStart.getTime() < ignoreBefore.getTime()) session.sessionStart = ignoreBefore
-
-        let canExit = false
-        while (true) {
-            let end: Date
-            if (session.sessionStart.getTime() > session.sessionEnd.getTime()) throw new Error("Error processing sessions")
-            if (session.sessionStart.getDate() === session.sessionEnd.getDate()) {
-                end = session.sessionEnd
-                canExit = true
-            }
-            else {
-                end = new Date(Date.UTC(
-                    session.sessionStart.getFullYear(),
-                    session.sessionStart.getMonth(),
-                    session.sessionStart.getDate() + 1
-                ))
-            }
-            let dateString = `${session.sessionStart.getFullYear()}-${renderTimePart(session.sessionStart.getMonth() + 1)}-${renderTimePart(session.sessionStart.getDate())}`
-            let previousDuration = dateToDuration.get(dateString) ?? 0
-            dateToDuration.set(dateString, previousDuration + (end.getTime() - session.sessionStart.getTime()))
-
-            if (canExit) break;
-            session.sessionStart = end
-            console.log("Repeating for session", session)
-        }
-        usernameMap.set(session.username, dateToDuration)
-    }
-    return usernameMap
 }
