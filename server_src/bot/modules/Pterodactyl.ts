@@ -199,7 +199,8 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
                 console.error(e)
                 void interaction.editReply("An error occurred while starting up the server;\n```" + e + "```")
             }
-        } else if (subcommand === "stop") {
+        }
+        else if (subcommand === "stop") {
             if (interaction.options.getBoolean("now")) {
                 // Clear the shutdown schedule
                 await interaction.reply("Configuring GCP tasks...")
@@ -213,7 +214,8 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
             // Schedule shutdown for in 5 mins and 30s
             await this.#scheduleShutdown(330)
             await interaction.editReply("A shutdown has been scheduled. Run `/pterodactyl start` again to cancel.")
-        } else if (subcommand === "activity") {
+        }
+        else if (subcommand === "activity") {
             await interaction.deferReply({ephemeral: true})
             // Get billing data
             const bigquery = new BigQuery();
@@ -240,7 +242,7 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
                   AND sessionEnd >= ${beginningOfMonth}
                   AND sessionEnd < ${beginningOfNextMonth}
                   AND user_id = ${discordUser.id}`
-            let totalHistoryData = await contextSQL<{ sessionEnd: Date, sessionStart: Date, username: string }>
+            let totalHistoryData = await contextSQL<{ sessionEnd: Date, sessionStart: Date, user_id: string }>
                 `SELECT sessionEnd, user_id, sessionStart
                  FROM dbo.ValheimConnectionHistory
                  WHERE sessionEnd IS NOT NULL
@@ -334,7 +336,7 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
             embeds.unshift(
                 new EmbedBuilder()
                     .setThumbnail("https://wallpapers.com/images/hd/valheim-stunning-black-forest-cbbzj0pqyrz4pyoa.jpg")
-                    .setTitle("Valheim Activity")
+                    .setTitle("Pterodatyl Activity")
                     .setDescription(currentMonthHistory.recordset.length === 0
                         ? "No activity recorded for this month."
                         : `This month, you have logged in ${currentMonthHistory.recordset.length} times.
@@ -416,11 +418,11 @@ function toTimeDifferenceString(milliseconds: number) {
 function sessionsToDurationMap(sessions: {
     sessionStart: Date,
     sessionEnd: Date,
-    username: string
+    user_id: string
 }[], ignoreBefore: Date) {
     let usernameMap = new Map<string, Map<string, number>>()
     for (let session of sessions) {
-        let dateToDuration = usernameMap.get(session.username) ?? new Map<string, number>()
+        let dateToDuration = usernameMap.get(session.user_id) ?? new Map<string, number>()
 
         if (session.sessionStart.getTime() < ignoreBefore.getTime()) session.sessionStart = ignoreBefore
 
@@ -446,7 +448,7 @@ function sessionsToDurationMap(sessions: {
             session.sessionStart = end
             console.log("Repeating for session", session)
         }
-        usernameMap.set(session.username, dateToDuration)
+        usernameMap.set(session.user_id, dateToDuration)
     }
     return usernameMap
 }
