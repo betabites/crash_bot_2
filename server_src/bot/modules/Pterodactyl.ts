@@ -336,7 +336,7 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
             embeds.unshift(
                 new EmbedBuilder()
                     .setThumbnail("https://wallpapers.com/images/hd/valheim-stunning-black-forest-cbbzj0pqyrz4pyoa.jpg")
-                    .setTitle("Pterodatyl Activity")
+                    .setTitle("Pterodactyl Activity")
                     .setDescription(currentMonthHistory.recordset.length === 0
                         ? "No activity recorded for this month."
                         : `This month, you have logged in ${currentMonthHistory.recordset.length} times.
