@@ -104,7 +104,7 @@ export class Minecraft extends BaseModule {
             socket.on("message", async (data: MessageData) => {
                 const user = await this.getDiscordIDFromMinecraftID(data.player.id)
                 await this.recordUserConnection(data.player.id, user)
-                const discordUser = await this.channel?.guild.members.fetch(user)
+                const discordUser = user ? await this.channel?.guild.members.fetch(user) : null
 
                 await this.sendDiscordMessage({
                     payload: data.message,
