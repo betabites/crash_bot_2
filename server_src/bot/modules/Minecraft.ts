@@ -142,7 +142,7 @@ export class Minecraft extends BaseModule {
     async getDiscordIDFromMinecraftID(minecraft_id: string): Promise<string | null> {
         // attempt to find the user
         const user = await contextSQL<{ discord_id: string }>`
-            SELECT id
+            SELECT discord_id
             FROM Users
             WHERE mc_id = ${minecraft_id}`
         return user.recordset[0]?.discord_id ?? null
