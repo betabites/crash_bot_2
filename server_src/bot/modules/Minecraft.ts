@@ -149,12 +149,13 @@ export class Minecraft extends BaseModule {
             || "#fff"
         const tellRawMessage: TellRawMessage = [
             {text: `[${username}] `, color},
-            message.content,
+            {text: message.content, color: "#fff"},
         ]
         for (let attachment of message.attachments.values()) {
             tellRawMessage.push({
                 text: ` [${attachment.name}]`,
-                color,
+                color: "blue",
+                underlined: true,
                 hoverEvent: {
                     action: "show_text",
                     value: {
