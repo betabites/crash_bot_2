@@ -310,10 +310,7 @@ export class Minecraft extends BaseModule {
 
     async #sendTellRaw(selector: string, message: TellRawMessage) {
         const io = await Minecraft.IO
-        io.to("minecraft").emit("sendCommand", `tellraw ${selector} ${
-            // We run JSON.stringify() twice. First time serialises data. Second time escapes any JSON special characters and wraps the whole thing in quotes.
-            JSON.stringify(JSON.stringify(message))
-        }"`)
+        io.to("minecraft").emit("sendCommand", `tellraw ${selector} ${JSON.stringify(message)}"`)
     }
 
     async #sendCommand(command: string) {
