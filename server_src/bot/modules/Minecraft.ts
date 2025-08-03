@@ -190,6 +190,7 @@ export class Minecraft extends BaseModule {
 
             socket.on('disconnect', () => {
                 console.log('a minecraft server disconnected')
+                this.channel?.send({embeds: [new EmbedBuilder().setTitle("🔴 Server offline")]})
                 this.recordServerDisconnection()
             })
 
