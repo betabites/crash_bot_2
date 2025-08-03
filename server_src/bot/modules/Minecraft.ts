@@ -203,7 +203,7 @@ export class Minecraft extends BaseModule {
             socket.on('playerDeath', async (player: PlayerData) => {
                 await this.updateUser(player)
             })
-            socket.on('disconnectPlayer', async (player: PlayerData) => {
+            socket.on('playerDisconnect', async (player: PlayerData) => {
                 const user_id = await this.getDiscordIDFromMinecraftID(player.id)
                 console.log("DISCONNECT", user_id, player.id)
                 await this.recordUserDisconnection(player.id)
