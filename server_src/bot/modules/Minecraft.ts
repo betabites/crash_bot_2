@@ -60,11 +60,14 @@ export class Minecraft extends BaseModule {
 
     constructor(client: Client) {
         super(client);
+
         void this.#prepareListeners()
     }
 
     async #prepareListeners() {
         const io = await Minecraft.IO
+        setInterval(() => {io.to("keepalive").emit("ping")}, 1000)
+
         const _channel = await this.client.channels.fetch(SERVER_CHAT_ID)
         if (_channel?.type !== ChannelType.GuildText) throw new Error("Could not find server chat channel")
         this.channel = _channel
@@ -72,6 +75,7 @@ export class Minecraft extends BaseModule {
         io.on('connection', (socket) => {
             console.log('a minecraft server connected')
             socket.join('minecraft')
+            socket.join('keepalive')
 
             socket.on('disconnect', () => {
                 console.log('a minecraft server disconnected')
@@ -89,6 +93,7 @@ export class Minecraft extends BaseModule {
             })
             socket.on('disconnectPlayer', async (player: PlayerData) => {
                 const user_id = await this.getDiscordIDFromMinecraftID(player.id)
+                console.log("DISCONNECT", user_id, player.id)
                 await this.recordUserDisconnection(player.id)
                 await this.sendDiscordMessage({
                     payload: {
@@ -104,8 +109,9 @@ export class Minecraft extends BaseModule {
             })
             socket.on("message", async (data: MessageData) => {
                 const user = await this.getDiscordIDFromMinecraftID(data.player.id)
+                console.log("MESSAGE", user, data.player.id, data.message)
                 await this.recordUserConnection(data.player.id, user)
-                const discordUser = user ? await this.channel?.guild.members.fetch(user) : null
+                // const discordUser = user ? await this.channel?.guild.members.fetch(user) : null
 
                 await this.sendDiscordMessage({
                     payload: data.message,
