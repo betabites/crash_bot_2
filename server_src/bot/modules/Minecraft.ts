@@ -1,4 +1,4 @@
-import {BaseModule} from "./BaseModule.js";
+import {BaseModule, OnClientEvent} from "./BaseModule.js";
 import {Logging} from '@google-cloud/logging';
 import type {GetEntriesRequest} from "@google-cloud/logging/build/src/log.js";
 import {PubSub} from '@google-cloud/pubsub';
@@ -7,9 +7,10 @@ import {
     ChannelType,
     Client,
     EmbedBuilder,
-    GuildMember,
+    GuildMember, Message,
     MessageCreateOptions,
     MessagePayload,
+    SlashCommandBuilder,
     TextChannel
 } from "discord.js";
 import {contextSQL} from "../../services/SQL";
@@ -52,7 +53,79 @@ type MessageData = {
     submitted: boolean,
 }
 
+type ShowItem = {
+    id: string,
+    count?: number,
+    tag?: string,
+}
+
+type ShowEntity = {
+    type: string,
+    id: string,
+    name?: TextComponent
+}
+
+type ScoreComponentValue = {
+    name: string,
+    objective: string,
+    value?: string,
+}
+
+type NBTComponent = {
+    nbt: string,
+    block?: string,
+    entity?: string,
+    storage?: string,
+    interpret?: boolean,
+    separator?: TextComponent | TextComponent[]
+}
+
+type BaseTextComponent = {
+    color?: string,
+    bold?: boolean,
+    italic?: boolean,
+    underlined?: boolean,
+    strikethrough?: boolean,
+    obfuscated?: boolean,
+    insertion?: string,
+    clickEvent?: {
+        action: "open_url" | "run_command" | "suggest_command" | "change_page" | "copy_to_clipboard";
+        value: string;
+    },
+    hoverEvent?: {
+        action: "show_text" | "show_item" | "show_entity";
+        value: TextComponent | ItemHover | EntityHover;
+    },
+    font?: string,
+    extra?: BaseTextComponent[],
+}
+
+type TextComponent =
+    | (BaseTextComponent & { text: string })
+    | (BaseTextComponent & { translate: string; with?: TextComponent[] })
+    | (BaseTextComponent & { score: ScoreComponentValue })
+    | (BaseTextComponent & { selector: string })
+    | (BaseTextComponent & { keybind: string })
+    | (BaseTextComponent & NBTComponent);
+
+type TellRawMessage = null | string | boolean | number | TextComponent | TellRawMessage[]
+
 export class Minecraft extends BaseModule {
+    commands = [
+        // new SlashCommandBuilder()
+        //     .setName('minecraft')
+        //     .setDescription('Minecraft commands')
+        //     .setDefaultMemberPermissions(PermissionFlags.)
+        //     .addSubcommand(subcommand => subcommand
+        //         .setName('execute')
+        //         .setDescription('Execute a command on the server')
+        //         .addStringOption(option => option
+        //             .setName('server')
+        //             .setDescription('The server to connect to')
+        //             .setRequired(true)
+        //         )
+        //     )
+    ]
     static IO = (async () => {
         const io = await IO
         return io.of('/minecraft')
@@ -66,9 +139,44 @@ export class Minecraft extends BaseModule {
         void this.#prepareListeners()
     }
 
+    @OnClientEvent("messageCreate")
+    async onMessageCreate(message: Message) {
+        if (message.webhookId) return
+        const username = message.member?.displayName
+            || message.author.displayName
+            || message.author.username
+        const color = message.member?.displayHexColor
+            || "#fff"
+        const tellRawMessage: TellRawMessage = [
+            {text: `[${username}] `, color},
+            message.content,
+        ]
+        for (let attachment of message.attachments.values()) {
+            tellRawMessage.push({
+                text: ` [${attachment.name}]`,
+                color,
+                hoverEvent: {
+                    action: "show_text",
+                    value: {
+                        text: attachment.url,
+                        color: "#fff",
+                    },
+                },
+                clickEvent: {
+                    action: "open_url",
+                    value: attachment.url,
+                },
+            })
+        }
+
+        await this.#sendTellRaw("@a", tellRawMessage)
+    }
+
     async #prepareListeners() {
         const io = await Minecraft.IO
-        setInterval(() => {io.to("keepalive").emit("ping")}, 1000)
+        setInterval(() => {
+            io.to("keepalive").emit("ping")
+        }, 1000)
 
         const _channel = await this.client.channels.fetch(SERVER_CHAT_ID)
         if (_channel?.type !== ChannelType.GuildText) throw new Error("Could not find server chat channel")
@@ -151,7 +259,7 @@ export class Minecraft extends BaseModule {
     }
 
     /**
-    Returns 'true' if it's a new session
+     Returns 'true' if it's a new session
      */
     async updateUser(playerData: PlayerData, user_id: string | null = null): Promise<boolean> {
         // Detect if the user already has open history
@@ -184,7 +292,8 @@ export class Minecraft extends BaseModule {
         await contextSQL`
             UPDATE dbo.ValheimConnectionHistory
             SET sessionEnd = ${new Date()}
-            WHERE MC_ID = ${minecraft_id} AND sessionEnd IS NULL`
+            WHERE MC_ID = ${minecraft_id}
+              AND sessionEnd IS NULL`
 
         if (this.onlinePlayers.size !== 0) return
 
@@ -197,6 +306,19 @@ export class Minecraft extends BaseModule {
             UPDATE dbo.ValheimConnectionHistory
             SET sessionEnd = ${new Date()}
             WHERE sessionEnd IS NULL`
+    }
+
+    async #sendTellRaw(selector: string, message: TellRawMessage) {
+        const io = await Minecraft.IO
+        io.to("minecraft").emit("sendCommand", `tellraw ${selector} ${
+            // We run JSON.stringify() twice. First time serialises data. Second time escapes any JSON special characters and wraps the whole thing in quotes.
+            JSON.stringify(JSON.stringify(message))
+        }"`)
+    }
+
+    async #sendCommand(command: string) {
+        const io = await Minecraft.IO
+        await io.to("minecraft").emit("sendCommand", command)
     }
 }
 
