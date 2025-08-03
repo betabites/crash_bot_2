@@ -141,7 +141,7 @@ export class Minecraft extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async onMessageCreate(message: Message) {
-        if (message.webhookId) return
+        if (message.webhookId || !message.content) return
         const username = message.member?.displayName
             || message.author.displayName
             || message.author.username
