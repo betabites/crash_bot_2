@@ -310,7 +310,7 @@ export class Minecraft extends BaseModule {
 
     async #sendTellRaw(selector: string, message: TellRawMessage) {
         const io = await Minecraft.IO
-        await this.#sendCommand("sendCommand", `tellraw ${selector} ${JSON.stringify(message)}"`)
+        await this.#sendCommand(`tellraw ${selector} ${JSON.stringify(message)}"`)
     }
 
     async #sendCommand(command: string) {
