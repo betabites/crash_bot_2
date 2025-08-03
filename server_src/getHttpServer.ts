@@ -24,7 +24,13 @@ export const HTTP_SERVER = (async () => {
 
 export const IO = (async () => {
     let io = new Server(await HTTP_SERVER, {
-        pingInterval: 120000
+        cors: {
+            origin: "*",
+            methods: ["GET", "POST"],
+            credentials: true,
+        },
+        pingInterval: 25000,
+        pingTimeout: 60000
     })
     io.on("connection", (socket) => {
         console.log("Received a socket connection")
