@@ -297,6 +297,14 @@ export class Minecraft extends BaseModule {
             WHERE MC_ID = ${minecraft_id}
               AND sessionEnd IS NULL`
 
+        const user_id = await this.getDiscordIDFromMinecraftID(minecraft_id)
+        await this.sendDiscordMessage({
+            payload: {
+                embeds: [new EmbedBuilder().setTitle("left the party")]
+            },
+            member: user_id ? await this.channel?.guild.members.fetch(user_id) : null,
+            name: minecraft_id,
+        })
         if (this.onlinePlayers.size !== 0) return
 
         // Schedule server shutdown
