@@ -14,6 +14,7 @@ import {
 } from "discord.js";
 import {contextSQL} from "../../services/SQL";
 import {sendImpersonateMessage} from "../../services/Discord";
+import {Pterodactyl} from "./Pterodactyl";
 
 // Create a PubSub client
 const pubsub = new PubSub();
@@ -56,6 +57,7 @@ export class Minecraft extends BaseModule {
         const io = await IO
         return io.of('/minecraft')
     })()
+    onlinePlayers = new Map<string, PlayerData>()
     channel: TextChannel | null = null
 
     constructor(client: Client) {
@@ -74,6 +76,7 @@ export class Minecraft extends BaseModule {
 
         io.on('connection', (socket) => {
             console.log('a minecraft server connected')
+            this.channel?.send({embeds: [new EmbedBuilder().setTitle("🟢 Server online")]})
             socket.join('minecraft')
             socket.join('keepalive')
 
@@ -83,13 +86,12 @@ export class Minecraft extends BaseModule {
             })
 
             socket.on('updatePlayer', async (player: PlayerData) => {
-                const isKnownUser = await this.recordUserConnection(player.id)
+                const isKnownUser = await this.updateUser(player)
                 if (isKnownUser) return
 
             })
             socket.on('playerDeath', async (player: PlayerData) => {
-                const user_id = await this.getDiscordIDFromMinecraftID(player.id)
-                await this.recordUserConnection(player.id, user_id)
+                await this.updateUser(player)
             })
             socket.on('disconnectPlayer', async (player: PlayerData) => {
                 const user_id = await this.getDiscordIDFromMinecraftID(player.id)
@@ -105,12 +107,12 @@ export class Minecraft extends BaseModule {
             })
             socket.on("platerAdvancementEarn", (data: { player: PlayerData, advancement: AdvancementData }) => {
                 const user_id = this.getDiscordIDFromMinecraftID(data.player.id)
-                this.recordUserConnection(data.player.id)
+                this.updateUser(data.player)
             })
             socket.on("message", async (data: MessageData) => {
                 const user = await this.getDiscordIDFromMinecraftID(data.player.id)
                 console.log("MESSAGE", user, data.player.id, data.message)
-                await this.recordUserConnection(data.player.id, user)
+                await this.updateUser(data.player, user)
                 // const discordUser = user ? await this.channel?.guild.members.fetch(user) : null
 
                 await this.sendDiscordMessage({
@@ -151,34 +153,43 @@ export class Minecraft extends BaseModule {
     /**
     Returns 'true' if it's a new session
      */
-    async recordUserConnection(minecraft_id: string, user_id: string | null = null): Promise<boolean> {
+    async updateUser(playerData: PlayerData, user_id: string | null = null): Promise<boolean> {
         // Detect if the user already has open history
+        this.onlinePlayers.set(playerData.id, playerData)
         const res = await contextSQL`
             SELECT *
             FROM dbo.ValheimConnectionHistory
-            WHERE MC_ID = ${minecraft_id}
+            WHERE MC_ID = ${playerData.id}
               AND sessionEnd IS NULL`
         if (res.recordset.length > 0) return false
-
+        if (!user_id) user_id = await this.getDiscordIDFromMinecraftID(playerData.id)
 
         await contextSQL`
             INSERT INTO dbo.ValheimConnectionHistory (MC_ID, sessionStart, user_id)
-            VALUES (${minecraft_id}, ${new Date()}, ${user_id})`
+            VALUES (${playerData.id}, ${new Date()}, ${user_id})`
         await this.sendDiscordMessage({
             payload: {
                 embeds: [new EmbedBuilder().setTitle("joined the party")]
             },
             member: user_id ? await this.channel?.guild.members.fetch(user_id) : null,
-            name: minecraft_id,
+            name: playerData.id,
         })
+        Pterodactyl.scheduleShutdown(Infinity)
         return true
     }
 
     async recordUserDisconnection(minecraft_id: string) {
+        this.onlinePlayers.delete(minecraft_id)
+
         await contextSQL`
             UPDATE dbo.ValheimConnectionHistory
             SET sessionEnd = ${new Date()}
             WHERE MC_ID = ${minecraft_id} AND sessionEnd IS NULL`
+
+        if (this.onlinePlayers.size !== 0) return
+
+        // Schedule server shutdown
+        Pterodactyl.scheduleShutdown(60 * 5)
     }
 
     async recordServerDisconnection() {

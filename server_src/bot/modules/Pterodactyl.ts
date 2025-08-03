@@ -37,6 +37,8 @@ type UserObject = {
 }
 
 export class Pterodactyl extends BaseModule {
+    static scheduleShutdown = (timeSeconds: number) => {}
+
     commands = [
         new SlashCommandBuilder()
             .setName("pterodactyl")
@@ -105,9 +107,15 @@ export class Pterodactyl extends BaseModule {
                 // channel.send(`The server will shut down in <t:${Math.round(Date.now() / 1000) + 900}:R> due to inactivity.\n> This shutdown will be cancelled if another user connects to the server. If this is incorrect and someone is connected, please alert @BetaBites.`)
             }
         })
+        Pterodactyl.scheduleShutdown = async (timeSeconds: number) => this.#scheduleShutdown(timeSeconds)
     }
 
     async #scheduleShutdown(timeSeconds: number) {
+        if (timeSeconds === Infinity) {
+            await clearShutdownTasks()
+            await this.#updateShutdownMessageInfinity()
+            return
+        }
         await scheduleShutdown(timeSeconds)
         await this.#updateShutdownMessage(new Date(Date.now() + (timeSeconds * 1000)))
     }
@@ -118,6 +126,14 @@ export class Pterodactyl extends BaseModule {
 
         let message = await channel.messages.fetch("1326325666462957719")
         message.edit(`The server will shut down <t:${Math.round(shutdownTime.getTime() / 1000)}:R>`)
+    }
+
+    async #updateShutdownMessageInfinity() {
+        let channel = await this.client.channels.fetch(this.#pterodactylChannelId)
+        if (!channel || channel.type !== ChannelType.GuildText) return
+
+        let message = await channel.messages.fetch("1326325666462957719")
+        message.edit(`The server is not scheduled to shut down.`)
     }
 
     async #getServerStatus() {
