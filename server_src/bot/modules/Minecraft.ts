@@ -207,13 +207,13 @@ export class Minecraft extends BaseModule {
                 const user_id = await this.getDiscordIDFromMinecraftID(player.id)
                 console.log("DISCONNECT", user_id, player.id)
                 await this.recordUserDisconnection(player.id)
-                await this.sendDiscordMessage({
-                    payload: {
-                        embeds: [new EmbedBuilder().setTitle("left the game")]
-                    },
-                    member: user_id ? await this.channel?.guild.members.fetch(user_id) : null,
-                    name: player.id
-                })
+                // await this.sendDiscordMessage({
+                //     payload: {
+                //         embeds: [new EmbedBuilder().setTitle("left the game")]
+                //     },
+                //     member: user_id ? await this.channel?.guild.members.fetch(user_id) : null,
+                //     name: player.id
+                // })
             })
             socket.on("platerAdvancementEarn", (data: { player: PlayerData, advancement: AdvancementData }) => {
                 const user_id = this.getDiscordIDFromMinecraftID(data.player.id)
