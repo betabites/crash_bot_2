@@ -277,13 +277,13 @@ export class Minecraft extends BaseModule {
         await contextSQL`
             INSERT INTO dbo.ValheimConnectionHistory (MC_ID, sessionStart, user_id)
             VALUES (${playerData.id}, ${new Date()}, ${user_id})`
-        await this.sendDiscordMessage({
-            payload: {
-                embeds: [new EmbedBuilder().setTitle("joined the party")]
-            },
-            member: user_id ? await this.channel?.guild.members.fetch(user_id) : null,
-            name: playerData.id,
-        })
+        // await this.sendDiscordMessage({
+        //     payload: {
+        //         embeds: [new EmbedBuilder().setTitle("joined the party")]
+        //     },
+        //     member: user_id ? await this.channel?.guild.members.fetch(user_id) : null,
+        //     name: playerData.id,
+        // })
         Pterodactyl.scheduleShutdown(Infinity)
         return true
     }
