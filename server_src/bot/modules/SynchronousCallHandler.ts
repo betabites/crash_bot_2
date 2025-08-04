@@ -37,9 +37,10 @@ export function Synchronous<ARGS extends any[], RESULT extends any>(
 ) {
     function replacementFunction(this: SynchronousCallHandler, ...args: ARGS) {
         originalMethod.bind(this)
+        const obj = this
 
         return new Promise<RESULT>((resolve, reject) => {
-            const call = () => originalMethod(...args).then(resolve).catch(reject)
+            const call = () => originalMethod.call(obj, ...args).then(resolve).catch(reject)
             void this._startSynchronousCall(call)
         })
     }
