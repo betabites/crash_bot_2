@@ -16,6 +16,7 @@ import {
 import {contextSQL} from "../../services/SQL";
 import {sendImpersonateMessage} from "../../services/Discord";
 import {Pterodactyl} from "./Pterodactyl";
+import {Synchronous} from "./SynchronousCallHandler";
 
 // Create a PubSub client
 const pubsub = new PubSub();
