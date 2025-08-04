@@ -23,8 +23,8 @@ const pubsub = new PubSub();
 const topicName = 'pterodactyl-connection-history-measure '
 const subscriptionName = 'crashbot-connection-history-subscription'
 
-// const SERVER_CHAT_ID = "968298113427206195"
-const SERVER_CHAT_ID = "892518396166569994"
+const SERVER_CHAT_ID = "968298113427206195"
+// const SERVER_CHAT_ID = "892518396166569994"
 const SCOREBOARD_MSG_ID = "1105257601450651719"
 // const VERIFY_KEY = ""
 
@@ -94,7 +94,7 @@ type BaseTextComponent = {
     },
     hoverEvent?: {
         action: "show_text" | "show_item" | "show_entity";
-        value: TextComponent | ItemHover | EntityHover;
+        value: TextComponent /* | ItemHover | EntityHover */ ;
     },
     font?: string,
     extra?: BaseTextComponent[],
