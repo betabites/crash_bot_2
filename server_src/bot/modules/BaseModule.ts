@@ -11,13 +11,14 @@ import {
     TextInputStyle
 } from "discord.js";
 import {client} from "../../services/Discord.js";
+import {Synchronous, SynchronousCallHandler} from "./SynchronousCallHandler";
 
 /**
  * BaseModule is an abstract class representing a base module for creating Discord bot modules.
  * @class
  * @abstract
  */
-export abstract class BaseModule {
+export abstract class BaseModule extends SynchronousCallHandler {
     readonly client: Client
     readonly commands: any[] = []
     readonly guildCommands: any[] = []
@@ -169,3 +170,4 @@ export function InteractionAutocompleteResponse(identifier: string | ((id: strin
 
     return decorator
 }
+

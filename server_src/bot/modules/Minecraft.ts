@@ -263,6 +263,7 @@ export class Minecraft extends BaseModule {
     /**
      Returns 'true' if it's a new session
      */
+    @Synchronous
     async updateUser(playerData: PlayerData, user_id: string | null = null): Promise<boolean> {
         // Detect if the user already has open history
         this.onlinePlayers.set(playerData.id, playerData)
@@ -288,6 +289,7 @@ export class Minecraft extends BaseModule {
         return true
     }
 
+    @Synchronous
     async recordUserDisconnection(minecraft_id: string) {
         this.onlinePlayers.delete(minecraft_id)
 
@@ -311,6 +313,7 @@ export class Minecraft extends BaseModule {
         Pterodactyl.scheduleShutdown(60 * 5)
     }
 
+    @Synchronous
     async recordServerDisconnection() {
         await contextSQL`
             UPDATE dbo.ValheimConnectionHistory
@@ -345,3 +348,5 @@ async function* getEntries(query?: Omit<GetEntriesRequest, "pageSize" | "pageTok
         baseQuery.pageToken = response.nextPageToken;
     }
 }
+
+function
