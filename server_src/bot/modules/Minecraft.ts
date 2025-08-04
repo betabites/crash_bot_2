@@ -348,5 +348,3 @@ async function* getEntries(query?: Omit<GetEntriesRequest, "pageSize" | "pageTok
         baseQuery.pageToken = response.nextPageToken;
     }
 }
-
-function
