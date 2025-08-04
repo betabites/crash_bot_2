@@ -19,12 +19,18 @@ export const HTTP_SERVER = (async () => {
     return http.createServer((req, res) => {
         const parsedUrl = parse(req.url!, true)
         handle(req, res, parsedUrl)
-    }).listen(port)
+    })
 })()
 
 export const IO = (async () => {
     let io = new Server(await HTTP_SERVER, {
-        pingInterval: 120000
+        cors: {
+            origin: "*",
+            methods: ["GET", "POST"],
+            credentials: true,
+        },
+        pingInterval: 25000,
+        pingTimeout: 60000
     })
     io.on("connection", (socket) => {
         console.log("Received a socket connection")
@@ -33,5 +39,8 @@ export const IO = (async () => {
 })()
 
 export async function configureNext() {
-    await HTTP_SERVER
+    const httpServer = await HTTP_SERVER
+    // Wait for Socket.IO to be ready
+    await IO
+    httpServer.listen(port)
 }
