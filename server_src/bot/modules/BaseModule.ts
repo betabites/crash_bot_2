@@ -31,6 +31,7 @@ export abstract class BaseModule extends SynchronousCallHandler {
     subscribedAutocompleteInteractions: [string | ((id: string) => boolean), (interaction: AutocompleteInteraction) => void][] = []
 
     constructor(client: Client) {
+        super()
         this.client = client
     }
 
