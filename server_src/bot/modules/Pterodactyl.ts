@@ -311,7 +311,7 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
                             embed: new EmbedBuilder()
                                 .setDescription(
                                     `\`${dateString}\` - You were online for \`${toTimeDifferenceString(sessionDuration)}\`\n` +
-                                    [...shares].map(([username, duration]) => `- \`${toTimeDifferenceString(duration)}\` - ${username} - ${Math.round((duration / totalForThisDay) * 100)}%`).join(`\n`)
+                                    [...shares].map(([username, duration]) => `- \`${toTimeDifferenceString(duration)}\` - <@${username}> - ${Math.round((duration / totalForThisDay) * 100)}%`).join(`\n`)
                                 )
                         })
                         continue;
