@@ -323,7 +323,7 @@ You can login to and manage your servers here; https://${PTERODACTYL_SERVER_ADDR
                             .setDescription(`\`${dateString}\` - You were online for \`${toTimeDifferenceString(sessionDuration)}\` - $${
                                     Math.round((todaysSpendature.cost * percentage) * 100) / 100
                                 } (%${Math.round(percentage * 100)} of $${Math.round(todaysSpendature.cost * 100) / 100})\n` +
-                                [...shares].map(([username, duration]) => `- \`${toTimeDifferenceString(duration)}\` - ${username} - ${Math.round((duration / totalForThisDay) * 100)}%`).join(`\n`))
+                                [...shares].map(([username, duration]) => `- \`${toTimeDifferenceString(duration)}\` - <@${username}> - ${Math.round((duration / totalForThisDay) * 100)}%`).join(`\n`))
 
                     })
                 } else {
