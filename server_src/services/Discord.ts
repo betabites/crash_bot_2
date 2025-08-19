@@ -2,7 +2,7 @@ import {
     BaseMessageOptions,
     Client,
     GatewayIntentBits,
-    GuildMember,
+    GuildMember, GuildTextBasedChannel,
     Message,
     MessagePayload,
     Partials,
@@ -45,7 +45,7 @@ export async function sendImpersonateMessage(
         MessagePayload |
         BaseMessageOptions |
         WebhookMessageCreateOptions,
-    name?: string,
+    name?: string | null,
     avatar?: string | JimpProfilePictureModification
 ) {
     let nameStr = name || member.nickname || member.user.username
