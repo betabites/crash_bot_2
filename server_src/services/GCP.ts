@@ -3,8 +3,8 @@ import {CloudTasksClient} from "@google-cloud/tasks";
 import {PubSub as GCPPubSub} from "@google-cloud/pubsub"
 
 const PROJECT_ID = "re-flesh"
-const ZONE = "australia-southeast2-b"
-const INSTANCE = "pterodactyl-server"
+const ZONE = "us-central1-f"
+const INSTANCE = "pterodactyl-server-us"
 const CLOUD_TASK_QUEUE = "pterodactyl-shutdown-schedule"
 const SERVICE_EMAIL = "crashbot@re-flesh.iam.gserviceaccount.com"
 
