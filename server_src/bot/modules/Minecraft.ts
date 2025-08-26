@@ -316,6 +316,9 @@ export class Minecraft extends BaseModule {
 
     @Synchronous
     async recordServerDisconnection() {
+        // Schedule server shutdown
+        Pterodactyl.scheduleShutdown(60 * 5)
+
         await contextSQL`
             UPDATE dbo.ValheimConnectionHistory
             SET sessionEnd = ${new Date()}
