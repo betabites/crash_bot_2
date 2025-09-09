@@ -44,6 +44,7 @@ import {Pterodactyl} from "./modules/Pterodactyl.js";
 import {LethalCompanyModule} from "./modules/LethalCompanyModule.js";
 import {BotemonModule} from "./botemon/BotemonModule.js";
 import {Valheim} from "./modules/Valheim.js";
+import {Minecraft} from "./modules/Minecraft";
 // import {MusicPlayerModule} from "./newVoice/modules/MusicPlayerModule.js";
 
 console.log(`Node.js version: ${process.version}`);
@@ -74,7 +75,6 @@ const moduleClasses = [
     ExperimentsModule,
     GPTModule,
     ImagesModule,
-    // MinecraftModule,
     MiscModule,
     ResourcePackManagerModule,
     // VoiceControlModule,
@@ -86,6 +86,7 @@ const moduleClasses = [
     LethalCompanyModule,
     BotemonModule,
     Valheim,
+    Minecraft,
     //MusicPlayerModule,
     ...eventSessionHandlers
 ]
