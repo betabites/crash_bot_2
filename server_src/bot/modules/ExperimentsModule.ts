@@ -55,6 +55,8 @@ export class ExperimentsModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async onMessage(msg: OmitPartialGroupDMChannel<Message>) {
+        let iAmNotTest = /i am not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
+        if (!iAmNotTest) iAmNotTest = /i'm not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         let iAmTest = /i am([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         if (!iAmTest) iAmTest = /i'm([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         if (msg.author.bot || msg.channel.isDMBased() || !msg.channel.isSendable()) return
@@ -232,6 +234,12 @@ export class ExperimentsModule extends BaseModule {
                             }
                         })
                 })
+        }
+        else if (iAmNotTest) {
+            if (!msg.member) return
+            const res = await openai.sendMessage(`opposite of '${iAmNotTest[1]}'. Only say the answer. nothing else. Be funny.`)
+            msg.member.setNickname(res.text.toLowerCase().trim().substring(0, 32))
+            msg.reply(`Hi <@${msg.member?.id}>!`)
         }
         else if (iAmTest) {
             if (!msg.member) return
