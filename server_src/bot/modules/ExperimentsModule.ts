@@ -237,7 +237,7 @@ export class ExperimentsModule extends BaseModule {
         }
         else if (iAmNotTest) {
             if (!msg.member) return
-            const res = await openai.sendMessage(`opposite of '${iAmNotTest[1]}'. Only say the answer. nothing else. Be funny.`)
+            const res = await openai.sendMessage(`opposite of '${iAmNotTest[1]}'. Only say the answer. nothing else. Be funny and short.`)
             msg.member.setNickname(res.text.toLowerCase().trim().substring(0, 32))
             msg.reply(`Hi <@${msg.member?.id}>!`)
         }
