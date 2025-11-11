@@ -52,6 +52,20 @@ export class MiscModule extends BaseModule {
             console.log(`INSULT: ${text}`)
             msg.reply(text)
         }
+        else if (msg.member?.id === "1042366532526809098" && msg.channelId === "892665474444296213") {
+            await msg.reply({
+                poll: {
+                    question: { text: "Was this video hype?" },
+                    answers: [
+                        { text: "gas", emoji: "❤️" },
+                        { text: "ass", emoji: "💔" }
+                    ],
+                    allowMultiselect: false,
+                    duration: 1,
+                    layoutType: 1
+                }
+            })
+        }
     }
 
     private randomInsult() {
