@@ -55,7 +55,7 @@ export class ExperimentsModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async onMessage(msg: OmitPartialGroupDMChannel<Message>) {
-        const iAmTest = /I am([^.\n]*)/g.exec(msg.content.toLowerCase())
+        const iAmTest = /i am([^.\n]*)/g.exec(msg.content.toLowerCase())
         if (msg.author.bot || msg.channel.isDMBased() || !msg.channel.isSendable()) return
         if (msg.content.toLowerCase().includes("how many times have i said ")) {
             getUserData(msg.member as GuildMember)
