@@ -55,6 +55,7 @@ export class ExperimentsModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async onMessage(msg: OmitPartialGroupDMChannel<Message>) {
+        const iAmTest = /I am([^.\n]*)/g.exec(msg.content.toLowerCase())
         if (msg.author.bot || msg.channel.isDMBased() || !msg.channel.isSendable()) return
         if (msg.content.toLowerCase().includes("how many times have i said ")) {
             getUserData(msg.member as GuildMember)
@@ -231,9 +232,9 @@ export class ExperimentsModule extends BaseModule {
                         })
                 })
         }
-        else if (msg.content.toLowerCase().startsWith("i am")) {
+        else if (iAmTest) {
             if (!msg.member) return
-            msg.member.setNickname(msg.content.toLowerCase().replace("i am", "").trim().substring(0, 32))
+            msg.member.setNickname(iAmTest[1].toLowerCase().trim().substring(0, 32))
             msg.reply(`Hi <@${msg.member?.id}>!`)
         }
         else if (msg.content.toLowerCase().startsWith("i alone am")) {
