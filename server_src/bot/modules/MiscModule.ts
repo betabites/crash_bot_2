@@ -52,7 +52,11 @@ export class MiscModule extends BaseModule {
             console.log(`INSULT: ${text}`)
             msg.reply(text)
         }
-        else if (msg.member?.id === "1042366532526809098" && msg.channelId === "892665474444296213") {
+        else if (
+            msg.member?.id === "1042366532526809098"
+            && msg.channelId === "892665474444296213"
+            && msg.attachments.size !== 0
+        ) {
             await msg.reply({
                 poll: {
                     question: { text: "Was this video hype?" },
