@@ -59,7 +59,7 @@ export class MiscModule extends BaseModule {
         ) {
             await msg.reply({
                 poll: {
-                    question: { text: "Was this video hype?" },
+                    question: { text: "Was this content hype?" },
                     answers: [
                         { text: "gas", emoji: "❤️" },
                         { text: "ass", emoji: "💔" }
