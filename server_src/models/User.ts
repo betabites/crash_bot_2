@@ -38,6 +38,8 @@ type UserData = {
 const MAX_CAPPED_POINTS = 120
 
 export class User {
+    static POINTS_GRANTING_ENABLED = false
+
     static calculatePointGrant(
         addPoints: number,
         recordData: {level: number, points: number, cappedPoints: number},
@@ -82,6 +84,7 @@ export class User {
     async grantPoints(addPoints: number, reason: string, capped = false) {
         let userData = await this.get()
         let {level, points} = User.calculatePointGrant(addPoints, userData, capped)
+        if (!User.POINTS_GRANTING_ENABLED) return {level, points: 0, leveled_up: false}
         let leveled_up = level !== userData.level
         await this.setLevel(level, points)
 
