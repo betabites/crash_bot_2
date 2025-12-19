@@ -96,7 +96,7 @@ dotenv.config()
 
 // New Years
 scheduleJob("0 0 0 1 1 *", () => {
-    await SafeQuery("EXEC dbo.ResetPlayerHistory;")
+    void SafeQuery("EXEC dbo.ResetPlayerHistory;")
 })
 
 let modules: BaseModule[] = []
