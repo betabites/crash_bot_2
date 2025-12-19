@@ -38,7 +38,7 @@ type UserData = {
 const MAX_CAPPED_POINTS = 120
 
 export class User {
-    static POINTS_GRANTING_ENABLED = false
+    static POINTS_GRANTING_ENABLED = true
 
     static calculatePointGrant(
         addPoints: number,

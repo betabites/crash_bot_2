@@ -452,13 +452,13 @@ export class PointsModule extends BaseModule {
 
     @InteractionChatCommandResponse("level")
     async onLevelCommand(interaction: ChatInputCommandInteraction) {
-        if (true) {
-            interaction.reply({
-                content: "Sorry, this command is temporarily disabled. Please try again later",
-                // ephemeral: true,
-                flags: ["Ephemeral"]
-            })
-        }
+        // if (true) {
+        //     interaction.reply({
+        //         content: "Sorry, this command is temporarily disabled. Please try again later",
+        //         // ephemeral: true,
+        //         flags: ["Ephemeral"]
+        //     })
+        // }
 
         let user = interaction.options.getUser("user") ?? interaction.user
         const userPointsData = await PointsModule.getPoints(user.id)

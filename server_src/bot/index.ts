@@ -46,6 +46,7 @@ import {BotemonModule} from "./botemon/BotemonModule.js";
 import {Valheim} from "./modules/Valheim.js";
 import {Minecraft} from "./modules/Minecraft";
 // import {MusicPlayerModule} from "./newVoice/modules/MusicPlayerModule.js";
+import {scheduleJob} from "node-schedule"
 
 console.log(`Node.js version: ${process.version}`);
 
@@ -92,6 +93,11 @@ const moduleClasses = [
 ]
 
 dotenv.config()
+
+// New Years
+scheduleJob("0 0 0 1 1 *", () => {
+    await SafeQuery("EXEC dbo.ResetPlayerHistory;")
+})
 
 let modules: BaseModule[] = []
 let pack_updated
