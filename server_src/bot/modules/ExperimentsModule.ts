@@ -55,10 +55,12 @@ export class ExperimentsModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async onMessage(msg: OmitPartialGroupDMChannel<Message>) {
+        /*
         let iAmNotTest = /i am not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         if (!iAmNotTest) iAmNotTest = /i'm not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         let iAmTest = /i am([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         if (!iAmTest) iAmTest = /i'm([^.\n!?]*)/g.exec(msg.content.toLowerCase())
+        */
 
         let iAloneAmTest = /i alone am([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         let iAloneAmNotTest = /i alone am not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
@@ -238,7 +240,7 @@ export class ExperimentsModule extends BaseModule {
                         })
                 })
         }
-        else if (iAmNotTest) {
+        /* else if (iAmNotTest) {
             if (!msg.member) return
             const res = await openai.sendMessage(`opposite of '${iAmNotTest[1]}'. Only say the answer. nothing else. Be funny and short.`)
             msg.member.setNickname(res.text.toLowerCase().trim().substring(0, 32))
@@ -248,7 +250,7 @@ export class ExperimentsModule extends BaseModule {
             if (!msg.member) return
             msg.member.setNickname(iAmTest[1].toLowerCase().trim().substring(0, 32))
             msg.reply(`Hi <@${msg.member?.id}>!`)
-        }
+        } */
         else if (iAloneAmNotTest) {
             if (!msg.member || !msg.guild) return
             const res = await openai.sendMessage(`opposite of '${iAloneAmNotTest[1]}'. Only say the answer. nothing else. Be funny and short.`)
