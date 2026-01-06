@@ -122,7 +122,7 @@ export abstract class BasicAIConversation extends EventEmitter {
             this.once("message_stop", (message) => resolve(message))
             let timeout = setTimeout(() => {
                 reject(new Error("Timeout"))
-            }, 10000)
+            }, 60_000)
             this.sendToAI()
                 .catch((e) => reject(e))
                 .finally(() => clearTimeout(timeout))

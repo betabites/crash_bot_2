@@ -13,8 +13,8 @@ export class MiscModule extends BaseModule {
             .setName("vanish")
             .setDescription("Magically vanish for a few minutes, then return!"),
         new SlashCommandBuilder()
-            .setName("sussybaka")
-            .setDescription("Magically vanish for a few minutes, then return!")
+            .setName("imposter")
+            .setDescription("Randomly pick a member of a given role to be the 'imposter'.")
             .addRoleOption(
                 new SlashCommandRoleOption()
                     .setName("role")
@@ -23,7 +23,7 @@ export class MiscModule extends BaseModule {
             )
             .addStringOption(
                 new SlashCommandStringOption()
-                    .setName("sussy_baka_message")
+                    .setName("imposter_message")
                     .setDescription("The message that will be sent to the selected random person")
                     .setRequired(true)
             )
@@ -52,6 +52,25 @@ export class MiscModule extends BaseModule {
             console.log(`INSULT: ${text}`)
             msg.reply(text)
         }
+        else if (
+            false
+            && msg.member?.id === "1042366532526809098"
+            && msg.channelId === "892665474444296213"
+            && msg.attachments.size !== 0
+        ) {
+            await msg.reply({
+                poll: {
+                    question: { text: "Was this content hype?" },
+                    answers: [
+                        { text: "gas", emoji: "❤️" },
+                        { text: "ass", emoji: "💔" }
+                    ],
+                    allowMultiselect: false,
+                    duration: 1,
+                    layoutType: 1
+                }
+            })
+        }
     }
 
     private randomInsult() {
@@ -71,15 +90,15 @@ export class MiscModule extends BaseModule {
             })
     }
 
-    @InteractionChatCommandResponse("sussybaka")
+    @InteractionChatCommandResponse("imposter")
     async onSussyBaka(interaction: ChatInputCommandInteraction) {
-        console.log("Finding a sussy baka...")
+        console.log("Finding the imposter among us...")
         let role = interaction.options.getRole("role")
-        let sussy_baka_msg = interaction.options.getString("sussy_baka_message")
+        let sussy_baka_msg = interaction.options.getString("imposter_message")
         let regular_msg = interaction.options.getString("regular_message")
 
         if (!interaction.guild || !role || !sussy_baka_msg || !regular_msg) {
-            interaction.reply("Could not find a sussy baka, as a required piece of information (such as message conent, and/or discord server) was missing.")
+            interaction.reply("Could not find an imposter, as a required piece of information (such as message conent, and/or discord server) was missing.")
             return
         }
 
@@ -90,7 +109,7 @@ export class MiscModule extends BaseModule {
         }
         let selected_member = full_role.members.random()
         if (!selected_member) {
-            interaction.reply("Could not select a sussy baka. Make sure that the role you entered has users assigned to it.")
+            interaction.reply("Could not select an imposter. Make sure that the role you entered has users assigned to it.")
             return
         }
         let other_members = full_role.members.filter(i => i !== selected_member)
@@ -98,6 +117,6 @@ export class MiscModule extends BaseModule {
         selected_member.send(sussy_baka_msg)
         for (let member of other_members) member[1].send(regular_msg)
 
-        interaction.reply("A sussy baka has been deployed!")
+        interaction.reply("An imposted has been deployed!")
     }
 }

@@ -55,6 +55,15 @@ export class ExperimentsModule extends BaseModule {
 
     @OnClientEvent("messageCreate")
     async onMessage(msg: OmitPartialGroupDMChannel<Message>) {
+        /*
+        let iAmNotTest = /i am not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
+        if (!iAmNotTest) iAmNotTest = /i'm not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
+        let iAmTest = /i am([^.\n!?]*)/g.exec(msg.content.toLowerCase())
+        if (!iAmTest) iAmTest = /i'm([^.\n!?]*)/g.exec(msg.content.toLowerCase())
+        */
+
+        let iAloneAmTest = /i alone am([^.\n!?]*)/g.exec(msg.content.toLowerCase())
+        let iAloneAmNotTest = /i alone am not([^.\n!?]*)/g.exec(msg.content.toLowerCase())
         if (msg.author.bot || msg.channel.isDMBased() || !msg.channel.isSendable()) return
         if (msg.content.toLowerCase().includes("how many times have i said ")) {
             getUserData(msg.member as GuildMember)
@@ -231,15 +240,29 @@ export class ExperimentsModule extends BaseModule {
                         })
                 })
         }
-        else if (msg.content.toLowerCase().startsWith("i am")) {
+        /* else if (iAmNotTest) {
             if (!msg.member) return
-            msg.member.setNickname(msg.content.toLowerCase().replace("i am", "").trim().substring(0, 32))
+            const res = await openai.sendMessage(`opposite of '${iAmNotTest[1]}'. Only say the answer. nothing else. Be funny and short.`)
+            msg.member.setNickname(res.text.toLowerCase().trim().substring(0, 32))
             msg.reply(`Hi <@${msg.member?.id}>!`)
         }
-        else if (msg.content.toLowerCase().startsWith("i alone am")) {
+        else if (iAmTest) {
+            if (!msg.member) return
+            msg.member.setNickname(iAmTest[1].toLowerCase().trim().substring(0, 32))
+            msg.reply(`Hi <@${msg.member?.id}>!`)
+        } */
+        else if (iAloneAmNotTest) {
+            if (!msg.member || !msg.guild) return
+            const res = await openai.sendMessage(`opposite of '${iAloneAmNotTest[1]}'. Only say the answer. nothing else. Be funny and short.`)
+            msg.guild.members.fetch(this.client.user?.id ?? "").then(me =>
+                me.setNickname(res.text.trim().substring(0, 32))
+            )
+            msg.reply(`not fax`)
+        }
+        else if (iAloneAmTest) {
             if (!msg.member || !msg.guild) return
             msg.guild.members.fetch(this.client.user?.id ?? "").then(me =>
-                me.setNickname(msg.content.toLowerCase().replace("i alone am", "").trim().substring(0, 32))
+                me.setNickname(iAloneAmTest[1].trim().substring(0, 32))
             )
             msg.reply("fax")
         }
